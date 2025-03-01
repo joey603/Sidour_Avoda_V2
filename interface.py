@@ -37,6 +37,12 @@ class InterfacePlanning:
             for shift in Horaire.SHIFTS.values()}
             for jour in Horaire.JOURS}
         
+        # Création des disponibilités pour les gardes de 12h
+        self.disponibilites_12h = {jour: {
+            "matin_12h": tk.BooleanVar(),  # 06-18
+            "nuit_12h": tk.BooleanVar()    # 18-06
+        } for jour in Horaire.JOURS}
+        
         # Créer l'interface
         self.creer_interface()
         
@@ -66,44 +72,7 @@ class InterfacePlanning:
         titre_label.pack(pady=(0, 20))
         
         # Frame pour l'ajout de travailleur
-        frame_ajout = ttk.LabelFrame(left_frame, text="Ajouter/Modifier un travailleur", padding=10)
-        frame_ajout.pack(padx=10, pady=5, fill="x")
-
-        # Nom du travailleur
-        ttk.Label(frame_ajout, text="Nom:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        ttk.Entry(frame_ajout, textvariable=self.nom_var, width=25).grid(row=0, column=1, padx=5, pady=5)
-
-        # Nombre de shifts souhaités
-        ttk.Label(frame_ajout, text="Nombre de shifts souhaités:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        ttk.Entry(frame_ajout, textvariable=self.nb_shifts_var, width=25).grid(row=1, column=1, padx=5, pady=5)
-
-        # Tableau des disponibilités
-        frame_dispo = ttk.LabelFrame(left_frame, text="Disponibilités", padding=10)
-        frame_dispo.pack(padx=10, pady=10, fill="both", expand=True)
-
-        # En-têtes des colonnes
-        ttk.Label(frame_dispo, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5)
-        for i, shift in enumerate(Horaire.SHIFTS.values()):
-            ttk.Label(frame_dispo, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=5)
-
-        # Cases à cocher pour chaque jour et shift
-        for i, jour in enumerate(Horaire.JOURS):
-            ttk.Label(frame_dispo, text=jour.capitalize()).grid(row=i+1, column=0, padx=5, pady=5, sticky="w")
-            for j, shift in enumerate(Horaire.SHIFTS.values()):
-                ttk.Checkbutton(frame_dispo, variable=self.disponibilites[jour][shift]
-                    ).grid(row=i+1, column=j+1, padx=5, pady=5)
-
-        # Boutons d'action pour le formulaire
-        frame_boutons = ttk.Frame(left_frame)
-        frame_boutons.pack(pady=10)
-        
-        self.btn_ajouter = ttk.Button(frame_boutons, text="Ajouter Travailleur", 
-                  command=self.ajouter_travailleur, width=20)
-        self.btn_ajouter.pack(side=tk.LEFT, padx=5)
-        
-        self.btn_annuler = ttk.Button(frame_boutons, text="Annuler", 
-                  command=self.annuler_edition, width=20, state=tk.DISABLED)
-        self.btn_annuler.pack(side=tk.LEFT, padx=5)
+        self.creer_formulaire_travailleur(left_frame)
         
         # Liste des travailleurs
         frame_liste = ttk.LabelFrame(left_frame, text="Travailleurs enregistrés", padding=10)
@@ -165,6 +134,60 @@ class InterfacePlanning:
         
         # Initialisation du canvas vide
         self.creer_planning_visuel()
+
+    def creer_formulaire_travailleur(self, frame):
+        # Frame pour le formulaire d'ajout de travailleur
+        form_frame = ttk.LabelFrame(frame, text="Ajouter un travailleur", padding=10)
+        form_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Nom et nombre de shifts
+        info_frame = ttk.Frame(form_frame)
+        info_frame.pack(fill="x", pady=5)
+        
+        ttk.Label(info_frame, text="Nom:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        ttk.Entry(info_frame, textvariable=self.nom_var, width=20).grid(row=0, column=1, padx=5, pady=5)
+        
+        ttk.Label(info_frame, text="Nombre de shifts souhaités:").grid(row=0, column=2, sticky="w", padx=5, pady=5)
+        ttk.Entry(info_frame, textvariable=self.nb_shifts_var, width=5).grid(row=0, column=3, padx=5, pady=5)
+        
+        # Disponibilités
+        dispo_frame = ttk.LabelFrame(form_frame, text="Disponibilités", padding=10)
+        dispo_frame.pack(fill="x", pady=5)
+        
+        # En-têtes des colonnes
+        ttk.Label(dispo_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5)
+        col = 1
+        for shift in Horaire.SHIFTS.values():
+            ttk.Label(dispo_frame, text=shift, font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
+            col += 1
+        
+        # Ajouter les colonnes pour les gardes de 12h
+        ttk.Label(dispo_frame, text="Matin 12h\n(06-18)", font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
+        col += 1
+        ttk.Label(dispo_frame, text="Nuit 12h\n(18-06)", font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
+        
+        # Lignes pour chaque jour
+        for i, jour in enumerate(Horaire.JOURS, 1):
+            ttk.Label(dispo_frame, text=jour).grid(row=i, column=0, padx=5, pady=2, sticky="w")
+            col = 1
+            for shift in Horaire.SHIFTS.values():
+                ttk.Checkbutton(dispo_frame, variable=self.disponibilites[jour][shift]).grid(row=i, column=col, padx=5, pady=2)
+                col += 1
+            
+            # Ajouter les cases à cocher pour les gardes de 12h
+            ttk.Checkbutton(dispo_frame, variable=self.disponibilites_12h[jour]["matin_12h"]).grid(row=i, column=col, padx=5, pady=2)
+            col += 1
+            ttk.Checkbutton(dispo_frame, variable=self.disponibilites_12h[jour]["nuit_12h"]).grid(row=i, column=col, padx=5, pady=2)
+        
+        # Boutons
+        btn_frame = ttk.Frame(form_frame)
+        btn_frame.pack(fill="x", pady=10)
+        
+        self.btn_ajouter = ttk.Button(btn_frame, text="Ajouter Travailleur", command=self.ajouter_travailleur)
+        self.btn_ajouter.pack(side=tk.LEFT, padx=5)
+        
+        self.btn_annuler = ttk.Button(btn_frame, text="Annuler", command=self.annuler_edition, state=tk.DISABLED)
+        self.btn_annuler.pack(side=tk.LEFT, padx=5)
 
     def creer_planning_visuel(self):
         """Crée une représentation visuelle du planning"""
@@ -249,15 +272,27 @@ class InterfacePlanning:
         
         # Récupérer les disponibilités
         disponibilites = {}
+        disponibilites_12h = {}
+        
         for jour in Horaire.JOURS:
             shifts_dispo = []
             for shift in Horaire.SHIFTS.values():
                 if self.disponibilites[jour][shift].get():
                     shifts_dispo.append(shift)
+            
+            shifts_12h = []
+            if self.disponibilites_12h[jour]["matin_12h"].get():
+                shifts_12h.append("matin_12h")
+            if self.disponibilites_12h[jour]["nuit_12h"].get():
+                shifts_12h.append("nuit_12h")
+            
             if shifts_dispo:  # Ajouter seulement si au moins un shift est disponible
                 disponibilites[jour] = shifts_dispo
+            
+            if shifts_12h:  # Ajouter seulement si au moins une garde de 12h est disponible
+                disponibilites_12h[jour] = shifts_12h
         
-        if not disponibilites:
+        if not disponibilites and not disponibilites_12h:
             messagebox.showerror("Erreur", "Veuillez sélectionner au moins une disponibilité")
             return
         
@@ -270,6 +305,7 @@ class InterfacePlanning:
             self.planning.travailleurs[index].nom = nom
             self.planning.travailleurs[index].nb_shifts_souhaites = nb_shifts
             self.planning.travailleurs[index].disponibilites = disponibilites
+            self.planning.travailleurs[index].disponibilites_12h = disponibilites_12h
             
             messagebox.showinfo("Succès", f"Travailleur {nom} modifié avec succès")
             
@@ -285,6 +321,7 @@ class InterfacePlanning:
         else:
             # Création d'un nouveau travailleur
             travailleur = Travailleur(nom, disponibilites, nb_shifts)
+            travailleur.disponibilites_12h = disponibilites_12h
             self.planning.ajouter_travailleur(travailleur)
             
             # Sauvegarder dans la base de données
@@ -305,6 +342,8 @@ class InterfacePlanning:
         for jour in Horaire.JOURS:
             for shift in Horaire.SHIFTS.values():
                 self.disponibilites[jour][shift].set(False)
+            self.disponibilites_12h[jour]["matin_12h"].set(False)
+            self.disponibilites_12h[jour]["nuit_12h"].set(False)
 
     def mettre_a_jour_liste_travailleurs(self):
         # Vider la liste
@@ -336,11 +375,19 @@ class InterfacePlanning:
             for jour in Horaire.JOURS:
                 for shift in Horaire.SHIFTS.values():
                     self.disponibilites[jour][shift].set(False)
+                self.disponibilites_12h[jour]["matin_12h"].set(False)
+                self.disponibilites_12h[jour]["nuit_12h"].set(False)
             
             # Cocher les cases correspondant aux disponibilités
             for jour, shifts in travailleur.disponibilites.items():
                 for shift in shifts:
                     self.disponibilites[jour][shift].set(True)
+            
+            # Cocher les cases correspondant aux disponibilités de 12h
+            if hasattr(travailleur, 'disponibilites_12h'):
+                for jour, shifts_12h in travailleur.disponibilites_12h.items():
+                    for shift_12h in shifts_12h:
+                        self.disponibilites_12h[jour][shift_12h].set(True)
             
             # Mettre à jour les boutons
             self.btn_ajouter.config(text="Modifier Travailleur")
@@ -425,13 +472,72 @@ class InterfacePlanning:
         messagebox.showinfo("Succès", "Planning généré avec succès")
 
     def generer_planning_12h(self):
+        """Génère des gardes de 12h en fonction des disponibilités des travailleurs"""
         if not self.planning.travailleurs:
             messagebox.showerror("Erreur", "Veuillez ajouter au moins un travailleur")
             return
+        
+        # Identifier les jours où des gardes de 12h peuvent être créées
+        jours_avec_12h = set()
+        for travailleur in self.planning.travailleurs:
+            if hasattr(travailleur, 'disponibilites_12h'):
+                for jour in travailleur.disponibilites_12h:
+                    jours_avec_12h.add(jour)
+        
+        if not jours_avec_12h:
+            messagebox.showinfo("Information", "Aucun travailleur n'a de disponibilités pour les gardes de 12h")
+            return
+        
+        # Pour chaque jour, essayer de créer des gardes de 12h
+        gardes_12h_creees = 0
+        
+        for jour in jours_avec_12h:
+            # Chercher un travailleur pour la garde de matin 12h (06-18)
+            travailleur_matin = None
+            for travailleur in self.planning.travailleurs:
+                if (hasattr(travailleur, 'disponibilites_12h') and 
+                    jour in travailleur.disponibilites_12h and 
+                    'matin_12h' in travailleur.disponibilites_12h[jour]):
+                    travailleur_matin = travailleur
+                    break
             
-        self.planning.generer_planning(mode_12h=True)
+            # Chercher un travailleur pour la garde de nuit 12h (18-06)
+            travailleur_nuit = None
+            for travailleur in self.planning.travailleurs:
+                if (hasattr(travailleur, 'disponibilites_12h') and 
+                    jour in travailleur.disponibilites_12h and 
+                    'nuit_12h' in travailleur.disponibilites_12h[jour]):
+                    travailleur_nuit = travailleur
+                    break
+            
+            # Si on a trouvé un travailleur pour le matin, lui assigner le shift 06-14
+            if travailleur_matin:
+                self.planning.planning[jour]["06-14"] = travailleur_matin.nom
+            
+            # Si on a trouvé un travailleur pour la nuit, lui assigner le shift 22-06
+            if travailleur_nuit:
+                self.planning.planning[jour]["22-06"] = travailleur_nuit.nom
+            
+            # Si on a les deux travailleurs, partager le shift 14-22
+            if travailleur_matin and travailleur_nuit:
+                self.planning.planning[jour]["14-22"] = f"{travailleur_matin.nom} / {travailleur_nuit.nom}"
+                gardes_12h_creees += 2  # Deux gardes de 12h créées (matin et nuit)
+            # Si on a seulement le travailleur du matin
+            elif travailleur_matin:
+                self.planning.planning[jour]["14-22"] = travailleur_matin.nom
+                gardes_12h_creees += 1  # Une garde de 12h créée (matin)
+            # Si on a seulement le travailleur de nuit
+            elif travailleur_nuit:
+                self.planning.planning[jour]["14-22"] = travailleur_nuit.nom
+                gardes_12h_creees += 1  # Une garde de 12h créée (nuit)
+        
+        # Mettre à jour l'affichage
         self.creer_planning_visuel()
-        messagebox.showinfo("Succès", "Planning avec gardes de 12h généré avec succès")
+        
+        if gardes_12h_creees > 0:
+            messagebox.showinfo("Succès", f"{gardes_12h_creees} garde(s) de 12h créée(s) avec succès")
+        else:
+            messagebox.showinfo("Information", "Aucune garde de 12h n'a pu être créée. Vérifiez les disponibilités des travailleurs pour les gardes de 12h.")
 
     def combler_trous(self):
         """Comble les trous dans le planning en respectant les contraintes de repos

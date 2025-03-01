@@ -23,10 +23,6 @@ class Database:
     
     def init_database(self):
         """Initialise la structure de la base de données si elle n'existe pas"""
-        # Vérifier si le fichier de base de données existe déjà
-        db_exists = os.path.exists(self.db_file)
-        
-        # Créer les tables si nécessaire
         conn = self.connect()
         cursor = conn.cursor()
         
@@ -34,7 +30,7 @@ class Database:
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS travailleurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT NOT NULL,
+            nom TEXT UNIQUE NOT NULL,
             nb_shifts_souhaites INTEGER NOT NULL
         )
         ''')
@@ -50,12 +46,23 @@ class Database:
         )
         ''')
         
+        # Table des disponibilités pour les gardes de 12h
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS disponibilites_12h (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            travailleur_id INTEGER NOT NULL,
+            jour TEXT NOT NULL,
+            type_12h TEXT NOT NULL,
+            FOREIGN KEY (travailleur_id) REFERENCES travailleurs (id) ON DELETE CASCADE
+        )
+        ''')
+        
         # Table des plannings
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS plannings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date_creation TEXT NOT NULL,
-            nom TEXT
+            nom TEXT NOT NULL,
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         ''')
         
@@ -94,6 +101,7 @@ class Database:
             
             # Supprimer les anciennes disponibilités
             cursor.execute("DELETE FROM disponibilites WHERE travailleur_id = ?", (travailleur_id,))
+            cursor.execute("DELETE FROM disponibilites_12h WHERE travailleur_id = ?", (travailleur_id,))
         else:
             # Créer un nouveau travailleur
             cursor.execute(
@@ -109,6 +117,15 @@ class Database:
                     "INSERT INTO disponibilites (travailleur_id, jour, shift) VALUES (?, ?, ?)",
                     (travailleur_id, jour, shift)
                 )
+        
+        # Ajouter les disponibilités pour les gardes de 12h
+        if hasattr(travailleur, 'disponibilites_12h'):
+            for jour, types_12h in travailleur.disponibilites_12h.items():
+                for type_12h in types_12h:
+                    cursor.execute(
+                        "INSERT INTO disponibilites_12h (travailleur_id, jour, type_12h) VALUES (?, ?, ?)",
+                        (travailleur_id, jour, type_12h)
+                    )
         
         conn.commit()
         self.close()
@@ -140,8 +157,25 @@ class Database:
                     disponibilites[jour] = []
                 disponibilites[jour].append(shift)
             
+            # Récupérer les disponibilités pour les gardes de 12h
+            cursor.execute(
+                "SELECT jour, type_12h FROM disponibilites_12h WHERE travailleur_id = ?",
+                (t_data['id'],)
+            )
+            disponibilites_12h_data = cursor.fetchall()
+            
+            # Construire le dictionnaire de disponibilités pour les gardes de 12h
+            disponibilites_12h = {}
+            for d_data in disponibilites_12h_data:
+                jour = d_data['jour']
+                type_12h = d_data['type_12h']
+                if jour not in disponibilites_12h:
+                    disponibilites_12h[jour] = []
+                disponibilites_12h[jour].append(type_12h)
+            
             # Créer l'objet Travailleur
             travailleur = Travailleur(t_data['nom'], disponibilites, t_data['nb_shifts_souhaites'])
+            travailleur.disponibilites_12h = disponibilites_12h
             travailleurs.append(travailleur)
         
         self.close()
@@ -158,6 +192,7 @@ class Database:
         if result:
             travailleur_id = result['id']
             cursor.execute("DELETE FROM disponibilites WHERE travailleur_id = ?", (travailleur_id,))
+            cursor.execute("DELETE FROM disponibilites_12h WHERE travailleur_id = ?", (travailleur_id,))
             cursor.execute("DELETE FROM travailleurs WHERE id = ?", (travailleur_id,))
             conn.commit()
             self.close()
