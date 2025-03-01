@@ -78,18 +78,32 @@ class InterfacePlanning:
         frame_liste = ttk.LabelFrame(left_frame, text="Travailleurs enregistrés", padding=10)
         frame_liste.pack(padx=10, pady=10, fill="both", expand=True)
         
-        # Scrollbar pour la liste
-        scrollbar = ttk.Scrollbar(frame_liste)
+        # Création d'un Treeview pour afficher les travailleurs sous forme de tableau
+        columns = ("nom", "shifts")
+        self.table_travailleurs = ttk.Treeview(frame_liste, columns=columns, show="headings", height=8)
+        self.table_travailleurs.heading("nom", text="Nom")
+        self.table_travailleurs.heading("shifts", text="Shifts souhaités")
+        
+        self.table_travailleurs.column("nom", width=150)
+        self.table_travailleurs.column("shifts", width=100)
+        
+        # Scrollbar pour la table
+        scrollbar = ttk.Scrollbar(frame_liste, orient="vertical", command=self.table_travailleurs.yview)
+        self.table_travailleurs.configure(yscrollcommand=scrollbar.set)
+        
+        # Placement de la table et de la scrollbar
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.table_travailleurs.pack(side=tk.LEFT, fill="both", expand=True)
         
-        # Liste des travailleurs
-        self.liste_travailleurs = tk.Listbox(frame_liste, yscrollcommand=scrollbar.set, 
-                                           font=self.normal_font, height=6)
-        self.liste_travailleurs.pack(fill="both", expand=True)
-        scrollbar.config(command=self.liste_travailleurs.yview)
+        # Lier la sélection dans la table à l'édition
+        self.table_travailleurs.bind('<<TreeviewSelect>>', self.selectionner_travailleur)
         
-        # Lier la sélection dans la liste à l'édition
-        self.liste_travailleurs.bind('<<ListboxSelect>>', self.selectionner_travailleur)
+        # Boutons pour gérer les travailleurs
+        btn_frame = ttk.Frame(frame_liste)
+        btn_frame.pack(fill="x", pady=(10, 0))
+        
+        btn_supprimer = ttk.Button(btn_frame, text="Supprimer", command=self.supprimer_travailleur)
+        btn_supprimer.pack(side=tk.RIGHT, padx=5)
         
         # Frame pour les boutons de génération
         frame_generation = ttk.Frame(left_frame)
@@ -378,52 +392,57 @@ class InterfacePlanning:
             self.disponibilites_12h[jour]["nuit_12h"].set(False)
 
     def mettre_a_jour_liste_travailleurs(self):
-        # Vider la liste
-        self.liste_travailleurs.delete(0, tk.END)
+        # Vider la table
+        for item in self.table_travailleurs.get_children():
+            self.table_travailleurs.delete(item)
         
         # Remplir avec les travailleurs actuels
         for travailleur in self.planning.travailleurs:
-            self.liste_travailleurs.insert(tk.END, travailleur.nom)
+            self.table_travailleurs.insert("", tk.END, values=(travailleur.nom, travailleur.nb_shifts_souhaites))
 
     def selectionner_travailleur(self, event):
-        # Récupérer l'index sélectionné
-        selection = self.liste_travailleurs.curselection()
+        # Récupérer l'item sélectionné
+        selection = self.table_travailleurs.selection()
         if not selection:
             return
         
-        index = selection[0]
-        if index < len(self.planning.travailleurs):
-            travailleur = self.planning.travailleurs[index]
-            
-            # Passer en mode édition
-            self.mode_edition = True
-            self.travailleur_en_edition = travailleur
-            
-            # Remplir le formulaire avec les données du travailleur
-            self.nom_var.set(travailleur.nom)
-            self.nb_shifts_var.set(str(travailleur.nb_shifts_souhaites))
-            
-            # Réinitialiser toutes les cases à cocher
-            for jour in Horaire.JOURS:
-                for shift in Horaire.SHIFTS.values():
-                    self.disponibilites[jour][shift].set(False)
-                self.disponibilites_12h[jour]["matin_12h"].set(False)
-                self.disponibilites_12h[jour]["nuit_12h"].set(False)
-            
-            # Cocher les cases correspondant aux disponibilités
-            for jour, shifts in travailleur.disponibilites.items():
-                for shift in shifts:
-                    self.disponibilites[jour][shift].set(True)
-            
-            # Cocher les cases correspondant aux disponibilités de 12h
-            if hasattr(travailleur, 'disponibilites_12h'):
-                for jour, shifts_12h in travailleur.disponibilites_12h.items():
-                    for shift_12h in shifts_12h:
-                        self.disponibilites_12h[jour][shift_12h].set(True)
-            
-            # Mettre à jour les boutons
-            self.btn_ajouter.config(text="Modifier Travailleur")
-            self.btn_annuler.config(state=tk.NORMAL)
+        # Récupérer l'index du travailleur sélectionné
+        item = selection[0]
+        nom_travailleur = self.table_travailleurs.item(item, "values")[0]
+        
+        # Trouver le travailleur correspondant
+        for index, travailleur in enumerate(self.planning.travailleurs):
+            if travailleur.nom == nom_travailleur:
+                # Passer en mode édition
+                self.mode_edition = True
+                self.travailleur_en_edition = travailleur
+                
+                # Remplir le formulaire avec les données du travailleur
+                self.nom_var.set(travailleur.nom)
+                self.nb_shifts_var.set(str(travailleur.nb_shifts_souhaites))
+                
+                # Réinitialiser toutes les cases à cocher
+                for jour in Horaire.JOURS:
+                    for shift in Horaire.SHIFTS.values():
+                        self.disponibilites[jour][shift].set(False)
+                    self.disponibilites_12h[jour]["matin_12h"].set(False)
+                    self.disponibilites_12h[jour]["nuit_12h"].set(False)
+                
+                # Cocher les cases correspondant aux disponibilités
+                for jour, shifts in travailleur.disponibilites.items():
+                    for shift in shifts:
+                        self.disponibilites[jour][shift].set(True)
+                
+                # Cocher les cases correspondant aux disponibilités de 12h
+                if hasattr(travailleur, 'disponibilites_12h'):
+                    for jour, shifts_12h in travailleur.disponibilites_12h.items():
+                        for shift_12h in shifts_12h:
+                            self.disponibilites_12h[jour][shift_12h].set(True)
+                
+                # Mettre à jour les boutons
+                self.btn_ajouter.config(text="Modifier Travailleur")
+                self.btn_annuler.config(state=tk.NORMAL)
+                break
 
     def annuler_edition(self):
         self.mode_edition = False
@@ -718,6 +737,41 @@ class InterfacePlanning:
         
         # Attendre que la fenêtre soit fermée
         self.root.wait_window(dialog)
+
+    def supprimer_travailleur(self):
+        # Récupérer l'item sélectionné
+        selection = self.table_travailleurs.selection()
+        if not selection:
+            messagebox.showinfo("Information", "Veuillez sélectionner un travailleur à supprimer")
+            return
+        
+        # Récupérer le nom du travailleur sélectionné
+        item = selection[0]
+        nom_travailleur = self.table_travailleurs.item(item, "values")[0]
+        
+        # Demander confirmation
+        confirmation = messagebox.askyesno("Confirmation", f"Êtes-vous sûr de vouloir supprimer {nom_travailleur} ?")
+        if not confirmation:
+            return
+        
+        # Trouver et supprimer le travailleur
+        for index, travailleur in enumerate(self.planning.travailleurs):
+            if travailleur.nom == nom_travailleur:
+                # Supprimer de la liste des travailleurs
+                self.planning.travailleurs.pop(index)
+                
+                # Supprimer de la base de données
+                db = Database()
+                db.supprimer_travailleur(travailleur.nom)
+                
+                # Si le travailleur était en édition, annuler l'édition
+                if self.mode_edition and self.travailleur_en_edition and self.travailleur_en_edition.nom == nom_travailleur:
+                    self.annuler_edition()
+                
+                # Mettre à jour l'affichage
+                self.mettre_a_jour_liste_travailleurs()
+                messagebox.showinfo("Succès", f"Travailleur {nom_travailleur} supprimé avec succès")
+                break
 
     def run(self):
         self.root.mainloop() 
