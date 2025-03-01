@@ -8,7 +8,8 @@ from planning import Planning
 from database import Database
 
 class InterfacePlanning:
-    def __init__(self):
+    def __init__(self, repos_minimum_entre_gardes=8):
+        self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
         self.root = tk.Tk()
         self.root.title("Gestionnaire de Planning")
         self.root.geometry("1200x700")
@@ -352,6 +353,37 @@ class InterfacePlanning:
         self.btn_annuler.config(state=tk.DISABLED)
         self.reinitialiser_formulaire()
 
+    def verifier_repos_entre_gardes(self, planning, travailleur):
+        """Vérifie qu'il y a suffisamment de repos entre les gardes d'un travailleur"""
+        gardes_travailleur = []
+        
+        # Collecter toutes les gardes du travailleur
+        for i, jour in enumerate(Horaire.JOURS):
+            for j, shift in enumerate(Horaire.SHIFTS.values()):
+                if planning[jour][shift] == travailleur.nom:
+                    # Convertir le shift en heure approximative pour les calculs
+                    heure = j * 8  # Chaque shift dure 8 heures
+                    gardes_travailleur.append((i, heure))
+        
+        # Trier les gardes par jour et heure
+        gardes_travailleur.sort()
+        
+        # Vérifier les intervalles entre les gardes
+        for i in range(len(gardes_travailleur) - 1):
+            jour1, heure1 = gardes_travailleur[i]
+            jour2, heure2 = gardes_travailleur[i + 1]
+            
+            # Si même jour, vérifier directement la différence d'heures
+            if jour1 == jour2:
+                if heure2 - heure1 < self.repos_minimum_entre_gardes:
+                    return False
+            else:
+                # Si jours différents, calculer l'intervalle total en heures
+                intervalle = (jour2 - jour1) * 24 + (heure2 - heure1)
+                if intervalle < self.repos_minimum_entre_gardes:
+                    return False
+        return True
+
     def generer_planning(self):
         if not self.planning.travailleurs:
             messagebox.showerror("Erreur", "Veuillez ajouter au moins un travailleur")
@@ -371,12 +403,30 @@ class InterfacePlanning:
         messagebox.showinfo("Succès", "Planning avec gardes de 12h généré avec succès")
 
     def combler_trous(self):
-        if not self.planning.travailleurs:
-            messagebox.showerror("Erreur", "Veuillez ajouter au moins un travailleur")
-            return
+        """Comble les trous dans le planning en respectant les contraintes de repos"""
+        for jour in Horaire.JOURS:
+            for shift in Horaire.SHIFTS.values():
+                if self.planning.planning[jour][shift] is None:
+                    travailleurs_disponibles = []
+                    
+                    # Vérifier chaque travailleur
+                    for travailleur in self.planning.travailleurs:
+                        # Créer une copie temporaire du planning pour tester
+                        planning_test = {j: {s: self.planning.planning[j][s] 
+                                           for s in Horaire.SHIFTS.values()}
+                                       for j in Horaire.JOURS}
+                        
+                        planning_test[jour][shift] = travailleur.nom
+                        
+                        # Vérifier si cette affectation respecte les contraintes de repos
+                        if self.verifier_repos_entre_gardes(planning_test, travailleur):
+                            travailleurs_disponibles.append(travailleur)
+                    
+                    if travailleurs_disponibles:
+                        # Choisir un travailleur aléatoire parmi les disponibles
+                        travailleur_choisi = random.choice(travailleurs_disponibles)
+                        self.planning.planning[jour][shift] = travailleur_choisi.nom
         
-        # Appeler la méthode pour combler les trous
-        self.planning.combler_trous()
         self.creer_planning_visuel()
         messagebox.showinfo("Succès", "Trous comblés avec succès")
 
