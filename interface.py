@@ -774,19 +774,29 @@ class InterfacePlanning:
         # Essayer plusieurs générations et garder la meilleure
         meilleur_planning = self.evaluer_planning(self.planning.planning)
         meilleure_evaluation = self.compter_trous(self.planning.planning)
+        meilleure_repartition_nuit = self.evaluer_repartition_nuit(self.planning.planning)
+        meilleure_proximite = self.evaluer_proximite_gardes(self.planning.planning)
         
-        # Essayer 5 générations supplémentaires pour trouver un meilleur planning
-        for _ in range(5):
+        # Essayer 15 générations supplémentaires pour trouver un meilleur planning
+        for _ in range(15):
             planning_test = Planning()
             planning_test.travailleurs = self.planning.travailleurs.copy()
             planning_test.generer_planning(mode_12h=False)
             
             evaluation = self.compter_trous(planning_test.planning)
+            repartition_nuit = self.evaluer_repartition_nuit(planning_test.planning)
+            proximite = self.evaluer_proximite_gardes(planning_test.planning)
             
-            # Si ce planning a moins de trous, le conserver
-            if evaluation < meilleure_evaluation:
+            # Priorité 1: moins de trous
+            # Priorité 2: meilleure répartition des nuits
+            # Priorité 3: moins de gardes rapprochées
+            if (evaluation < meilleure_evaluation or 
+                (evaluation == meilleure_evaluation and repartition_nuit < meilleure_repartition_nuit) or
+                (evaluation == meilleure_evaluation and repartition_nuit == meilleure_repartition_nuit and proximite < meilleure_proximite)):
                 meilleur_planning = {j: {s: planning_test.planning[j][s] for s in Horaire.SHIFTS.values()} for j in Horaire.JOURS}
                 meilleure_evaluation = evaluation
+                meilleure_repartition_nuit = repartition_nuit
+                meilleure_proximite = proximite
         
         # Utiliser le meilleur planning trouvé
         self.planning.planning = meilleur_planning
@@ -806,7 +816,92 @@ class InterfacePlanning:
     def evaluer_planning(self, planning):
         """Évalue la qualité d'un planning en fonction de plusieurs critères"""
         # Copier le planning pour ne pas le modifier
-        return {j: {s: planning[j][s] for s in Horaire.SHIFTS.values()} for j in Horaire.JOURS}
+        planning_copie = {j: {s: planning[j][s] for s in Horaire.SHIFTS.values()} for j in Horaire.JOURS}
+        
+        # Vérifier la répartition des gardes de nuit
+        gardes_nuit_par_travailleur = {}
+        for jour in Horaire.JOURS:
+            travailleur = planning[jour]["22-06"]
+            if travailleur:
+                if travailleur not in gardes_nuit_par_travailleur:
+                    gardes_nuit_par_travailleur[travailleur] = 0
+                gardes_nuit_par_travailleur[travailleur] += 1
+        
+        return planning_copie
+
+    def evaluer_repartition_nuit(self, planning):
+        """Évalue la répartition des gardes de nuit entre les travailleurs"""
+        # Compter les gardes de nuit par travailleur
+        gardes_nuit_par_travailleur = {}
+        for jour in Horaire.JOURS:
+            travailleur = planning[jour]["22-06"]
+            if travailleur:
+                if travailleur not in gardes_nuit_par_travailleur:
+                    gardes_nuit_par_travailleur[travailleur] = 0
+                gardes_nuit_par_travailleur[travailleur] += 1
+        
+        # Si aucune garde de nuit n'est assignée, retourner une valeur élevée
+        if not gardes_nuit_par_travailleur:
+            return 100
+        
+        # Calculer l'écart-type des gardes de nuit (mesure de la dispersion)
+        nb_gardes = list(gardes_nuit_par_travailleur.values())
+        moyenne = sum(nb_gardes) / len(nb_gardes)
+        variance = sum((x - moyenne) ** 2 for x in nb_gardes) / len(nb_gardes)
+        ecart_type = variance ** 0.5
+        
+        return ecart_type  # Plus l'écart-type est petit, plus la répartition est équilibrée
+
+    def evaluer_proximite_gardes(self, planning):
+        """Évalue le nombre de gardes rapprochées (8h d'écart) pour chaque travailleur"""
+        # Mapping des shifts à des heures de début et de fin
+        shift_heures = {
+            "06-14": (6, 14),
+            "14-22": (14, 22),
+            "22-06": (22, 6)  # La fin est à 6h le jour suivant
+        }
+        
+        # Créer une liste chronologique des gardes par travailleur
+        gardes_par_travailleur = {}
+        
+        for i, jour in enumerate(Horaire.JOURS):
+            for shift, (debut, fin) in shift_heures.items():
+                travailleur = planning[jour][shift]
+                if travailleur:
+                    if travailleur not in gardes_par_travailleur:
+                        gardes_par_travailleur[travailleur] = []
+                    
+                    # Stocker (jour_index, heure_debut, heure_fin)
+                    gardes_par_travailleur[travailleur].append((i, debut, fin))
+        
+        # Compter les gardes rapprochées (moins de 16h entre la fin d'une garde et le début de la suivante)
+        total_gardes_rapprochees = 0
+        
+        for travailleur, gardes in gardes_par_travailleur.items():
+            # Trier les gardes par jour puis par heure de début
+            gardes.sort()
+            
+            for i in range(len(gardes) - 1):
+                jour1, debut1, fin1 = gardes[i]
+                jour2, debut2, fin2 = gardes[i + 1]
+                
+                # Calculer l'intervalle en heures
+                if jour1 == jour2:
+                    # Même jour
+                    intervalle = debut2 - fin1
+                else:
+                    # Jours différents
+                    jours_entre = jour2 - jour1
+                    if fin1 > debut1:  # Garde normale
+                        intervalle = (jours_entre * 24) - fin1 + debut2
+                    else:  # Garde de nuit (22-06)
+                        intervalle = ((jours_entre - 1) * 24) + (24 - fin1) + debut2
+                
+                # Si l'intervalle est inférieur à 16h (8h de repos + 8h de garde), c'est une garde rapprochée
+                if intervalle < 16:
+                    total_gardes_rapprochees += 1
+        
+        return total_gardes_rapprochees
 
     def generer_planning_12h(self):
         """Génère des gardes de 12h en fonction des disponibilités des travailleurs"""
@@ -895,13 +990,24 @@ class InterfacePlanning:
         def priorite_shift(trou):
             jour, shift = trou
             # Donner une priorité plus élevée aux shifts qui peuvent former des gardes de 12h
-            if shift == "06-14" or shift == "22-06":
-                return 0  # Priorité maximale
+            if shift == "22-06":  # Priorité maximale aux gardes de nuit
+                return -1
+            elif shift == "06-14":
+                return 0
             elif shift == "14-22":
-                return 1  # Priorité moyenne
-            return 2  # Priorité minimale
+                return 1
+            return 2
         
         trous.sort(key=priorite_shift)
+        
+        # Compter les gardes de nuit déjà assignées par travailleur
+        gardes_nuit_par_travailleur = {}
+        for jour in Horaire.JOURS:
+            travailleur = self.planning.planning[jour]["22-06"]
+            if travailleur:
+                if travailleur not in gardes_nuit_par_travailleur:
+                    gardes_nuit_par_travailleur[travailleur] = 0
+                gardes_nuit_par_travailleur[travailleur] += 1
         
         # Combler les trous un par un
         trous_combles = 0
@@ -931,21 +1037,39 @@ class InterfacePlanning:
                 
                 # Vérifier si cette affectation respecte les contraintes de repos
                 if self.verifier_repos_entre_gardes(planning_test, travailleur):
-                    # Ajouter le travailleur avec une priorité basée sur ses disponibilités 12h
-                    travailleurs_disponibles.append((travailleur, a_dispo_12h))
+                    # Nombre de gardes de nuit déjà assignées à ce travailleur
+                    nb_nuits = gardes_nuit_par_travailleur.get(travailleur.nom, 0)
+                    
+                    # Calculer le nombre de gardes rapprochées que cette affectation créerait
+                    nb_gardes_rapprochees = self.compter_gardes_rapprochees(planning_test, travailleur.nom)
+                    
+                    # Ajouter le travailleur avec ses priorités
+                    travailleurs_disponibles.append((travailleur, a_dispo_12h, nb_nuits, nb_gardes_rapprochees))
             
             if travailleurs_disponibles:
-                # Trier d'abord par disponibilité 12h (priorité aux travailleurs avec dispo 12h)
-                # puis par nombre de shifts déjà assignés (du moins au plus)
-                travailleurs_disponibles.sort(key=lambda t: (
-                    not t[1],  # False (pas de dispo 12h) vient après True (a dispo 12h)
-                    sum(1 for j in Horaire.JOURS for s in Horaire.SHIFTS.values() 
-                        if self.planning.planning[j][s] == t[0].nom)
-                ))
+                # Critères de tri différents selon le type de shift
+                if shift == "22-06":  # Pour les gardes de nuit
+                    # Trier par nombre de gardes de nuit (du moins au plus), puis par gardes rapprochées
+                    travailleurs_disponibles.sort(key=lambda t: (t[2], t[3]))
+                else:
+                    # Trier d'abord par disponibilité 12h, puis par nombre de gardes rapprochées, puis par nombre de shifts total
+                    travailleurs_disponibles.sort(key=lambda t: (
+                        not t[1],  # False (pas de dispo 12h) vient après True (a dispo 12h)
+                        t[3],      # Nombre de gardes rapprochées (du moins au plus)
+                        sum(1 for j in Horaire.JOURS for s in Horaire.SHIFTS.values() 
+                            if self.planning.planning[j][s] == t[0].nom)
+                    ))
                 
                 # Choisir le travailleur avec la meilleure priorité
                 travailleur_choisi = travailleurs_disponibles[0][0]
                 self.planning.planning[jour][shift] = travailleur_choisi.nom
+                
+                # Mettre à jour le compteur de gardes de nuit si nécessaire
+                if shift == "22-06":
+                    if travailleur_choisi.nom not in gardes_nuit_par_travailleur:
+                        gardes_nuit_par_travailleur[travailleur_choisi.nom] = 0
+                    gardes_nuit_par_travailleur[travailleur_choisi.nom] += 1
+                
                 trous_combles += 1
         
         self.creer_planning_visuel()
@@ -954,6 +1078,52 @@ class InterfacePlanning:
             messagebox.showinfo("Succès", f"Tous les trous ont été comblés avec succès ({trous_combles} trous)")
         else:
             messagebox.showinfo("Information", f"{trous_combles} trous comblés sur {len(trous)}")
+
+    def compter_gardes_rapprochees(self, planning, nom_travailleur):
+        """Compte le nombre de gardes rapprochées pour un travailleur donné"""
+        # Mapping des shifts à des heures de début et de fin
+        shift_heures = {
+            "06-14": (6, 14),
+            "14-22": (14, 22),
+            "22-06": (22, 6)  # La fin est à 6h le jour suivant
+        }
+        
+        # Créer une liste chronologique des gardes du travailleur
+        gardes = []
+        
+        for i, jour in enumerate(Horaire.JOURS):
+            for shift, (debut, fin) in shift_heures.items():
+                if planning[jour][shift] == nom_travailleur:
+                    # Stocker (jour_index, heure_debut, heure_fin)
+                    gardes.append((i, debut, fin))
+        
+        # Trier les gardes par jour puis par heure de début
+        gardes.sort()
+        
+        # Compter les gardes rapprochées (moins de 16h entre la fin d'une garde et le début de la suivante)
+        gardes_rapprochees = 0
+        
+        for i in range(len(gardes) - 1):
+            jour1, debut1, fin1 = gardes[i]
+            jour2, debut2, fin2 = gardes[i + 1]
+            
+            # Calculer l'intervalle en heures
+            if jour1 == jour2:
+                # Même jour
+                intervalle = debut2 - fin1
+            else:
+                # Jours différents
+                jours_entre = jour2 - jour1
+                if fin1 > debut1:  # Garde normale
+                    intervalle = (jours_entre * 24) - fin1 + debut2
+                else:  # Garde de nuit (22-06)
+                    intervalle = ((jours_entre - 1) * 24) + (24 - fin1) + debut2
+            
+            # Si l'intervalle est inférieur à 16h (8h de repos + 8h de garde), c'est une garde rapprochée
+            if intervalle < 16:
+                gardes_rapprochees += 1
+        
+        return gardes_rapprochees
 
     def charger_travailleurs_db(self):
         """Charge les travailleurs depuis la base de données"""
