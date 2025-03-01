@@ -355,33 +355,39 @@ class InterfacePlanning:
 
     def verifier_repos_entre_gardes(self, planning, travailleur):
         """Vérifie qu'il y a suffisamment de repos entre les gardes d'un travailleur"""
-        gardes_travailleur = []
+        # Créer une liste chronologique de toutes les gardes
+        gardes_chronologiques = []
         
-        # Collecter toutes les gardes du travailleur
         for i, jour in enumerate(Horaire.JOURS):
-            for j, shift in enumerate(Horaire.SHIFTS.values()):
-                if planning[jour][shift] == travailleur.nom:
-                    # Convertir le shift en heure approximative pour les calculs
-                    heure = j * 8  # Chaque shift dure 8 heures
-                    gardes_travailleur.append((i, heure))
+            for shift_name, shift_hours in [("Matin", 0), ("Aprem", 8), ("Nuit", 16)]:
+                if shift_name in Horaire.SHIFTS.values():
+                    if planning[jour][shift_name] == travailleur.nom:
+                        # Stocker (jour_index, heure_debut)
+                        gardes_chronologiques.append((i, shift_hours))
         
-        # Trier les gardes par jour et heure
-        gardes_travailleur.sort()
+        # Trier par jour puis par heure
+        gardes_chronologiques.sort()
         
-        # Vérifier les intervalles entre les gardes
-        for i in range(len(gardes_travailleur) - 1):
-            jour1, heure1 = gardes_travailleur[i]
-            jour2, heure2 = gardes_travailleur[i + 1]
+        # Vérifier les intervalles entre gardes consécutives
+        for i in range(len(gardes_chronologiques) - 1):
+            jour1, heure1 = gardes_chronologiques[i]
+            jour2, heure2 = gardes_chronologiques[i + 1]
             
-            # Si même jour, vérifier directement la différence d'heures
+            # Calculer l'intervalle en heures entre la fin de la première garde et le début de la suivante
+            # Chaque garde dure 8 heures
+            fin_premiere_garde = heure1 + 8
+            
             if jour1 == jour2:
-                if heure2 - heure1 < self.repos_minimum_entre_gardes:
-                    return False
+                # Même jour
+                intervalle = heure2 - fin_premiere_garde
             else:
-                # Si jours différents, calculer l'intervalle total en heures
-                intervalle = (jour2 - jour1) * 24 + (heure2 - heure1)
-                if intervalle < self.repos_minimum_entre_gardes:
-                    return False
+                # Jours différents
+                intervalle = (jour2 - jour1 - 1) * 24 + (24 - fin_premiere_garde) + heure2
+            
+            # Vérifier si l'intervalle est suffisant
+            if intervalle < self.repos_minimum_entre_gardes:
+                return False
+                
         return True
 
     def generer_planning(self):
@@ -404,28 +410,40 @@ class InterfacePlanning:
 
     def combler_trous(self):
         """Comble les trous dans le planning en respectant les contraintes de repos"""
+        # Créer une liste des trous à combler
+        trous = []
         for jour in Horaire.JOURS:
             for shift in Horaire.SHIFTS.values():
                 if self.planning.planning[jour][shift] is None:
-                    travailleurs_disponibles = []
-                    
-                    # Vérifier chaque travailleur
-                    for travailleur in self.planning.travailleurs:
-                        # Créer une copie temporaire du planning pour tester
-                        planning_test = {j: {s: self.planning.planning[j][s] 
-                                           for s in Horaire.SHIFTS.values()}
-                                       for j in Horaire.JOURS}
-                        
-                        planning_test[jour][shift] = travailleur.nom
-                        
-                        # Vérifier si cette affectation respecte les contraintes de repos
-                        if self.verifier_repos_entre_gardes(planning_test, travailleur):
-                            travailleurs_disponibles.append(travailleur)
-                    
-                    if travailleurs_disponibles:
-                        # Choisir un travailleur aléatoire parmi les disponibles
-                        travailleur_choisi = random.choice(travailleurs_disponibles)
-                        self.planning.planning[jour][shift] = travailleur_choisi.nom
+                    trous.append((jour, shift))
+        
+        # Mélanger la liste des trous pour éviter les biais
+        random.shuffle(trous)
+        
+        # Combler les trous un par un
+        for jour, shift in trous:
+            travailleurs_disponibles = []
+            
+            # Vérifier chaque travailleur
+            for travailleur in self.planning.travailleurs:
+                # Créer une copie temporaire du planning pour tester
+                planning_test = {j: {s: self.planning.planning[j][s] 
+                                   for s in Horaire.SHIFTS.values()}
+                               for j in Horaire.JOURS}
+                
+                planning_test[jour][shift] = travailleur.nom
+                
+                # Vérifier si cette affectation respecte les contraintes de repos
+                if self.verifier_repos_entre_gardes(planning_test, travailleur):
+                    travailleurs_disponibles.append(travailleur)
+            
+            if travailleurs_disponibles:
+                # Choisir un travailleur aléatoire parmi les disponibles
+                travailleur_choisi = random.choice(travailleurs_disponibles)
+                self.planning.planning[jour][shift] = travailleur_choisi.nom
+            else:
+                # Aucun travailleur disponible pour ce créneau
+                pass
         
         self.creer_planning_visuel()
         messagebox.showinfo("Succès", "Trous comblés avec succès")
