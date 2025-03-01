@@ -358,31 +358,56 @@ class InterfacePlanning:
         # Créer une liste chronologique de toutes les gardes
         gardes_chronologiques = []
         
+        # Mapping des noms de shifts aux heures de début
+        shift_heures = {
+            "06-14": 6,   # Matin
+            "14-22": 14,  # Après-midi
+            "22-06": 22   # Nuit
+        }
+        
         for i, jour in enumerate(Horaire.JOURS):
-            for shift_name, shift_hours in [("Matin", 0), ("Aprem", 8), ("Nuit", 16)]:
-                if shift_name in Horaire.SHIFTS.values():
-                    if planning[jour][shift_name] == travailleur.nom:
-                        # Stocker (jour_index, heure_debut)
-                        gardes_chronologiques.append((i, shift_hours))
+            for shift_name, shift_value in Horaire.SHIFTS.items():
+                if planning[jour][shift_value] == travailleur.nom:
+                    # Obtenir l'heure de début du shift
+                    heure_debut = shift_heures[shift_value]
+                    
+                    # Stocker (jour_index, heure_debut, shift_name)
+                    gardes_chronologiques.append((i, heure_debut, shift_value))
         
         # Trier par jour puis par heure
         gardes_chronologiques.sort()
         
         # Vérifier les intervalles entre gardes consécutives
         for i in range(len(gardes_chronologiques) - 1):
-            jour1, heure1 = gardes_chronologiques[i]
-            jour2, heure2 = gardes_chronologiques[i + 1]
+            jour1, heure1, shift1 = gardes_chronologiques[i]
+            jour2, heure2, shift2 = gardes_chronologiques[i + 1]
             
             # Calculer l'intervalle en heures entre la fin de la première garde et le début de la suivante
-            # Chaque garde dure 8 heures
-            fin_premiere_garde = heure1 + 8
+            # Déterminer la durée de la première garde (8 heures standard)
+            duree_garde = 8
             
+            # Gérer le cas spécial de la garde de nuit qui chevauche minuit
+            fin_premiere_garde = heure1 + duree_garde
+            if shift1 == "22-06":
+                fin_premiere_garde = (heure1 + duree_garde) % 24  # Pour gérer le passage à minuit
+            
+            # Calculer l'intervalle
             if jour1 == jour2:
                 # Même jour
-                intervalle = heure2 - fin_premiere_garde
+                if shift1 == "22-06" and heure2 < heure1:  # Si la première garde est de nuit et la seconde est le matin du jour suivant
+                    intervalle = heure2 - fin_premiere_garde + 24
+                else:
+                    intervalle = heure2 - fin_premiere_garde
             else:
                 # Jours différents
-                intervalle = (jour2 - jour1 - 1) * 24 + (24 - fin_premiere_garde) + heure2
+                jours_entre = jour2 - jour1
+                if shift1 == "22-06":
+                    # Si la première garde est de nuit, elle se termine le jour suivant
+                    jours_entre -= 1
+                
+                intervalle = (jours_entre * 24) + (heure2 - fin_premiere_garde)
+                if intervalle < 0:  # Correction pour les cas où la fin est avant le début (passage par minuit)
+                    intervalle += 24
             
             # Vérifier si l'intervalle est suffisant
             if intervalle < self.repos_minimum_entre_gardes:
@@ -409,7 +434,8 @@ class InterfacePlanning:
         messagebox.showinfo("Succès", "Planning avec gardes de 12h généré avec succès")
 
     def combler_trous(self):
-        """Comble les trous dans le planning en respectant les contraintes de repos"""
+        """Comble les trous dans le planning en respectant les contraintes de repos
+        et en tenant compte des disponibilités des travailleurs, mais pas du nombre de shifts souhaités"""
         # Créer une liste des trous à combler
         trous = []
         for jour in Horaire.JOURS:
@@ -417,15 +443,24 @@ class InterfacePlanning:
                 if self.planning.planning[jour][shift] is None:
                     trous.append((jour, shift))
         
+        if not trous:
+            messagebox.showinfo("Information", "Aucun trou à combler dans le planning")
+            return
+        
         # Mélanger la liste des trous pour éviter les biais
         random.shuffle(trous)
         
         # Combler les trous un par un
+        trous_combles = 0
         for jour, shift in trous:
             travailleurs_disponibles = []
             
             # Vérifier chaque travailleur
             for travailleur in self.planning.travailleurs:
+                # Vérifier si le travailleur est disponible pour ce jour et ce shift
+                if jour not in travailleur.disponibilites or shift not in travailleur.disponibilites[jour]:
+                    continue
+                
                 # Créer une copie temporaire du planning pour tester
                 planning_test = {j: {s: self.planning.planning[j][s] 
                                    for s in Horaire.SHIFTS.values()}
@@ -438,15 +473,23 @@ class InterfacePlanning:
                     travailleurs_disponibles.append(travailleur)
             
             if travailleurs_disponibles:
-                # Choisir un travailleur aléatoire parmi les disponibles
-                travailleur_choisi = random.choice(travailleurs_disponibles)
+                # Trier les travailleurs par nombre de shifts déjà assignés (du moins au plus)
+                travailleurs_disponibles.sort(key=lambda t: sum(
+                    1 for j in Horaire.JOURS for s in Horaire.SHIFTS.values() 
+                    if self.planning.planning[j][s] == t.nom
+                ))
+                
+                # Choisir le travailleur avec le moins de shifts assignés
+                travailleur_choisi = travailleurs_disponibles[0]
                 self.planning.planning[jour][shift] = travailleur_choisi.nom
-            else:
-                # Aucun travailleur disponible pour ce créneau
-                pass
+                trous_combles += 1
         
         self.creer_planning_visuel()
-        messagebox.showinfo("Succès", "Trous comblés avec succès")
+        
+        if trous_combles == len(trous):
+            messagebox.showinfo("Succès", f"Tous les trous ont été comblés avec succès ({trous_combles} trous)")
+        else:
+            messagebox.showinfo("Information", f"{trous_combles} trous comblés sur {len(trous)}")
 
     def charger_travailleurs_db(self):
         """Charge les travailleurs depuis la base de données"""
