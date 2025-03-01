@@ -767,10 +767,46 @@ class InterfacePlanning:
         if not self.planning.travailleurs:
             messagebox.showerror("Erreur", "Veuillez ajouter au moins un travailleur")
             return
-            
+        
+        # Générer un planning initial
         self.planning.generer_planning(mode_12h=False)
+        
+        # Essayer plusieurs générations et garder la meilleure
+        meilleur_planning = self.evaluer_planning(self.planning.planning)
+        meilleure_evaluation = self.compter_trous(self.planning.planning)
+        
+        # Essayer 5 générations supplémentaires pour trouver un meilleur planning
+        for _ in range(5):
+            planning_test = Planning()
+            planning_test.travailleurs = self.planning.travailleurs.copy()
+            planning_test.generer_planning(mode_12h=False)
+            
+            evaluation = self.compter_trous(planning_test.planning)
+            
+            # Si ce planning a moins de trous, le conserver
+            if evaluation < meilleure_evaluation:
+                meilleur_planning = {j: {s: planning_test.planning[j][s] for s in Horaire.SHIFTS.values()} for j in Horaire.JOURS}
+                meilleure_evaluation = evaluation
+        
+        # Utiliser le meilleur planning trouvé
+        self.planning.planning = meilleur_planning
+        
         self.creer_planning_visuel()
-        messagebox.showinfo("Succès", "Planning généré avec succès")
+        messagebox.showinfo("Succès", f"Planning généré avec succès ({meilleure_evaluation} trous restants)")
+
+    def compter_trous(self, planning):
+        """Compte le nombre de trous dans un planning"""
+        trous = 0
+        for jour in Horaire.JOURS:
+            for shift in Horaire.SHIFTS.values():
+                if planning[jour][shift] is None:
+                    trous += 1
+        return trous
+
+    def evaluer_planning(self, planning):
+        """Évalue la qualité d'un planning en fonction de plusieurs critères"""
+        # Copier le planning pour ne pas le modifier
+        return {j: {s: planning[j][s] for s in Horaire.SHIFTS.values()} for j in Horaire.JOURS}
 
     def generer_planning_12h(self):
         """Génère des gardes de 12h en fonction des disponibilités des travailleurs"""
@@ -854,8 +890,18 @@ class InterfacePlanning:
             messagebox.showinfo("Information", "Aucun trou à combler dans le planning")
             return
         
-        # Mélanger la liste des trous pour éviter les biais
-        random.shuffle(trous)
+        # Trier les trous pour favoriser les possibilités de gardes de 12h
+        # Priorité aux shifts qui peuvent former des gardes de 12h
+        def priorite_shift(trou):
+            jour, shift = trou
+            # Donner une priorité plus élevée aux shifts qui peuvent former des gardes de 12h
+            if shift == "06-14" or shift == "22-06":
+                return 0  # Priorité maximale
+            elif shift == "14-22":
+                return 1  # Priorité moyenne
+            return 2  # Priorité minimale
+        
+        trous.sort(key=priorite_shift)
         
         # Combler les trous un par un
         trous_combles = 0
@@ -868,6 +914,14 @@ class InterfacePlanning:
                 if jour not in travailleur.disponibilites or shift not in travailleur.disponibilites[jour]:
                     continue
                 
+                # Vérifier si le travailleur a des disponibilités pour les gardes de 12h
+                a_dispo_12h = False
+                if hasattr(travailleur, 'disponibilites_12h') and jour in travailleur.disponibilites_12h:
+                    if (shift == "06-14" or shift == "14-22") and "matin_12h" in travailleur.disponibilites_12h[jour]:
+                        a_dispo_12h = True
+                    elif (shift == "14-22" or shift == "22-06") and "nuit_12h" in travailleur.disponibilites_12h[jour]:
+                        a_dispo_12h = True
+                
                 # Créer une copie temporaire du planning pour tester
                 planning_test = {j: {s: self.planning.planning[j][s] 
                                    for s in Horaire.SHIFTS.values()}
@@ -877,17 +931,20 @@ class InterfacePlanning:
                 
                 # Vérifier si cette affectation respecte les contraintes de repos
                 if self.verifier_repos_entre_gardes(planning_test, travailleur):
-                    travailleurs_disponibles.append(travailleur)
+                    # Ajouter le travailleur avec une priorité basée sur ses disponibilités 12h
+                    travailleurs_disponibles.append((travailleur, a_dispo_12h))
             
             if travailleurs_disponibles:
-                # Trier les travailleurs par nombre de shifts déjà assignés (du moins au plus)
-                travailleurs_disponibles.sort(key=lambda t: sum(
-                    1 for j in Horaire.JOURS for s in Horaire.SHIFTS.values() 
-                    if self.planning.planning[j][s] == t.nom
+                # Trier d'abord par disponibilité 12h (priorité aux travailleurs avec dispo 12h)
+                # puis par nombre de shifts déjà assignés (du moins au plus)
+                travailleurs_disponibles.sort(key=lambda t: (
+                    not t[1],  # False (pas de dispo 12h) vient après True (a dispo 12h)
+                    sum(1 for j in Horaire.JOURS for s in Horaire.SHIFTS.values() 
+                        if self.planning.planning[j][s] == t[0].nom)
                 ))
                 
-                # Choisir le travailleur avec le moins de shifts assignés
-                travailleur_choisi = travailleurs_disponibles[0]
+                # Choisir le travailleur avec la meilleure priorité
+                travailleur_choisi = travailleurs_disponibles[0][0]
                 self.planning.planning[jour][shift] = travailleur_choisi.nom
                 trous_combles += 1
         
