@@ -67,72 +67,69 @@ class InterfacePlanning:
         left_frame = ttk.Frame(main_frame, padding=10)
         left_frame.pack(side=tk.LEFT, fill="both", expand=True)
         
+        # Configurer left_frame pour qu'il s'adapte à la taille de la fenêtre
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(0, weight=1)
+        left_frame.columnconfigure(0, weight=1)
+        left_frame.rowconfigure(0, weight=0)  # Titre
+        left_frame.rowconfigure(1, weight=1)  # Formulaire
+        left_frame.rowconfigure(2, weight=1)  # Liste
+        left_frame.rowconfigure(3, weight=0)  # Boutons génération
+        left_frame.rowconfigure(4, weight=0)  # Boutons DB
+        
         # Titre
         titre_label = ttk.Label(left_frame, text="Gestion des Travailleurs", font=self.title_font)
-        titre_label.pack(pady=(0, 20))
+        titre_label.grid(row=0, column=0, pady=(0, 20), sticky="ew")
         
         # Frame pour l'ajout de travailleur
-        self.creer_formulaire_travailleur(left_frame)
+        form_frame = ttk.Frame(left_frame)
+        form_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        form_frame.columnconfigure(0, weight=1)
+        form_frame.rowconfigure(0, weight=1)
+        self.creer_formulaire_travailleur(form_frame)
         
         # Liste des travailleurs
-        frame_liste = ttk.LabelFrame(left_frame, text="Travailleurs enregistrés", padding=10)
-        frame_liste.pack(padx=10, pady=10, fill="both", expand=True)
-        
-        # Création d'un Treeview pour afficher les travailleurs sous forme de tableau
-        columns = ("nom", "shifts")
-        self.table_travailleurs = ttk.Treeview(frame_liste, columns=columns, show="headings", height=8)
-        self.table_travailleurs.heading("nom", text="Nom")
-        self.table_travailleurs.heading("shifts", text="Shifts souhaités")
-        
-        self.table_travailleurs.column("nom", width=150)
-        self.table_travailleurs.column("shifts", width=100)
-        
-        # Scrollbar pour la table
-        scrollbar = ttk.Scrollbar(frame_liste, orient="vertical", command=self.table_travailleurs.yview)
-        self.table_travailleurs.configure(yscrollcommand=scrollbar.set)
-        
-        # Placement de la table et de la scrollbar
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.table_travailleurs.pack(side=tk.LEFT, fill="both", expand=True)
-        
-        # Lier la sélection dans la table à l'édition
-        self.table_travailleurs.bind('<<TreeviewSelect>>', self.selectionner_travailleur)
-        
-        # Boutons pour gérer les travailleurs
-        btn_frame = ttk.Frame(frame_liste)
-        btn_frame.pack(fill="x", pady=(10, 0))
-        
-        btn_supprimer = ttk.Button(btn_frame, text="Supprimer", command=self.supprimer_travailleur)
-        btn_supprimer.pack(side=tk.RIGHT, padx=5)
+        liste_frame = ttk.Frame(left_frame)
+        liste_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        liste_frame.columnconfigure(0, weight=1)
+        liste_frame.rowconfigure(0, weight=1)
+        self.creer_liste_travailleurs(liste_frame)
         
         # Frame pour les boutons de génération
         frame_generation = ttk.Frame(left_frame)
-        frame_generation.pack(pady=10)
+        frame_generation.grid(row=3, column=0, sticky="ew", pady=10)
+        frame_generation.columnconfigure(0, weight=1)
+        frame_generation.columnconfigure(1, weight=1)
+        frame_generation.columnconfigure(2, weight=1)
         
         # Boutons pour générer le planning
         btn_generer = ttk.Button(frame_generation, text="Générer Planning", 
-                  command=self.generer_planning, width=20)
-        btn_generer.pack(side=tk.LEFT, padx=5)
+                  command=self.generer_planning)
+        btn_generer.grid(row=0, column=0, padx=5, sticky="ew")
         
         btn_generer_12h = ttk.Button(frame_generation, text="Suggestion 12h", 
-                  command=self.generer_planning_12h, width=20)
-        btn_generer_12h.pack(side=tk.LEFT, padx=5)
+                  command=self.generer_planning_12h)
+        btn_generer_12h.grid(row=0, column=1, padx=5, sticky="ew")
         
         btn_combler = ttk.Button(frame_generation, text="Combler les trous", 
-                  command=self.combler_trous, width=20)
-        btn_combler.pack(side=tk.LEFT, padx=5)
+                  command=self.combler_trous)
+        btn_combler.grid(row=0, column=2, padx=5, sticky="ew")
         
         # Frame pour la sauvegarde et le chargement
         frame_db = ttk.Frame(left_frame)
-        frame_db.pack(pady=10)
+        frame_db.grid(row=4, column=0, sticky="ew", pady=10)
+        frame_db.columnconfigure(0, weight=1)
+        frame_db.columnconfigure(1, weight=1)
         
         btn_sauvegarder = ttk.Button(frame_db, text="Sauvegarder Planning", 
-                  command=self.sauvegarder_planning, width=20)
-        btn_sauvegarder.pack(side=tk.LEFT, padx=5)
+                  command=self.sauvegarder_planning)
+        btn_sauvegarder.grid(row=0, column=0, padx=5, sticky="ew")
         
         btn_charger = ttk.Button(frame_db, text="Charger Planning", 
-                  command=self.charger_planning, width=20)
-        btn_charger.pack(side=tk.LEFT, padx=5)
+                  command=self.charger_planning)
+        btn_charger.grid(row=0, column=1, padx=5, sticky="ew")
         
         # Colonne droite - Affichage du planning
         right_frame = ttk.Frame(main_frame, padding=10)
@@ -152,21 +149,33 @@ class InterfacePlanning:
     def creer_formulaire_travailleur(self, frame):
         # Frame pour le formulaire d'ajout de travailleur
         form_frame = ttk.LabelFrame(frame, text="Ajouter un travailleur", padding=10)
-        form_frame.pack(fill="x", padx=10, pady=5)
+        form_frame.grid(row=0, column=0, sticky="nsew")
+        form_frame.columnconfigure(0, weight=1)
+        form_frame.rowconfigure(0, weight=0)  # Info frame
+        form_frame.rowconfigure(1, weight=1)  # Dispo frame
+        form_frame.rowconfigure(2, weight=0)  # Boutons
         
         # Nom et nombre de shifts
         info_frame = ttk.Frame(form_frame)
-        info_frame.pack(fill="x", pady=5)
+        info_frame.grid(row=0, column=0, sticky="ew", pady=5)
+        info_frame.columnconfigure(0, weight=0)
+        info_frame.columnconfigure(1, weight=1)
+        info_frame.columnconfigure(2, weight=0)
+        info_frame.columnconfigure(3, weight=0)
         
         ttk.Label(info_frame, text="Nom:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        ttk.Entry(info_frame, textvariable=self.nom_var, width=20).grid(row=0, column=1, padx=5, pady=5)
+        ttk.Entry(info_frame, textvariable=self.nom_var).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
         
         ttk.Label(info_frame, text="Nombre de shifts souhaités:").grid(row=0, column=2, sticky="w", padx=5, pady=5)
         ttk.Entry(info_frame, textvariable=self.nb_shifts_var, width=5).grid(row=0, column=3, padx=5, pady=5)
         
         # Disponibilités
         dispo_frame = ttk.LabelFrame(form_frame, text="Disponibilités", padding=10)
-        dispo_frame.pack(fill="x", pady=5)
+        dispo_frame.grid(row=1, column=0, sticky="nsew", pady=5)
+        
+        # Configurer les colonnes pour qu'elles s'adaptent
+        for i in range(6):  # 1 pour le jour + 3 pour les shifts + 2 pour les 12h
+            dispo_frame.columnconfigure(i, weight=1)
         
         # En-têtes des colonnes
         ttk.Label(dispo_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5)
@@ -195,13 +204,51 @@ class InterfacePlanning:
         
         # Boutons
         btn_frame = ttk.Frame(form_frame)
-        btn_frame.pack(fill="x", pady=10)
+        btn_frame.grid(row=2, column=0, sticky="ew", pady=10)
+        btn_frame.columnconfigure(0, weight=1)
+        btn_frame.columnconfigure(1, weight=1)
         
         self.btn_ajouter = ttk.Button(btn_frame, text="Ajouter Travailleur", command=self.ajouter_travailleur)
-        self.btn_ajouter.pack(side=tk.LEFT, padx=5)
+        self.btn_ajouter.grid(row=0, column=0, padx=5, sticky="ew")
         
         self.btn_annuler = ttk.Button(btn_frame, text="Annuler", command=self.annuler_edition, state=tk.DISABLED)
-        self.btn_annuler.pack(side=tk.LEFT, padx=5)
+        self.btn_annuler.grid(row=0, column=1, padx=5, sticky="ew")
+
+    def creer_liste_travailleurs(self, frame):
+        # Liste des travailleurs
+        frame_liste = ttk.LabelFrame(frame, text="Travailleurs enregistrés", padding=10)
+        frame_liste.grid(row=0, column=0, sticky="nsew")
+        frame_liste.columnconfigure(0, weight=1)
+        frame_liste.rowconfigure(0, weight=1)  # Table
+        frame_liste.rowconfigure(1, weight=0)  # Boutons
+        
+        # Création d'un Treeview pour afficher les travailleurs sous forme de tableau
+        columns = ("nom", "shifts")
+        self.table_travailleurs = ttk.Treeview(frame_liste, columns=columns, show="headings", height=8)
+        self.table_travailleurs.heading("nom", text="Nom")
+        self.table_travailleurs.heading("shifts", text="Shifts souhaités")
+        
+        self.table_travailleurs.column("nom", width=150)
+        self.table_travailleurs.column("shifts", width=100)
+        
+        # Scrollbar pour la table
+        scrollbar = ttk.Scrollbar(frame_liste, orient="vertical", command=self.table_travailleurs.yview)
+        self.table_travailleurs.configure(yscrollcommand=scrollbar.set)
+        
+        # Placement de la table et de la scrollbar
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.table_travailleurs.grid(row=0, column=0, sticky="nsew")
+        
+        # Lier la sélection dans la table à l'édition
+        self.table_travailleurs.bind('<<TreeviewSelect>>', self.selectionner_travailleur)
+        
+        # Boutons pour gérer les travailleurs
+        btn_frame = ttk.Frame(frame_liste)
+        btn_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        btn_frame.columnconfigure(0, weight=1)
+        
+        btn_supprimer = ttk.Button(btn_frame, text="Supprimer", command=self.supprimer_travailleur)
+        btn_supprimer.grid(row=0, column=0, sticky="e", padx=5)
 
     def creer_planning_visuel(self):
         """Crée une représentation visuelle du planning"""
