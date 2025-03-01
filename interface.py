@@ -231,13 +231,45 @@ class InterfacePlanning:
                 cell_frame.grid_propagate(False)  # Empêcher le frame de s'adapter à son contenu
                 
                 if travailleur:
-                    # Utiliser la couleur associée au travailleur
-                    color = self.travailleur_colors.get(travailleur, "#FFFFFF")
-                    
-                    # Créer un label avec un fond coloré
-                    label = tk.Label(cell_frame, text=travailleur, bg=color, 
-                                   font=self.normal_font, relief="raised", borderwidth=1)
-                    label.pack(fill="both", expand=True)
+                    # Vérifier si c'est une garde partagée (format: "nom1 / nom2")
+                    if " / " in travailleur:
+                        # Diviser la cellule en deux parties (haut/bas)
+                        noms = travailleur.split(" / ")
+                        if len(noms) == 2:
+                            # Créer un frame pour contenir les deux labels
+                            shared_frame = ttk.Frame(cell_frame)
+                            shared_frame.pack(fill="both", expand=True)
+                            
+                            # Configurer le frame pour qu'il ait deux lignes de même hauteur
+                            shared_frame.rowconfigure(0, weight=1)
+                            shared_frame.rowconfigure(1, weight=1)
+                            shared_frame.columnconfigure(0, weight=1)
+                            
+                            # Obtenir les couleurs des deux travailleurs
+                            color1 = self.travailleur_colors.get(noms[0], "#FFFFFF")
+                            color2 = self.travailleur_colors.get(noms[1], "#FFFFFF")
+                            
+                            # Créer deux labels, un pour chaque travailleur
+                            label1 = tk.Label(shared_frame, text=noms[0], bg=color1, 
+                                            font=self.normal_font, relief="raised", borderwidth=1)
+                            label1.grid(row=0, column=0, sticky="nsew")
+                            
+                            label2 = tk.Label(shared_frame, text=noms[1], bg=color2, 
+                                            font=self.normal_font, relief="raised", borderwidth=1)
+                            label2.grid(row=1, column=0, sticky="nsew")
+                        else:
+                            # Cas imprévu, utiliser un affichage standard
+                            label = tk.Label(cell_frame, text=travailleur, bg="#F0F0F0", 
+                                           font=self.normal_font, relief="raised", borderwidth=1)
+                            label.pack(fill="both", expand=True)
+                    else:
+                        # Utiliser la couleur associée au travailleur
+                        color = self.travailleur_colors.get(travailleur, "#FFFFFF")
+                        
+                        # Créer un label avec un fond coloré
+                        label = tk.Label(cell_frame, text=travailleur, bg=color, 
+                                       font=self.normal_font, relief="raised", borderwidth=1)
+                        label.pack(fill="both", expand=True)
                 else:
                     # Cellule vide
                     label = tk.Label(cell_frame, text="Non assigné", bg="#F0F0F0", 
