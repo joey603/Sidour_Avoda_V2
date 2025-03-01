@@ -277,34 +277,68 @@ class InterfacePlanning:
         dispo_frame = ttk.LabelFrame(self.form_label_frame, text="Disponibilités", padding=10)
         dispo_frame.grid(row=1, column=0, sticky="nsew", pady=5)
         
+        # Créer un canvas avec scrollbar pour les disponibilités
+        dispo_canvas = tk.Canvas(dispo_frame, borderwidth=0, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(dispo_frame, orient="vertical", command=dispo_canvas.yview)
+        
+        # Frame intérieur pour contenir les checkboxes
+        inner_frame = ttk.Frame(dispo_canvas)
+        
+        # Configurer le canvas pour qu'il défile avec la scrollbar
+        dispo_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Placer le canvas et la scrollbar
+        scrollbar.pack(side=tk.RIGHT, fill="y")
+        dispo_canvas.pack(side=tk.LEFT, fill="both", expand=True)
+        
+        # Créer une fenêtre dans le canvas pour y placer le frame intérieur
+        canvas_window = dispo_canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+        
         # Configurer les colonnes pour qu'elles s'adaptent
         for i in range(6):  # 1 pour le jour + 3 pour les shifts + 2 pour les 12h
-            dispo_frame.columnconfigure(i, weight=1)
+            inner_frame.columnconfigure(i, weight=1)
         
         # En-têtes des colonnes
-        ttk.Label(dispo_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5)
+        ttk.Label(inner_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5)
         col = 1
         for shift in Horaire.SHIFTS.values():
-            ttk.Label(dispo_frame, text=shift, font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
+            ttk.Label(inner_frame, text=shift, font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
             col += 1
         
         # Ajouter les colonnes pour les gardes de 12h
-        ttk.Label(dispo_frame, text="Matin 12h\n(06-18)", font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
+        ttk.Label(inner_frame, text="Matin 12h\n(06-18)", font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
         col += 1
-        ttk.Label(dispo_frame, text="Nuit 12h\n(18-06)", font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
+        ttk.Label(inner_frame, text="Nuit 12h\n(18-06)", font=self.header_font).grid(row=0, column=col, padx=5, pady=5)
         
         # Lignes pour chaque jour
         for i, jour in enumerate(Horaire.JOURS, 1):
-            ttk.Label(dispo_frame, text=jour).grid(row=i, column=0, padx=5, pady=2, sticky="w")
+            ttk.Label(inner_frame, text=jour).grid(row=i, column=0, padx=5, pady=2, sticky="w")
             col = 1
             for shift in Horaire.SHIFTS.values():
-                ttk.Checkbutton(dispo_frame, variable=self.disponibilites[jour][shift]).grid(row=i, column=col, padx=5, pady=2)
+                ttk.Checkbutton(inner_frame, variable=self.disponibilites[jour][shift]).grid(row=i, column=col, padx=5, pady=2)
                 col += 1
             
             # Ajouter les cases à cocher pour les gardes de 12h
-            ttk.Checkbutton(dispo_frame, variable=self.disponibilites_12h[jour]["matin_12h"]).grid(row=i, column=col, padx=5, pady=2)
+            ttk.Checkbutton(inner_frame, variable=self.disponibilites_12h[jour]["matin_12h"]).grid(row=i, column=col, padx=5, pady=2)
             col += 1
-            ttk.Checkbutton(dispo_frame, variable=self.disponibilites_12h[jour]["nuit_12h"]).grid(row=i, column=col, padx=5, pady=2)
+            ttk.Checkbutton(inner_frame, variable=self.disponibilites_12h[jour]["nuit_12h"]).grid(row=i, column=col, padx=5, pady=2)
+        
+        # Mettre à jour les dimensions du scrollregion après que tous les widgets sont ajoutés
+        inner_frame.update_idletasks()
+        dispo_canvas.config(scrollregion=dispo_canvas.bbox("all"))
+        
+        # Ajuster la largeur du frame intérieur pour qu'elle corresponde à celle du canvas
+        def _adjust_width(event):
+            canvas_width = event.width
+            dispo_canvas.itemconfig(canvas_window, width=canvas_width)
+        
+        dispo_canvas.bind('<Configure>', _adjust_width)
+        
+        # Ajouter un événement pour ajuster la région de défilement quand le contenu change
+        def _configure_canvas(event):
+            dispo_canvas.config(scrollregion=dispo_canvas.bbox("all"))
+        
+        inner_frame.bind('<Configure>', _configure_canvas)
         
         # Boutons
         btn_frame = ttk.Frame(self.form_label_frame)
