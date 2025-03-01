@@ -19,6 +19,15 @@ class InterfacePlanning:
         self.colors = ["#FFD700", "#87CEFA", "#98FB98", "#FFA07A", "#DDA0DD", "#AFEEEE", "#D8BFD8"]
         self.travailleur_colors = {}
         
+        # Palette de couleurs professionnelle - couleurs plus vives
+        self.primary_color = "#1a237e"    # Bleu très foncé
+        self.secondary_color = "#4285f4"  # Bleu Google
+        self.accent_color = "#f44336"     # Rouge Material
+        self.success_color = "#4caf50"    # Vert Material
+        self.warning_color = "#ff9800"    # Orange Material
+        self.light_bg = "#f5f5f5"         # Gris très clair
+        self.dark_bg = "#263238"          # Bleu-gris très foncé
+        
         # Police personnalisée
         self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
         self.header_font = tkfont.Font(family="Helvetica", size=12, weight="bold")
@@ -58,7 +67,18 @@ class InterfacePlanning:
         style = ttk.Style()
         style.configure("TLabel", background="#f0f0f0", font=self.normal_font)
         style.configure("TFrame", background="#f0f0f0")
-        style.configure("TButton", font=self.normal_font)
+        
+        # Styles améliorés pour les boutons et les sections
+        style.configure("TButton", font=self.normal_font, padding=6)
+        
+        # Créer des styles de boutons personnalisés sans modifier les couleurs de fond/texte
+        # qui peuvent causer des problèmes avec certains thèmes ttk
+        style.configure("Action.TButton", font=self.normal_font, padding=8)
+        style.configure("Cancel.TButton", font=self.normal_font, padding=8)
+        
+        style.configure("Section.TLabelframe", background="#f0f0f0", borderwidth=2, relief="ridge")
+        style.configure("Section.TLabelframe.Label", background="#f0f0f0", font=self.header_font, foreground="#2c3e50")
+        
         style.configure("TCheckbutton", background="#f0f0f0")
         style.configure("TLabelframe", background="#f0f0f0", font=self.header_font)
         style.configure("TLabelframe.Label", background="#f0f0f0", font=self.header_font)
@@ -104,17 +124,17 @@ class InterfacePlanning:
         frame_generation.columnconfigure(1, weight=1)
         frame_generation.columnconfigure(2, weight=1)
         
-        # Boutons pour générer le planning
-        btn_generer = ttk.Button(frame_generation, text="Générer Planning", 
-                  command=self.generer_planning)
+        # Boutons pour générer le planning - utiliser des boutons tk standard pour plus de contrôle visuel
+        btn_generer = self.create_styled_button(frame_generation, "Générer Planning", 
+                                              self.generer_planning, "action")
         btn_generer.grid(row=0, column=0, padx=5, sticky="ew")
         
-        btn_generer_12h = ttk.Button(frame_generation, text="Suggestion 12h", 
-                  command=self.generer_planning_12h)
+        btn_generer_12h = self.create_styled_button(frame_generation, "Suggestion 12h", 
+                                                 self.generer_planning_12h, "action")
         btn_generer_12h.grid(row=0, column=1, padx=5, sticky="ew")
         
-        btn_combler = ttk.Button(frame_generation, text="Combler les trous", 
-                  command=self.combler_trous)
+        btn_combler = self.create_styled_button(frame_generation, "Combler les trous", 
+                                             self.combler_trous, "action")
         btn_combler.grid(row=0, column=2, padx=5, sticky="ew")
         
         # Frame pour la sauvegarde et le chargement
@@ -123,12 +143,12 @@ class InterfacePlanning:
         frame_db.columnconfigure(0, weight=1)
         frame_db.columnconfigure(1, weight=1)
         
-        btn_sauvegarder = ttk.Button(frame_db, text="Sauvegarder Planning", 
-                  command=self.sauvegarder_planning)
+        btn_sauvegarder = self.create_styled_button(frame_db, "Sauvegarder Planning", 
+                                                 self.sauvegarder_planning, "save")
         btn_sauvegarder.grid(row=0, column=0, padx=5, sticky="ew")
         
-        btn_charger = ttk.Button(frame_db, text="Charger Planning", 
-                  command=self.charger_planning)
+        btn_charger = self.create_styled_button(frame_db, "Charger Planning", 
+                                             self.charger_planning, "load")
         btn_charger.grid(row=0, column=1, padx=5, sticky="ew")
         
         # Colonne droite - Affichage du planning
@@ -146,17 +166,101 @@ class InterfacePlanning:
         # Initialisation du canvas vide
         self.creer_planning_visuel()
 
+    def create_styled_button(self, parent, text, command, button_type="action"):
+        """Crée un bouton stylisé avec des couleurs vives garanties"""
+        # Définir des couleurs très vives pour s'assurer qu'elles s'affichent
+        if button_type == "action":
+            bg_color = "#007BFF"  # Bleu vif
+            hover_color = "#0056b3"
+        elif button_type == "cancel":
+            bg_color = "#DC3545"  # Rouge vif
+            hover_color = "#c82333"
+        elif button_type == "save":
+            bg_color = "#28A745"  # Vert vif
+            hover_color = "#218838"
+        elif button_type == "load":
+            bg_color = "#FFC107"  # Jaune vif
+            hover_color = "#e0a800"
+            fg_color = "black"    # Texte noir pour le jaune
+        else:
+            bg_color = "#007BFF"
+            hover_color = "#0056b3"
+        
+        # Couleur du texte (noir pour le jaune, blanc pour les autres)
+        fg_color = "black" if button_type == "load" else "white"
+        
+        # Créer un Canvas pour le bouton personnalisé
+        canvas_width = 150
+        canvas_height = 40
+        
+        canvas = tk.Canvas(
+            parent,
+            width=canvas_width,
+            height=canvas_height,
+            bg=bg_color,
+            highlightthickness=0
+        )
+        
+        # Ajouter le texte au centre du canvas
+        text_id = canvas.create_text(
+            canvas_width // 2,
+            canvas_height // 2,
+            text=text,
+            fill=fg_color,
+            font=self.normal_font
+        )
+        
+        # Fonction pour gérer le clic
+        def on_click(event):
+            command()
+        
+        # Fonctions pour les effets de survol
+        def on_enter(event):
+            canvas.config(bg=hover_color)
+        
+        def on_leave(event):
+            canvas.config(bg=bg_color)
+        
+        # Lier les événements
+        canvas.bind("<Button-1>", on_click)
+        canvas.bind("<Enter>", on_enter)
+        canvas.bind("<Leave>", on_leave)
+        
+        # Stocker l'état du bouton
+        canvas.enabled = True
+        
+        # Méthode pour activer/désactiver le bouton
+        def configure(**kwargs):
+            if "state" in kwargs:
+                if kwargs["state"] == tk.DISABLED:
+                    canvas.enabled = False
+                    canvas.config(bg="#cccccc")  # Gris pour désactivé
+                    canvas.unbind("<Button-1>")
+                    canvas.unbind("<Enter>")
+                    canvas.unbind("<Leave>")
+                else:
+                    canvas.enabled = True
+                    canvas.config(bg=bg_color)
+                    canvas.bind("<Button-1>", on_click)
+                    canvas.bind("<Enter>", on_enter)
+                    canvas.bind("<Leave>", on_leave)
+        
+        # Ajouter la méthode configure au canvas
+        canvas.configure = configure
+        
+        return canvas
+
     def creer_formulaire_travailleur(self, frame):
         # Frame pour le formulaire d'ajout de travailleur
-        form_frame = ttk.LabelFrame(frame, text="Ajouter un travailleur", padding=10)
-        form_frame.grid(row=0, column=0, sticky="nsew")
-        form_frame.columnconfigure(0, weight=1)
-        form_frame.rowconfigure(0, weight=0)  # Info frame
-        form_frame.rowconfigure(1, weight=1)  # Dispo frame
-        form_frame.rowconfigure(2, weight=0)  # Boutons
+        self.form_label_frame = ttk.LabelFrame(frame, text="Ajouter un travailleur", padding=10, style="Section.TLabelframe")
+        self.form_label_frame.grid(row=0, column=0, sticky="nsew")
+        self.form_label_frame.columnconfigure(0, weight=1)
+        self.form_label_frame.rowconfigure(0, weight=0)  # Info frame
+        self.form_label_frame.rowconfigure(1, weight=1)  # Dispo frame
+        self.form_label_frame.rowconfigure(2, weight=0)  # Boutons
         
         # Nom et nombre de shifts
-        info_frame = ttk.Frame(form_frame)
+        info_frame = ttk.Frame(self.form_label_frame)
         info_frame.grid(row=0, column=0, sticky="ew", pady=5)
         info_frame.columnconfigure(0, weight=0)
         info_frame.columnconfigure(1, weight=1)
@@ -164,13 +268,13 @@ class InterfacePlanning:
         info_frame.columnconfigure(3, weight=0)
         
         ttk.Label(info_frame, text="Nom:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        ttk.Entry(info_frame, textvariable=self.nom_var).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+        ttk.Entry(info_frame, textvariable=self.nom_var, width=25).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
         
         ttk.Label(info_frame, text="Nombre de shifts souhaités:").grid(row=0, column=2, sticky="w", padx=5, pady=5)
         ttk.Entry(info_frame, textvariable=self.nb_shifts_var, width=5).grid(row=0, column=3, padx=5, pady=5)
         
         # Disponibilités
-        dispo_frame = ttk.LabelFrame(form_frame, text="Disponibilités", padding=10)
+        dispo_frame = ttk.LabelFrame(self.form_label_frame, text="Disponibilités", padding=10)
         dispo_frame.grid(row=1, column=0, sticky="nsew", pady=5)
         
         # Configurer les colonnes pour qu'elles s'adaptent
@@ -203,20 +307,28 @@ class InterfacePlanning:
             ttk.Checkbutton(dispo_frame, variable=self.disponibilites_12h[jour]["nuit_12h"]).grid(row=i, column=col, padx=5, pady=2)
         
         # Boutons
-        btn_frame = ttk.Frame(form_frame)
+        btn_frame = ttk.Frame(self.form_label_frame)
         btn_frame.grid(row=2, column=0, sticky="ew", pady=10)
         btn_frame.columnconfigure(0, weight=1)
         btn_frame.columnconfigure(1, weight=1)
         
-        self.btn_ajouter = ttk.Button(btn_frame, text="Ajouter Travailleur", command=self.ajouter_travailleur)
+        # Utiliser des boutons stylisés
+        self.btn_ajouter = self.create_styled_button(btn_frame, "Ajouter Travailleur", 
+                                                  self.ajouter_travailleur, "action")
         self.btn_ajouter.grid(row=0, column=0, padx=5, sticky="ew")
         
-        self.btn_annuler = ttk.Button(btn_frame, text="Annuler", command=self.annuler_edition, state=tk.DISABLED)
+        self.btn_annuler = self.create_styled_button(btn_frame, "Annuler", 
+                                                  self.annuler_edition, "cancel")
+        self.btn_annuler.enabled = False
+        self.btn_annuler.config(bg="#cccccc")
+        self.btn_annuler.unbind("<Button-1>")
+        self.btn_annuler.unbind("<Enter>")
+        self.btn_annuler.unbind("<Leave>")
         self.btn_annuler.grid(row=0, column=1, padx=5, sticky="ew")
 
     def creer_liste_travailleurs(self, frame):
         # Liste des travailleurs
-        frame_liste = ttk.LabelFrame(frame, text="Travailleurs enregistrés", padding=10)
+        frame_liste = ttk.LabelFrame(frame, text="Travailleurs enregistrés", padding=10, style="Section.TLabelframe")
         frame_liste.grid(row=0, column=0, sticky="nsew")
         frame_liste.columnconfigure(0, weight=1)
         frame_liste.rowconfigure(0, weight=1)  # Table
@@ -247,7 +359,9 @@ class InterfacePlanning:
         btn_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         btn_frame.columnconfigure(0, weight=1)
         
-        btn_supprimer = ttk.Button(btn_frame, text="Supprimer", command=self.supprimer_travailleur)
+        # Utiliser un bouton stylisé
+        btn_supprimer = self.create_styled_button(btn_frame, "Supprimer", 
+                                               self.supprimer_travailleur, "cancel")
         btn_supprimer.grid(row=0, column=0, sticky="e", padx=5)
 
     def creer_planning_visuel(self):
@@ -448,55 +562,107 @@ class InterfacePlanning:
             self.table_travailleurs.insert("", tk.END, values=(travailleur.nom, travailleur.nb_shifts_souhaites))
 
     def selectionner_travailleur(self, event):
-        # Récupérer l'item sélectionné
+        """Sélectionne un travailleur dans la liste pour l'éditer"""
         selection = self.table_travailleurs.selection()
         if not selection:
             return
         
-        # Récupérer l'index du travailleur sélectionné
+        # Récupérer le nom du travailleur sélectionné
         item = selection[0]
         nom_travailleur = self.table_travailleurs.item(item, "values")[0]
         
         # Trouver le travailleur correspondant
-        for index, travailleur in enumerate(self.planning.travailleurs):
+        for travailleur in self.planning.travailleurs:
             if travailleur.nom == nom_travailleur:
-                # Passer en mode édition
-                self.mode_edition = True
-                self.travailleur_en_edition = travailleur
-                
                 # Remplir le formulaire avec les données du travailleur
                 self.nom_var.set(travailleur.nom)
                 self.nb_shifts_var.set(str(travailleur.nb_shifts_souhaites))
                 
-                # Réinitialiser toutes les cases à cocher
+                # Réinitialiser toutes les disponibilités
                 for jour in Horaire.JOURS:
                     for shift in Horaire.SHIFTS.values():
                         self.disponibilites[jour][shift].set(False)
                     self.disponibilites_12h[jour]["matin_12h"].set(False)
                     self.disponibilites_12h[jour]["nuit_12h"].set(False)
                 
-                # Cocher les cases correspondant aux disponibilités
+                # Définir les disponibilités du travailleur
                 for jour, shifts in travailleur.disponibilites.items():
                     for shift in shifts:
                         self.disponibilites[jour][shift].set(True)
                 
-                # Cocher les cases correspondant aux disponibilités de 12h
+                # Définir les disponibilités 12h si elles existent
                 if hasattr(travailleur, 'disponibilites_12h'):
                     for jour, shifts_12h in travailleur.disponibilites_12h.items():
                         for shift_12h in shifts_12h:
                             self.disponibilites_12h[jour][shift_12h].set(True)
                 
-                # Mettre à jour les boutons
-                self.btn_ajouter.config(text="Modifier Travailleur")
-                self.btn_annuler.config(state=tk.NORMAL)
+                # Passer en mode édition
+                self.mode_edition = True
+                self.travailleur_en_edition = travailleur
+                
+                # Changer le titre du formulaire
+                self.form_label_frame.configure(text="Modifier un travailleur")
+                
+                # Changer le texte du bouton Ajouter en Modifier
+                if hasattr(self.btn_ajouter, 'itemconfig'):
+                    # Si c'est un canvas
+                    text_id = self.btn_ajouter.find_withtag("all")[0]  # Trouver le texte dans le canvas
+                    self.btn_ajouter.itemconfig(text_id, text="Modifier Travailleur")
+                else:
+                    # Si c'est un bouton standard
+                    self.btn_ajouter.config(text="Modifier Travailleur")
+                
+                # Activer le bouton Annuler
+                if hasattr(self.btn_annuler, 'configure'):
+                    self.btn_annuler.configure(state=tk.NORMAL)
+                else:
+                    # Si c'est un canvas
+                    self.btn_annuler.enabled = True
+                    self.btn_annuler.config(bg="#DC3545")
+                    self.btn_annuler.bind("<Button-1>", lambda e: self.annuler_edition())
+                    self.btn_annuler.bind("<Enter>", lambda e: self.btn_annuler.config(bg="#c82333"))
+                    self.btn_annuler.bind("<Leave>", lambda e: self.btn_annuler.config(bg="#DC3545"))
+                
                 break
 
     def annuler_edition(self):
+        """Annule l'édition en cours et réinitialise le formulaire"""
         self.mode_edition = False
         self.travailleur_en_edition = None
-        self.btn_ajouter.config(text="Ajouter Travailleur")
-        self.btn_annuler.config(state=tk.DISABLED)
-        self.reinitialiser_formulaire()
+        
+        # Réinitialiser le formulaire
+        self.nom_var.set("")
+        self.nb_shifts_var.set("")
+        
+        # Réinitialiser toutes les disponibilités
+        for jour in Horaire.JOURS:
+            for shift in Horaire.SHIFTS.values():
+                self.disponibilites[jour][shift].set(False)
+            self.disponibilites_12h[jour]["matin_12h"].set(False)
+            self.disponibilites_12h[jour]["nuit_12h"].set(False)
+        
+        # Changer le titre du formulaire
+        self.form_label_frame.configure(text="Ajouter un travailleur")
+        
+        # Changer le texte du bouton Modifier en Ajouter
+        if hasattr(self.btn_ajouter, 'itemconfig'):
+            # Si c'est un canvas
+            text_id = self.btn_ajouter.find_withtag("all")[0]  # Trouver le texte dans le canvas
+            self.btn_ajouter.itemconfig(text_id, text="Ajouter Travailleur")
+        else:
+            # Si c'est un bouton standard
+            self.btn_ajouter.config(text="Ajouter Travailleur")
+        
+        # Désactiver le bouton Annuler
+        if hasattr(self.btn_annuler, 'configure'):
+            self.btn_annuler.configure(state=tk.DISABLED)
+        else:
+            # Si c'est un canvas
+            self.btn_annuler.enabled = False
+            self.btn_annuler.config(bg="#cccccc")
+            self.btn_annuler.unbind("<Button-1>")
+            self.btn_annuler.unbind("<Enter>")
+            self.btn_annuler.unbind("<Leave>")
 
     def verifier_repos_entre_gardes(self, planning, travailleur):
         """Vérifie qu'il y a suffisamment de repos entre les gardes d'un travailleur"""
