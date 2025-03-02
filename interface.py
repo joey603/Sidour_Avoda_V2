@@ -149,9 +149,7 @@ class InterfacePlanning:
                                                  self.sauvegarder_planning, "save")
         btn_sauvegarder.grid(row=0, column=0, padx=5, sticky="ew")
         
-        btn_charger = self.create_styled_button(frame_db, "Charger Planning", 
-                                             self.charger_planning, "load")
-        btn_charger.grid(row=0, column=1, padx=5, sticky="ew")
+    
         
         btn_agenda = self.create_styled_button(frame_db, "Agenda Plannings", 
                                                 self.ouvrir_agenda_plannings, "action")
