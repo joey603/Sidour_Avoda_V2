@@ -67,6 +67,18 @@ class Database:
         )
         ''')
         
+        # Vérifier si la colonne date_modification existe déjà
+        cursor.execute("PRAGMA table_info(plannings)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Ajouter la colonne date_modification si elle n'existe pas
+        if 'date_modification' not in columns:
+            try:
+                cursor.execute("ALTER TABLE plannings ADD COLUMN date_modification TIMESTAMP")
+            except sqlite3.OperationalError:
+                # La colonne existe peut-être déjà ou une autre erreur est survenue
+                pass
+        
         # Table des assignations de shifts
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS assignations (
@@ -375,11 +387,27 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id, nom, date_creation, date_modification FROM plannings WHERE id = ?", (planning_id,))
+        # Vérifier si la colonne date_modification existe
+        cursor.execute("PRAGMA table_info(plannings)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'date_modification' in columns:
+            cursor.execute("SELECT id, nom, date_creation, date_modification FROM plannings WHERE id = ?", (planning_id,))
+        else:
+            cursor.execute("SELECT id, nom, date_creation FROM plannings WHERE id = ?", (planning_id,))
+        
         planning_info = cursor.fetchone()
         
         self.close()
-        return dict(planning_info) if planning_info else None
+        
+        if planning_info:
+            result = dict(planning_info)
+            # Ajouter date_modification si elle n'existe pas dans le résultat
+            if 'date_modification' not in result:
+                result['date_modification'] = None
+            return result
+        else:
+            return None
     
     def modifier_nom_planning(self, planning_id, nouveau_nom):
         """Modifie le nom d'un planning existant"""

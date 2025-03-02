@@ -1453,218 +1453,229 @@ class InterfacePlanning:
         btn_fermer.pack(pady=10)
 
     def ouvrir_planning_pour_modification(self, planning_id, parent_window=None):
-        """Ouvre un planning existant pour visualisation et modification"""
-        # Charger le planning
-        planning_charge = self.planning.charger(planning_id)
+        """Ouvre un planning existant pour modification avec le même style visuel que la page principale"""
+        # Charger le planning depuis la base de données
+        planning_charge = Planning.charger(planning_id)
         
         if not planning_charge:
             messagebox.showerror("Erreur", "Impossible de charger le planning")
             return
         
-        # Créer une nouvelle fenêtre
-        edit_window = tk.Toplevel(parent_window if parent_window else self.root)
-        edit_window.title(f"Planning #{planning_id} - {planning_charge.nom if hasattr(planning_charge, 'nom') else ''}")
-        edit_window.geometry("1000x700")
-        edit_window.configure(bg="#f0f0f0")
-        
-        # Créer un cadre principal avec deux onglets
-        notebook = ttk.Notebook(edit_window)
-        notebook.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Onglet de visualisation
-        view_frame = ttk.Frame(notebook, padding=10)
-        notebook.add(view_frame, text="Visualisation")
-        
-        # Onglet d'édition
-        edit_frame = ttk.Frame(notebook, padding=10)
-        notebook.add(edit_frame, text="Modification")
-        
-        # === ONGLET DE VISUALISATION ===
-        view_frame.columnconfigure(0, weight=1)
-        view_frame.rowconfigure(0, weight=1)
-        
-        # Créer un cadre pour le planning visuel
-        visual_frame = ttk.Frame(view_frame)
-        visual_frame.grid(row=0, column=0, sticky="nsew")
-        
-        # Utiliser les mêmes couleurs que dans l'interface principale
-        # Si un travailleur n'a pas encore de couleur, lui en assigner une
-        for travailleur in planning_charge.travailleurs:
-            if travailleur.nom not in self.travailleur_colors:
-                # Assigner une couleur aléatoire parmi celles disponibles
-                if self.colors:
-                    color = self.colors.pop(0)
-                else:
-                    # Si toutes les couleurs prédéfinies sont utilisées, générer une couleur aléatoire
-                    r = random.randint(100, 240)
-                    g = random.randint(100, 240)
-                    b = random.randint(100, 240)
-                    color = f"#{r:02x}{g:02x}{b:02x}"
-                self.travailleur_colors[travailleur.nom] = color
-        
-        # En-têtes des colonnes
-        ttk.Label(visual_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        for i, shift in enumerate(Horaire.SHIFTS.values()):
-            ttk.Label(visual_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=5)
-        
-        # Remplir le planning visuel
-        for i, jour in enumerate(Horaire.JOURS):
-            ttk.Label(visual_frame, text=jour.capitalize(), font=self.normal_font).grid(row=i+1, column=0, padx=5, pady=5, sticky="w")
-            
-            for j, shift in enumerate(Horaire.SHIFTS.values()):
-                travailleur = planning_charge.planning[jour][shift]
-                
-                # Créer un frame pour la cellule
-                cell_frame = ttk.Frame(visual_frame, width=150, height=50)
-                cell_frame.grid(row=i+1, column=j+1, padx=2, pady=2, sticky="nsew")
-                cell_frame.grid_propagate(False)  # Empêcher le frame de s'adapter à son contenu
-                
-                if travailleur:
-                    # Vérifier si c'est une garde partagée (format: "nom1 / nom2")
-                    if " / " in travailleur:
-                        # Diviser la cellule en deux parties (haut/bas)
-                        noms = travailleur.split(" / ")
-                        if len(noms) == 2:
-                            # Créer un frame pour contenir les deux labels
-                            shared_frame = ttk.Frame(cell_frame)
-                            shared_frame.pack(fill="both", expand=True)
-                            
-                            # Configurer le frame pour qu'il ait deux lignes de même hauteur
-                            shared_frame.rowconfigure(0, weight=1)
-                            shared_frame.rowconfigure(1, weight=1)
-                            shared_frame.columnconfigure(0, weight=1)
-                            
-                            # Obtenir les couleurs des deux travailleurs
-                            color1 = self.travailleur_colors.get(noms[0], "#FFFFFF")
-                            color2 = self.travailleur_colors.get(noms[1], "#FFFFFF")
-                            
-                            # Créer deux labels, un pour chaque travailleur
-                            label1 = tk.Label(shared_frame, text=noms[0], bg=color1, 
-                                            font=self.normal_font, relief="raised", borderwidth=1)
-                            label1.grid(row=0, column=0, sticky="nsew")
-                            
-                            label2 = tk.Label(shared_frame, text=noms[1], bg=color2, 
-                                            font=self.normal_font, relief="raised", borderwidth=1)
-                            label2.grid(row=1, column=0, sticky="nsew")
-                        else:
-                            # Cas imprévu, utiliser un affichage standard
-                            label = tk.Label(cell_frame, text=travailleur, bg="#F0F0F0", 
-                                           font=self.normal_font, relief="raised", borderwidth=1)
-                            label.pack(fill="both", expand=True)
-                    else:
-                        # Utiliser la couleur associée au travailleur
-                        color = self.travailleur_colors.get(travailleur, "#FFFFFF")
-                        
-                        # Créer un label avec un fond coloré
-                        label = tk.Label(cell_frame, text=travailleur, bg=color, 
-                                       font=self.normal_font, relief="raised", borderwidth=1)
-                        label.pack(fill="both", expand=True)
-                else:
-                    # Cellule vide
-                    label = tk.Label(cell_frame, text="Non assigné", bg="#F0F0F0", 
-                                   font=self.normal_font, relief="sunken", borderwidth=1)
-                    label.pack(fill="both", expand=True)
-        
-        # Configurer les colonnes pour qu'elles s'étendent
-        for i in range(4):  # 1 colonne pour les jours + 3 colonnes pour les shifts
-            visual_frame.columnconfigure(i, weight=1)
-        
-        # Configurer les lignes pour qu'elles s'étendent
-        for i in range(8):  # 1 ligne pour les en-têtes + 7 lignes pour les jours
-            visual_frame.rowconfigure(i, weight=1)
-        
-        # === ONGLET D'ÉDITION ===
-        edit_frame.columnconfigure(0, weight=1)
-        edit_frame.rowconfigure(0, weight=1)
-        
-        # Créer un cadre pour le tableau d'édition
-        table_frame = ttk.Frame(edit_frame)
-        table_frame.grid(row=0, column=0, sticky="nsew")
-        
-        # Variables pour stocker les sélections
-        selection_vars = {}
-        
-        # Créer les en-têtes
-        columns = ["Jour"] + list(Horaire.SHIFTS.values())
-        for i, col in enumerate(columns):
-            label = ttk.Label(table_frame, text=col, font=self.header_font)
-            label.grid(row=0, column=i, padx=5, pady=5, sticky="ew")
-        
-        # Obtenir la liste complète des travailleurs depuis la base de données
+        # Récupérer les informations du planning
         db = Database()
-        tous_travailleurs = db.charger_travailleurs()
-        
-        # Remplir le tableau avec les données du planning
-        for i, jour in enumerate(Horaire.JOURS, 1):
-            # Ajouter le nom du jour
-            jour_label = ttk.Label(table_frame, text=jour.capitalize(), font=self.normal_font)
-            jour_label.grid(row=i, column=0, padx=5, pady=5, sticky="w")
+        try:
+            planning_info = db.obtenir_info_planning(planning_id)
             
-            # Ajouter les shifts avec des combobox pour sélectionner les travailleurs
-            for j, shift in enumerate(Horaire.SHIFTS.values(), 1):
-                # Créer une variable pour la combobox
-                var = tk.StringVar()
-                selection_vars[(jour, shift)] = var
+            if not planning_info:
+                messagebox.showerror("Erreur", "Impossible de récupérer les informations du planning")
+                return
+            
+            # Créer une nouvelle fenêtre
+            planning_window = tk.Toplevel(self.root)
+            planning_window.title(f"Planning: {planning_info['nom']}")
+            planning_window.geometry("1200x800")
+            planning_window.configure(bg="#f0f0f0")
+            
+            # Stocker l'ID du planning pour la sauvegarde ultérieure
+            planning_window.planning_id = planning_id
+            planning_window.planning = planning_charge
+            
+            # Créer un cadre pour le planning
+            planning_frame = ttk.Frame(planning_window, padding=10)
+            planning_frame.pack(fill="both", expand=True)
+            
+            # Créer un Canvas pour le planning visuel (similaire à l'interface principale)
+            canvas_frame = ttk.Frame(planning_frame)
+            canvas_frame.pack(fill="both", expand=True, pady=10)
+            
+            # Canvas pour le planning
+            canvas_width = 1000
+            canvas_height = 550
+            canvas = tk.Canvas(canvas_frame, width=canvas_width, height=canvas_height, bg="white", highlightthickness=1, highlightbackground="#ddd")
+            canvas.pack(fill="both", expand=True)
+            
+            # Définir les couleurs pour les différents shifts
+            colors = {
+                "06-14": "#a8e6cf",  # Vert clair pour le matin
+                "14-22": "#ffcc5c",  # Jaune pour l'après-midi
+                "22-06": "#b19cd9"   # Violet pour la nuit
+            }
+            
+            # Dimensions des cellules
+            cell_width = canvas_width / (len(Horaire.SHIFTS) + 1)
+            cell_height = canvas_height / (len(Horaire.JOURS) + 1)
+            
+            # Dessiner les en-têtes de colonnes (shifts)
+            canvas.create_rectangle(0, 0, cell_width, cell_height, fill="#f0f0f0", outline="#ccc")
+            canvas.create_text(cell_width/2, cell_height/2, text="Jour", font=("Arial", 10, "bold"))
+            
+            for i, shift in enumerate(Horaire.SHIFTS.values()):
+                x0 = cell_width * (i + 1)
+                y0 = 0
+                x1 = cell_width * (i + 2)
+                y1 = cell_height
+                canvas.create_rectangle(x0, y0, x1, y1, fill=colors[shift], outline="#ccc")
+                canvas.create_text((x0 + x1)/2, (y0 + y1)/2, text=shift, font=("Arial", 10, "bold"))
+            
+            # Dessiner les en-têtes de lignes (jours)
+            for i, jour in enumerate(Horaire.JOURS):
+                x0 = 0
+                y0 = cell_height * (i + 1)
+                x1 = cell_width
+                y1 = cell_height * (i + 2)
+                canvas.create_rectangle(x0, y0, x1, y1, fill="#f0f0f0", outline="#ccc")
+                canvas.create_text((x0 + x1)/2, (y0 + y1)/2, text=jour, font=("Arial", 10, "bold"))
+            
+            # Dessiner les cellules avec les assignations
+            cellules = {}  # Pour stocker les références aux cellules pour modification ultérieure
+            
+            for i, jour in enumerate(Horaire.JOURS):
+                cellules[jour] = {}
+                for j, shift in enumerate(Horaire.SHIFTS.values()):
+                    x0 = cell_width * (j + 1)
+                    y0 = cell_height * (i + 1)
+                    x1 = cell_width * (j + 2)
+                    y1 = cell_height * (i + 2)
+                    
+                    # Récupérer le travailleur assigné
+                    travailleur = planning_charge.planning[jour][shift]
+                    
+                    # Créer la cellule
+                    rect_id = canvas.create_rectangle(x0, y0, x1, y1, fill="white", outline="#ccc")
+                    text_id = canvas.create_text(
+                        (x0 + x1)/2, (y0 + y1)/2, 
+                        text=travailleur if travailleur else "Non assigné", 
+                        width=cell_width*0.9,  # Limiter la largeur du texte
+                        font=("Arial", 9)
+                    )
+                    
+                    # Stocker les IDs pour pouvoir les modifier plus tard
+                    cellules[jour][shift] = {
+                        "rect": rect_id,
+                        "text": text_id,
+                        "travailleur": travailleur
+                    }
+                    
+                    # Ajouter un gestionnaire de clic pour modifier l'assignation
+                    canvas.tag_bind(rect_id, "<Button-1>", 
+                                    lambda e, j=jour, s=shift: modifier_cellule(j, s))
+                    canvas.tag_bind(text_id, "<Button-1>", 
+                                    lambda e, j=jour, s=shift: modifier_cellule(j, s))
+            
+            # Fonction pour modifier une cellule
+            def modifier_cellule(jour, shift):
+                # Liste de tous les travailleurs + "Non assigné"
+                travailleurs = [t.nom for t in planning_charge.travailleurs]
+                travailleurs.append("Non assigné")
                 
-                # Définir la valeur actuelle
-                travailleur_actuel = planning_charge.planning[jour][shift]
-                var.set(travailleur_actuel if travailleur_actuel else "Non assigné")
+                # Obtenir une liste de tous les noms des travailleurs dans la base de données
+                db = Database()
+                tous_travailleurs = [t.nom for t in db.charger_travailleurs()]
                 
-                # Créer la liste des travailleurs disponibles
-                travailleurs_disponibles = ["Non assigné"]
+                # Fusionner avec les travailleurs actuels et éliminer les doublons
+                tous_noms = list(set(travailleurs + tous_travailleurs))
+                tous_noms.sort()
                 
-                # Ajouter tous les travailleurs de la base de données
-                for travailleur in tous_travailleurs:
-                    travailleurs_disponibles.append(travailleur.nom)
+                # Fenêtre de sélection pour choisir un travailleur
+                selection_window = tk.Toplevel(planning_window)
+                selection_window.title(f"Assigner un travailleur pour {jour} - {shift}")
+                selection_window.geometry("300x400")
+                selection_window.transient(planning_window)
+                selection_window.grab_set()
+                selection_window.focus_set()
                 
-                # Créer la combobox
-                combo = ttk.Combobox(table_frame, textvariable=var, values=travailleurs_disponibles, state="readonly")
-                combo.grid(row=i, column=j, padx=5, pady=5, sticky="ew")
-        
-        # Configurer le redimensionnement
-        for i in range(len(columns)):
-            table_frame.columnconfigure(i, weight=1)
-        
-        # Cadre pour les boutons
-        btn_frame = ttk.Frame(edit_window)
-        btn_frame.pack(fill="x", pady=10)
-        
-        # Fonction pour sauvegarder les modifications
-        def sauvegarder_modifications():
-            # Mettre à jour le planning avec les nouvelles valeurs
-            for (jour, shift), var in selection_vars.items():
-                valeur = var.get()
-                planning_charge.planning[jour][shift] = None if valeur == "Non assigné" else valeur
+                # Frame pour contenir la liste
+                frame = ttk.Frame(selection_window, padding=10)
+                frame.pack(fill="both", expand=True)
+                
+                # Label
+                ttk.Label(frame, text=f"Choisir un travailleur pour\n{jour} - {shift}:", 
+                         font=("Arial", 10, "bold")).pack(pady=10)
+                
+                # Listbox avec scrollbar
+                list_frame = ttk.Frame(frame)
+                list_frame.pack(fill="both", expand=True)
+                
+                scrollbar = ttk.Scrollbar(list_frame)
+                scrollbar.pack(side="right", fill="y")
+                
+                listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 9))
+                listbox.pack(side="left", fill="both", expand=True)
+                
+                scrollbar.config(command=listbox.yview)
+                
+                # Ajouter les options à la listbox
+                for nom in tous_noms:
+                    listbox.insert(tk.END, nom)
+                
+                # Ajouter "Non assigné" comme dernière option
+                if "Non assigné" not in tous_noms:
+                    listbox.insert(tk.END, "Non assigné")
+                
+                # Sélectionner le travailleur actuel
+                actuel = cellules[jour][shift]["travailleur"]
+                if actuel in tous_noms:
+                    index = tous_noms.index(actuel)
+                    listbox.selection_set(index)
+                    listbox.see(index)
+                elif actuel is None and "Non assigné" in tous_noms:
+                    index = tous_noms.index("Non assigné")
+                    listbox.selection_set(index)
+                    listbox.see(index)
+                
+                # Fonction pour appliquer le choix
+                def appliquer_choix():
+                    selections = listbox.curselection()
+                    if selections:
+                        choix = listbox.get(selections[0])
+                        if choix == "Non assigné":
+                            planning_window.planning.planning[jour][shift] = None
+                            cellules[jour][shift]["travailleur"] = None
+                            canvas.itemconfig(cellules[jour][shift]["text"], text="Non assigné")
+                        else:
+                            planning_window.planning.planning[jour][shift] = choix
+                            cellules[jour][shift]["travailleur"] = choix
+                            canvas.itemconfig(cellules[jour][shift]["text"], text=choix)
+                        selection_window.destroy()
+                
+                # Boutons
+                btn_frame = ttk.Frame(frame)
+                btn_frame.pack(fill="x", pady=10)
+                
+                ttk.Button(btn_frame, text="Valider", command=appliquer_choix).pack(side="left", padx=5, expand=True)
+                ttk.Button(btn_frame, text="Annuler", command=selection_window.destroy).pack(side="right", padx=5, expand=True)
+                
+                # Double-clic pour sélectionner
+                listbox.bind("<Double-1>", lambda e: appliquer_choix())
             
-            # Sauvegarder le planning modifié avec le même ID
-            db = Database()
-            db.mettre_a_jour_planning(planning_id, planning_charge)
+            # Fonction pour sauvegarder le planning modifié
+            def sauvegarder_planning_modifie():
+                if db.mettre_a_jour_planning(planning_id, planning_window.planning):
+                    messagebox.showinfo("Succès", "Planning mis à jour avec succès")
+                    # Fermer la fenêtre d'édition
+                    planning_window.destroy()
+                    # Rafraîchir l'agenda si nécessaire
+                    if parent_window:
+                        parent_window.destroy()
+                        self.ouvrir_agenda_plannings()
+                else:
+                    messagebox.showerror("Erreur", "Impossible de mettre à jour le planning")
             
-            messagebox.showinfo("Succès", "Planning modifié avec succès")
+            # Fonctions pour exporter le planning
+            def exporter_planning():
+                self.telecharger_planning_csv(planning_window.planning)
             
-            # Rafraîchir l'affichage de l'agenda si on est dans cette fenêtre
-            if parent_window:
-                parent_window.destroy()
-                self.ouvrir_agenda_plannings()
+            # Frame pour les boutons en bas
+            button_frame = ttk.Frame(planning_window, padding=10)
+            button_frame.pack(fill="x", side="bottom")
             
-            edit_window.destroy()
-            
-            # Si on est dans l'interface principale, mettre à jour l'affichage
-            if not parent_window:
-                self.planning = planning_charge
-                self.creer_planning_visuel()
+            # Boutons
+            ttk.Button(button_frame, text="Sauvegarder", command=sauvegarder_planning_modifie).pack(side="left", padx=5)
+            ttk.Button(button_frame, text="Exporter en CSV", command=exporter_planning).pack(side="left", padx=5)
+            ttk.Button(button_frame, text="Fermer sans sauvegarder", command=planning_window.destroy).pack(side="right", padx=5)
         
-        # Ajouter les boutons
-        btn_sauvegarder = ttk.Button(btn_frame, text="Sauvegarder les modifications", command=sauvegarder_modifications)
-        btn_sauvegarder.pack(side="left", padx=5)
-        
-        btn_annuler = ttk.Button(btn_frame, text="Fermer", command=edit_window.destroy)
-        btn_annuler.pack(side="right", padx=5)
-        
-        # Bouton pour exporter le planning
-        btn_exporter = ttk.Button(btn_frame, text="Exporter en CSV", 
-                                 command=lambda: self.telecharger_planning_csv(planning_charge))
-        btn_exporter.pack(side="left", padx=5)
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
 
     def telecharger_planning_csv(self, planning_to_export=None):
         """Exporte le planning actuel ou spécifié au format CSV"""
