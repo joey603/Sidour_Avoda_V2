@@ -5,7 +5,7 @@ class Horaire:
         "nuit": "22-06"
     }
     
-    JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+    JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"]
 
     @staticmethod
     def get_all_shifts():

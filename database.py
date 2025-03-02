@@ -62,7 +62,8 @@ class Database:
         CREATE TABLE IF NOT EXISTS plannings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nom TEXT NOT NULL,
-            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_modification TIMESTAMP
         )
         ''')
         
@@ -290,4 +291,121 @@ class Database:
         plannings = cursor.fetchall()
         
         self.close()
-        return plannings 
+        return plannings
+    
+    def mettre_a_jour_planning(self, planning_id, planning):
+        """Met à jour un planning existant dans la base de données"""
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        try:
+            # Supprimer les assignations existantes pour ce planning
+            cursor.execute("DELETE FROM assignations WHERE planning_id = ?", (planning_id,))
+            
+            # Récupérer les IDs des travailleurs
+            travailleurs_ids = {}
+            for travailleur in planning.travailleurs:
+                cursor.execute("SELECT id FROM travailleurs WHERE nom = ?", (travailleur.nom,))
+                result = cursor.fetchone()
+                if result:
+                    travailleurs_ids[travailleur.nom] = result['id']
+            
+            # Insérer les nouvelles assignations
+            for jour in Horaire.JOURS:
+                for shift in Horaire.SHIFTS.values():
+                    travailleur_nom = planning.planning[jour][shift]
+                    if travailleur_nom:
+                        # Vérifier si c'est une garde partagée
+                        if " / " in travailleur_nom:
+                            noms = travailleur_nom.split(" / ")
+                            for nom in noms:
+                                if nom in travailleurs_ids:
+                                    cursor.execute(
+                                        "INSERT INTO assignations (planning_id, travailleur_id, jour, shift) VALUES (?, ?, ?, ?)",
+                                        (planning_id, travailleurs_ids[nom], jour, shift)
+                                    )
+                        else:
+                            # Garde simple
+                            if travailleur_nom in travailleurs_ids:
+                                cursor.execute(
+                                    "INSERT INTO assignations (planning_id, travailleur_id, jour, shift) VALUES (?, ?, ?, ?)",
+                                    (planning_id, travailleurs_ids[travailleur_nom], jour, shift)
+                                )
+            
+            # Mettre à jour la date de modification du planning
+            import datetime
+            date_modification = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute(
+                "UPDATE plannings SET date_modification = ? WHERE id = ?",
+                (date_modification, planning_id)
+            )
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour du planning: {e}")
+            conn.rollback()
+            return False
+        finally:
+            self.close()
+    
+    def supprimer_planning(self, planning_id):
+        """Supprime un planning de la base de données"""
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        try:
+            # Supprimer d'abord les assignations liées à ce planning
+            cursor.execute("DELETE FROM assignations WHERE planning_id = ?", (planning_id,))
+            
+            # Puis supprimer le planning lui-même
+            cursor.execute("DELETE FROM plannings WHERE id = ?", (planning_id,))
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la suppression du planning: {e}")
+            conn.rollback()
+            return False
+        finally:
+            self.close()
+    
+    def obtenir_info_planning(self, planning_id):
+        """Récupère les informations d'un planning spécifique"""
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nom, date_creation, date_modification FROM plannings WHERE id = ?", (planning_id,))
+        planning_info = cursor.fetchone()
+        
+        self.close()
+        return dict(planning_info) if planning_info else None
+    
+    def modifier_nom_planning(self, planning_id, nouveau_nom):
+        """Modifie le nom d'un planning existant"""
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        try:
+            # Mettre à jour le nom du planning
+            cursor.execute(
+                "UPDATE plannings SET nom = ? WHERE id = ?",
+                (nouveau_nom, planning_id)
+            )
+            
+            # Mettre à jour la date de modification
+            import datetime
+            date_modification = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute(
+                "UPDATE plannings SET date_modification = ? WHERE id = ?",
+                (date_modification, planning_id)
+            )
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la modification du nom du planning: {e}")
+            conn.rollback()
+            return False
+        finally:
+            self.close() 

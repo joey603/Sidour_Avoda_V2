@@ -6,6 +6,7 @@ from horaire import Horaire
 from travailleur import Travailleur
 from planning import Planning
 from database import Database
+import datetime
 
 class InterfacePlanning:
     def __init__(self, repos_minimum_entre_gardes=8):
@@ -129,19 +130,20 @@ class InterfacePlanning:
                                               self.generer_planning, "action")
         btn_generer.grid(row=0, column=0, padx=5, sticky="ew")
         
-        btn_generer_12h = self.create_styled_button(frame_generation, "Suggestion 12h", 
-                                                 self.generer_planning_12h, "action")
-        btn_generer_12h.grid(row=0, column=1, padx=5, sticky="ew")
-        
         btn_combler = self.create_styled_button(frame_generation, "Combler les trous", 
                                              self.combler_trous, "action")
-        btn_combler.grid(row=0, column=2, padx=5, sticky="ew")
+        btn_combler.grid(row=0, column=1, padx=5, sticky="ew")
+        
+        btn_generer_12h = self.create_styled_button(frame_generation, "Suggestion 12h", 
+                                                 self.generer_planning_12h, "action")
+        btn_generer_12h.grid(row=0, column=2, padx=5, sticky="ew")
         
         # Frame pour la sauvegarde et le chargement
         frame_db = ttk.Frame(left_frame)
         frame_db.grid(row=4, column=0, sticky="ew", pady=10)
         frame_db.columnconfigure(0, weight=1)
         frame_db.columnconfigure(1, weight=1)
+        frame_db.columnconfigure(2, weight=1)
         
         btn_sauvegarder = self.create_styled_button(frame_db, "Sauvegarder Planning", 
                                                  self.sauvegarder_planning, "save")
@@ -150,6 +152,10 @@ class InterfacePlanning:
         btn_charger = self.create_styled_button(frame_db, "Charger Planning", 
                                              self.charger_planning, "load")
         btn_charger.grid(row=0, column=1, padx=5, sticky="ew")
+        
+        btn_agenda = self.create_styled_button(frame_db, "Agenda Plannings", 
+                                                self.ouvrir_agenda_plannings, "action")
+        btn_agenda.grid(row=0, column=2, padx=5, sticky="ew")
         
         # Colonne droite - Affichage du planning
         right_frame = ttk.Frame(main_frame, padding=10)
@@ -1135,85 +1141,130 @@ class InterfacePlanning:
 
     def sauvegarder_planning(self):
         """Sauvegarde le planning actuel dans la base de données"""
-        if not self.planning.travailleurs:
-            messagebox.showerror("Erreur", "Aucun travailleur n'est enregistré")
-            return
+        # Obtenir la date du prochain dimanche
+        import datetime
         
-        # Demander un nom pour le planning
-        nom = simpledialog.askstring("Nom du planning", "Entrez un nom pour ce planning:")
-        if nom:
-            planning_id = self.planning.sauvegarder(nom)
-            messagebox.showinfo("Succès", f"Planning '{nom}' sauvegardé avec succès")
+        # Obtenir la date actuelle
+        aujourd_hui = datetime.date.today()
+        
+        # Calculer le nombre de jours jusqu'au prochain dimanche
+        # 6 = samedi (dernier jour de la semaine en Python où lundi=0, dimanche=6)
+        # Donc (6 - jour_semaine) % 7 donne le nombre de jours jusqu'au dimanche
+        jours_jusqu_a_dimanche = (6 - aujourd_hui.weekday()) % 7
+        
+        # Si aujourd'hui est dimanche, on prend le dimanche suivant
+        if jours_jusqu_a_dimanche == 0:
+            jours_jusqu_a_dimanche = 7
+        
+        # Obtenir la date du prochain dimanche
+        prochain_dimanche = aujourd_hui + datetime.timedelta(days=jours_jusqu_a_dimanche)
+        
+        # Formater la date pour le nom du planning
+        nom_planning = f"Planning semaine du {prochain_dimanche.strftime('%d/%m/%Y')}"
+        
+        # Demander confirmation à l'utilisateur
+        confirmation = messagebox.askyesno(
+            "Confirmation", 
+            f"Voulez-vous sauvegarder ce planning pour la semaine commençant le {prochain_dimanche.strftime('%d/%m/%Y')} ?"
+        )
+        
+        if confirmation:
+            # Sauvegarder le planning avec le nom formaté
+            planning_id = self.planning.sauvegarder(nom_planning)
+            messagebox.showinfo("Succès", f"Planning sauvegardé pour la semaine du {prochain_dimanche.strftime('%d/%m/%Y')}")
+            return planning_id
+        return None
 
     def charger_planning(self):
         """Charge un planning depuis la base de données"""
-        # Récupérer la liste des plannings
-        plannings = Planning.lister_plannings()
+        # Récupérer la liste des plannings disponibles
+        plannings = self.planning.lister_plannings()
+        
         if not plannings:
-            messagebox.showinfo("Information", "Aucun planning n'est enregistré")
+            messagebox.showinfo("Information", "Aucun planning sauvegardé")
             return
         
-        # Créer une fenêtre de dialogue pour choisir un planning
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Charger un planning")
-        dialog.geometry("500x300")
-        dialog.transient(self.root)
-        dialog.grab_set()
+        # Créer une liste de choix avec les noms des plannings
+        choix = []
+        for p in plannings:
+            date_str = p['date_creation'].split(' ')[0] if ' ' in p['date_creation'] else p['date_creation']
+            choix.append(f"{p['id']} - {p['nom']} (créé le {date_str})")
         
-        # Liste des plannings
-        frame = ttk.Frame(dialog, padding=10)
-        frame.pack(fill="both", expand=True)
+        # Demander à l'utilisateur de choisir un planning
+        choix_planning = simpledialog.askstring(
+            "Charger un planning",
+            "Choisissez un planning à charger (entrez le numéro):",
+            initialvalue=choix[0].split(' - ')[0]
+        )
         
-        ttk.Label(frame, text="Sélectionnez un planning à charger:", font=self.header_font).pack(pady=10)
+        if not choix_planning:
+            return
         
-        # Créer un Treeview pour afficher les plannings
-        columns = ("id", "date", "nom")
-        tree = ttk.Treeview(frame, columns=columns, show="headings")
-        tree.heading("id", text="ID")
-        tree.heading("date", text="Date de création")
-        tree.heading("nom", text="Nom")
+        try:
+            planning_id = int(choix_planning.split(' - ')[0] if ' - ' in choix_planning else choix_planning)
+            planning_charge = self.planning.charger(planning_id)
+            
+            if planning_charge:
+                # Remplacer le planning actuel par celui chargé
+                self.planning = planning_charge
+                
+                # Mettre à jour l'interface
+                self.mettre_a_jour_liste_travailleurs()
+                self.creer_planning_visuel()
+                
+                messagebox.showinfo("Succès", "Planning chargé avec succès")
+                
+                # Proposer de télécharger le planning
+                self.proposer_telechargement_planning()
+            else:
+                messagebox.showerror("Erreur", "Impossible de charger le planning")
+        except ValueError:
+            messagebox.showerror("Erreur", "Numéro de planning invalide")
+
+    def proposer_telechargement_planning(self):
+        """Propose à l'utilisateur de télécharger le planning au format CSV"""
+        confirmation = messagebox.askyesno(
+            "Téléchargement", 
+            "Voulez-vous télécharger ce planning au format CSV ?"
+        )
         
-        tree.column("id", width=50)
-        tree.column("date", width=150)
-        tree.column("nom", width=250)
+        if confirmation:
+            self.telecharger_planning_csv()
+
+    def telecharger_planning_csv(self):
+        """Exporte le planning actuel au format CSV"""
+        import csv
+        from tkinter import filedialog
         
-        for planning in plannings:
-            tree.insert("", "end", values=(planning["id"], planning["date_creation"], planning["nom"]))
+        # Demander à l'utilisateur où sauvegarder le fichier
+        fichier = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            title="Enregistrer le planning"
+        )
         
-        tree.pack(fill="both", expand=True, pady=10)
+        if not fichier:
+            return
         
-        # Boutons
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(pady=10)
-        
-        selected_id = [None]  # Variable pour stocker l'ID sélectionné
-        
-        def on_select(event):
-            selected = tree.selection()
-            if selected:
-                item = tree.item(selected[0])
-                selected_id[0] = item["values"][0]
-        
-        def on_load():
-            if selected_id[0]:
-                dialog.destroy()
-                planning = Planning.charger(selected_id[0])
-                if planning:
-                    self.planning = planning
-                    self.creer_planning_visuel()
-                    self.mettre_a_jour_liste_travailleurs()
-                    messagebox.showinfo("Succès", "Planning chargé avec succès")
-        
-        def on_cancel():
-            dialog.destroy()
-        
-        tree.bind("<<TreeviewSelect>>", on_select)
-        
-        ttk.Button(btn_frame, text="Charger", command=on_load).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Annuler", command=on_cancel).pack(side=tk.LEFT, padx=5)
-        
-        # Attendre que la fenêtre soit fermée
-        self.root.wait_window(dialog)
+        try:
+            with open(fichier, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                
+                # Écrire l'en-tête
+                en_tete = ["Jour"] + list(Horaire.SHIFTS.values())
+                writer.writerow(en_tete)
+                
+                # Écrire les données du planning
+                for jour in Horaire.JOURS:
+                    ligne = [jour]
+                    for shift in Horaire.SHIFTS.values():
+                        travailleur = self.planning.planning[jour][shift]
+                        ligne.append(travailleur if travailleur else "Non assigné")
+                    writer.writerow(ligne)
+                
+            messagebox.showinfo("Succès", f"Planning exporté avec succès vers {fichier}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de l'exportation: {str(e)}")
 
     def supprimer_travailleur(self):
         # Récupérer l'item sélectionné
@@ -1249,6 +1300,409 @@ class InterfacePlanning:
                 self.mettre_a_jour_liste_travailleurs()
                 messagebox.showinfo("Succès", f"Travailleur {nom_travailleur} supprimé avec succès")
                 break
+
+    def ouvrir_agenda_plannings(self):
+        """Ouvre une fenêtre d'agenda pour visualiser et modifier les plannings existants"""
+        # Récupérer tous les plannings
+        plannings = self.planning.lister_plannings()
+        
+        if not plannings:
+            messagebox.showinfo("Information", "Aucun planning sauvegardé")
+            return
+        
+        # Créer une nouvelle fenêtre
+        agenda_window = tk.Toplevel(self.root)
+        agenda_window.title("Agenda des Plannings")
+        agenda_window.geometry("900x600")
+        agenda_window.configure(bg="#f0f0f0")
+        
+        # Créer un cadre pour l'agenda
+        agenda_frame = ttk.Frame(agenda_window, padding=10)
+        agenda_frame.pack(fill="both", expand=True)
+        
+        # Créer un Treeview pour afficher les plannings
+        columns = ("id", "nom", "date_creation")
+        agenda_tree = ttk.Treeview(agenda_frame, columns=columns, show="headings", height=20)
+        
+        # Configurer les en-têtes
+        agenda_tree.heading("id", text="ID")
+        agenda_tree.heading("nom", text="Nom du Planning")
+        agenda_tree.heading("date_creation", text="Date de création")
+        
+        # Configurer les colonnes
+        agenda_tree.column("id", width=50, anchor="center")
+        agenda_tree.column("nom", width=300)
+        agenda_tree.column("date_creation", width=150)
+        
+        # Ajouter une scrollbar
+        scrollbar = ttk.Scrollbar(agenda_frame, orient="vertical", command=agenda_tree.yview)
+        agenda_tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Placer les widgets
+        agenda_tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Configurer le redimensionnement
+        agenda_frame.columnconfigure(0, weight=1)
+        agenda_frame.rowconfigure(0, weight=1)
+        
+        # Remplir l'arbre avec les plannings
+        for p in plannings:
+            item_id = agenda_tree.insert("", "end", values=(
+                p['id'], 
+                p['nom'], 
+                p['date_creation']
+            ))
+            
+            # Stocker l'ID du planning dans l'item pour référence
+            agenda_tree.item(item_id, tags=(str(p['id']),))
+        
+        # Cadre pour les boutons d'action
+        action_frame = ttk.Frame(agenda_window, padding=10)
+        action_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Fonction pour obtenir le planning sélectionné
+        def get_selected_planning():
+            selection = agenda_tree.selection()
+            if not selection:
+                messagebox.showwarning("Attention", "Veuillez sélectionner un planning")
+                return None
+            
+            item = selection[0]
+            planning_id = int(agenda_tree.item(item, "tags")[0])
+            return planning_id, item
+        
+        # Fonction pour ouvrir le planning sélectionné
+        def ouvrir_planning_selectionne():
+            result = get_selected_planning()
+            if result:
+                planning_id, _ = result
+                self.ouvrir_planning_pour_modification(planning_id, agenda_window)
+        
+        # Fonction pour renommer un planning
+        def renommer_planning():
+            result = get_selected_planning()
+            if not result:
+                return
+            
+            planning_id, item = result
+            
+            # Récupérer le nom actuel
+            nom_actuel = agenda_tree.item(item, "values")[1]
+            
+            # Demander le nouveau nom
+            nouveau_nom = simpledialog.askstring(
+                "Renommer le planning",
+                "Entrez le nouveau nom du planning:",
+                initialvalue=nom_actuel,
+                parent=agenda_window
+            )
+            
+            if nouveau_nom and nouveau_nom != nom_actuel:
+                # Mettre à jour le nom dans la base de données
+                db = Database()
+                if db.modifier_nom_planning(planning_id, nouveau_nom):
+                    # Mettre à jour l'affichage
+                    values = list(agenda_tree.item(item, "values"))
+                    values[1] = nouveau_nom
+                    agenda_tree.item(item, values=values)
+                    messagebox.showinfo("Succès", "Planning renommé avec succès")
+                else:
+                    messagebox.showerror("Erreur", "Impossible de renommer le planning")
+        
+        # Fonction pour supprimer un planning
+        def supprimer_planning():
+            result = get_selected_planning()
+            if not result:
+                return
+            
+            planning_id, item = result
+            
+            # Demander confirmation
+            confirmation = messagebox.askyesno(
+                "Confirmation",
+                "Êtes-vous sûr de vouloir supprimer ce planning ?\nCette action est irréversible.",
+                parent=agenda_window
+            )
+            
+            if confirmation:
+                # Supprimer le planning de la base de données
+                db = Database()
+                if db.supprimer_planning(planning_id):
+                    # Supprimer l'item de l'arbre
+                    agenda_tree.delete(item)
+                    messagebox.showinfo("Succès", "Planning supprimé avec succès")
+                else:
+                    messagebox.showerror("Erreur", "Impossible de supprimer le planning")
+        
+        # Ajouter les boutons d'action
+        btn_ouvrir = ttk.Button(action_frame, text="Ouvrir", command=ouvrir_planning_selectionne)
+        btn_ouvrir.pack(side="left", padx=5)
+        
+        btn_renommer = ttk.Button(action_frame, text="Renommer", command=renommer_planning)
+        btn_renommer.pack(side="left", padx=5)
+        
+        btn_supprimer = ttk.Button(action_frame, text="Supprimer", command=supprimer_planning)
+        btn_supprimer.pack(side="left", padx=5)
+        
+        # Double-clic pour ouvrir un planning
+        agenda_tree.bind("<Double-1>", lambda event: ouvrir_planning_selectionne())
+        
+        # Ajouter un bouton pour fermer l'agenda
+        btn_fermer = ttk.Button(agenda_window, text="Fermer", command=agenda_window.destroy)
+        btn_fermer.pack(pady=10)
+
+    def ouvrir_planning_pour_modification(self, planning_id, parent_window=None):
+        """Ouvre un planning existant pour visualisation et modification"""
+        # Charger le planning
+        planning_charge = self.planning.charger(planning_id)
+        
+        if not planning_charge:
+            messagebox.showerror("Erreur", "Impossible de charger le planning")
+            return
+        
+        # Créer une nouvelle fenêtre
+        edit_window = tk.Toplevel(parent_window if parent_window else self.root)
+        edit_window.title(f"Planning #{planning_id} - {planning_charge.nom if hasattr(planning_charge, 'nom') else ''}")
+        edit_window.geometry("1000x700")
+        edit_window.configure(bg="#f0f0f0")
+        
+        # Créer un cadre principal avec deux onglets
+        notebook = ttk.Notebook(edit_window)
+        notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Onglet de visualisation
+        view_frame = ttk.Frame(notebook, padding=10)
+        notebook.add(view_frame, text="Visualisation")
+        
+        # Onglet d'édition
+        edit_frame = ttk.Frame(notebook, padding=10)
+        notebook.add(edit_frame, text="Modification")
+        
+        # === ONGLET DE VISUALISATION ===
+        view_frame.columnconfigure(0, weight=1)
+        view_frame.rowconfigure(0, weight=1)
+        
+        # Créer un cadre pour le planning visuel
+        visual_frame = ttk.Frame(view_frame)
+        visual_frame.grid(row=0, column=0, sticky="nsew")
+        
+        # Utiliser les mêmes couleurs que dans l'interface principale
+        # Si un travailleur n'a pas encore de couleur, lui en assigner une
+        for travailleur in planning_charge.travailleurs:
+            if travailleur.nom not in self.travailleur_colors:
+                # Assigner une couleur aléatoire parmi celles disponibles
+                if self.colors:
+                    color = self.colors.pop(0)
+                else:
+                    # Si toutes les couleurs prédéfinies sont utilisées, générer une couleur aléatoire
+                    r = random.randint(100, 240)
+                    g = random.randint(100, 240)
+                    b = random.randint(100, 240)
+                    color = f"#{r:02x}{g:02x}{b:02x}"
+                self.travailleur_colors[travailleur.nom] = color
+        
+        # En-têtes des colonnes
+        ttk.Label(visual_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        for i, shift in enumerate(Horaire.SHIFTS.values()):
+            ttk.Label(visual_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=5)
+        
+        # Remplir le planning visuel
+        for i, jour in enumerate(Horaire.JOURS):
+            ttk.Label(visual_frame, text=jour.capitalize(), font=self.normal_font).grid(row=i+1, column=0, padx=5, pady=5, sticky="w")
+            
+            for j, shift in enumerate(Horaire.SHIFTS.values()):
+                travailleur = planning_charge.planning[jour][shift]
+                
+                # Créer un frame pour la cellule
+                cell_frame = ttk.Frame(visual_frame, width=150, height=50)
+                cell_frame.grid(row=i+1, column=j+1, padx=2, pady=2, sticky="nsew")
+                cell_frame.grid_propagate(False)  # Empêcher le frame de s'adapter à son contenu
+                
+                if travailleur:
+                    # Vérifier si c'est une garde partagée (format: "nom1 / nom2")
+                    if " / " in travailleur:
+                        # Diviser la cellule en deux parties (haut/bas)
+                        noms = travailleur.split(" / ")
+                        if len(noms) == 2:
+                            # Créer un frame pour contenir les deux labels
+                            shared_frame = ttk.Frame(cell_frame)
+                            shared_frame.pack(fill="both", expand=True)
+                            
+                            # Configurer le frame pour qu'il ait deux lignes de même hauteur
+                            shared_frame.rowconfigure(0, weight=1)
+                            shared_frame.rowconfigure(1, weight=1)
+                            shared_frame.columnconfigure(0, weight=1)
+                            
+                            # Obtenir les couleurs des deux travailleurs
+                            color1 = self.travailleur_colors.get(noms[0], "#FFFFFF")
+                            color2 = self.travailleur_colors.get(noms[1], "#FFFFFF")
+                            
+                            # Créer deux labels, un pour chaque travailleur
+                            label1 = tk.Label(shared_frame, text=noms[0], bg=color1, 
+                                            font=self.normal_font, relief="raised", borderwidth=1)
+                            label1.grid(row=0, column=0, sticky="nsew")
+                            
+                            label2 = tk.Label(shared_frame, text=noms[1], bg=color2, 
+                                            font=self.normal_font, relief="raised", borderwidth=1)
+                            label2.grid(row=1, column=0, sticky="nsew")
+                        else:
+                            # Cas imprévu, utiliser un affichage standard
+                            label = tk.Label(cell_frame, text=travailleur, bg="#F0F0F0", 
+                                           font=self.normal_font, relief="raised", borderwidth=1)
+                            label.pack(fill="both", expand=True)
+                    else:
+                        # Utiliser la couleur associée au travailleur
+                        color = self.travailleur_colors.get(travailleur, "#FFFFFF")
+                        
+                        # Créer un label avec un fond coloré
+                        label = tk.Label(cell_frame, text=travailleur, bg=color, 
+                                       font=self.normal_font, relief="raised", borderwidth=1)
+                        label.pack(fill="both", expand=True)
+                else:
+                    # Cellule vide
+                    label = tk.Label(cell_frame, text="Non assigné", bg="#F0F0F0", 
+                                   font=self.normal_font, relief="sunken", borderwidth=1)
+                    label.pack(fill="both", expand=True)
+        
+        # Configurer les colonnes pour qu'elles s'étendent
+        for i in range(4):  # 1 colonne pour les jours + 3 colonnes pour les shifts
+            visual_frame.columnconfigure(i, weight=1)
+        
+        # Configurer les lignes pour qu'elles s'étendent
+        for i in range(8):  # 1 ligne pour les en-têtes + 7 lignes pour les jours
+            visual_frame.rowconfigure(i, weight=1)
+        
+        # === ONGLET D'ÉDITION ===
+        edit_frame.columnconfigure(0, weight=1)
+        edit_frame.rowconfigure(0, weight=1)
+        
+        # Créer un cadre pour le tableau d'édition
+        table_frame = ttk.Frame(edit_frame)
+        table_frame.grid(row=0, column=0, sticky="nsew")
+        
+        # Variables pour stocker les sélections
+        selection_vars = {}
+        
+        # Créer les en-têtes
+        columns = ["Jour"] + list(Horaire.SHIFTS.values())
+        for i, col in enumerate(columns):
+            label = ttk.Label(table_frame, text=col, font=self.header_font)
+            label.grid(row=0, column=i, padx=5, pady=5, sticky="ew")
+        
+        # Obtenir la liste complète des travailleurs depuis la base de données
+        db = Database()
+        tous_travailleurs = db.charger_travailleurs()
+        
+        # Remplir le tableau avec les données du planning
+        for i, jour in enumerate(Horaire.JOURS, 1):
+            # Ajouter le nom du jour
+            jour_label = ttk.Label(table_frame, text=jour.capitalize(), font=self.normal_font)
+            jour_label.grid(row=i, column=0, padx=5, pady=5, sticky="w")
+            
+            # Ajouter les shifts avec des combobox pour sélectionner les travailleurs
+            for j, shift in enumerate(Horaire.SHIFTS.values(), 1):
+                # Créer une variable pour la combobox
+                var = tk.StringVar()
+                selection_vars[(jour, shift)] = var
+                
+                # Définir la valeur actuelle
+                travailleur_actuel = planning_charge.planning[jour][shift]
+                var.set(travailleur_actuel if travailleur_actuel else "Non assigné")
+                
+                # Créer la liste des travailleurs disponibles
+                travailleurs_disponibles = ["Non assigné"]
+                
+                # Ajouter tous les travailleurs de la base de données
+                for travailleur in tous_travailleurs:
+                    travailleurs_disponibles.append(travailleur.nom)
+                
+                # Créer la combobox
+                combo = ttk.Combobox(table_frame, textvariable=var, values=travailleurs_disponibles, state="readonly")
+                combo.grid(row=i, column=j, padx=5, pady=5, sticky="ew")
+        
+        # Configurer le redimensionnement
+        for i in range(len(columns)):
+            table_frame.columnconfigure(i, weight=1)
+        
+        # Cadre pour les boutons
+        btn_frame = ttk.Frame(edit_window)
+        btn_frame.pack(fill="x", pady=10)
+        
+        # Fonction pour sauvegarder les modifications
+        def sauvegarder_modifications():
+            # Mettre à jour le planning avec les nouvelles valeurs
+            for (jour, shift), var in selection_vars.items():
+                valeur = var.get()
+                planning_charge.planning[jour][shift] = None if valeur == "Non assigné" else valeur
+            
+            # Sauvegarder le planning modifié avec le même ID
+            db = Database()
+            db.mettre_a_jour_planning(planning_id, planning_charge)
+            
+            messagebox.showinfo("Succès", "Planning modifié avec succès")
+            
+            # Rafraîchir l'affichage de l'agenda si on est dans cette fenêtre
+            if parent_window:
+                parent_window.destroy()
+                self.ouvrir_agenda_plannings()
+            
+            edit_window.destroy()
+            
+            # Si on est dans l'interface principale, mettre à jour l'affichage
+            if not parent_window:
+                self.planning = planning_charge
+                self.creer_planning_visuel()
+        
+        # Ajouter les boutons
+        btn_sauvegarder = ttk.Button(btn_frame, text="Sauvegarder les modifications", command=sauvegarder_modifications)
+        btn_sauvegarder.pack(side="left", padx=5)
+        
+        btn_annuler = ttk.Button(btn_frame, text="Fermer", command=edit_window.destroy)
+        btn_annuler.pack(side="right", padx=5)
+        
+        # Bouton pour exporter le planning
+        btn_exporter = ttk.Button(btn_frame, text="Exporter en CSV", 
+                                 command=lambda: self.telecharger_planning_csv(planning_charge))
+        btn_exporter.pack(side="left", padx=5)
+
+    def telecharger_planning_csv(self, planning_to_export=None):
+        """Exporte le planning actuel ou spécifié au format CSV"""
+        import csv
+        from tkinter import filedialog
+        
+        # Utiliser le planning spécifié ou le planning actuel
+        planning_a_exporter = planning_to_export if planning_to_export else self.planning
+        
+        # Demander à l'utilisateur où sauvegarder le fichier
+        fichier = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            title="Enregistrer le planning"
+        )
+        
+        if not fichier:
+            return
+        
+        try:
+            with open(fichier, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                
+                # Écrire l'en-tête
+                en_tete = ["Jour"] + list(Horaire.SHIFTS.values())
+                writer.writerow(en_tete)
+                
+                # Écrire les données du planning
+                for jour in Horaire.JOURS:
+                    ligne = [jour]
+                    for shift in Horaire.SHIFTS.values():
+                        travailleur = planning_a_exporter.planning[jour][shift]
+                        ligne.append(travailleur if travailleur else "Non assigné")
+                    writer.writerow(ligne)
+                
+            messagebox.showinfo("Succès", f"Planning exporté avec succès vers {fichier}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de l'exportation: {str(e)}")
 
     def run(self):
         self.root.mainloop() 
