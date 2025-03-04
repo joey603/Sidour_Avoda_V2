@@ -12,7 +12,7 @@ class InterfacePlanning:
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
         self.root = tk.Tk()
-        self.root.title("Gestionnaire de Planning")
+        self.root.title("Planning Manager")
         self.root.geometry("1200x700")
         self.root.configure(bg="#f0f0f0")
         
@@ -101,7 +101,7 @@ class InterfacePlanning:
         left_frame.rowconfigure(4, weight=0)  # Boutons DB
         
         # Titre
-        titre_label = ttk.Label(left_frame, text="Gestion des Travailleurs", font=self.title_font)
+        titre_label = ttk.Label(left_frame, text="Planning worker", font=self.title_font)
         titre_label.grid(row=0, column=0, pady=(0, 20), sticky="ew")
         
         # Frame pour l'ajout de travailleur
@@ -126,15 +126,15 @@ class InterfacePlanning:
         frame_generation.columnconfigure(2, weight=1)
         
         # Boutons pour générer le planning - utiliser des boutons tk standard pour plus de contrôle visuel
-        btn_generer = self.create_styled_button(frame_generation, "Générer Planning", 
+        btn_generer = self.create_styled_button(frame_generation, "Planning creation", 
                                               self.generer_planning, "action")
         btn_generer.grid(row=0, column=0, padx=5, sticky="ew")
         
-        btn_combler = self.create_styled_button(frame_generation, "Combler les trous", 
+        btn_combler = self.create_styled_button(frame_generation, "Fill holes", 
                                              self.combler_trous, "action")
         btn_combler.grid(row=0, column=1, padx=5, sticky="ew")
         
-        btn_generer_12h = self.create_styled_button(frame_generation, "Suggestion 12h", 
+        btn_generer_12h = self.create_styled_button(frame_generation, " 12h", 
                                                  self.generer_planning_12h, "action")
         btn_generer_12h.grid(row=0, column=2, padx=5, sticky="ew")
         
@@ -145,25 +145,27 @@ class InterfacePlanning:
         frame_db.columnconfigure(1, weight=1)
         frame_db.columnconfigure(2, weight=1)
         
-        btn_sauvegarder = self.create_styled_button(frame_db, "Sauvegarder Planning", 
+        btn_sauvegarder = self.create_styled_button(frame_db, "Save Planning", 
                                                  self.sauvegarder_planning, "save")
         btn_sauvegarder.grid(row=0, column=0, padx=5, sticky="ew")
         
-    
+        #btn_charger = self.create_styled_button(frame_db, "Load Planning", 
+        #                                         self.charger_planning, "load")
+        #btn_charger.grid(row=0, column=1, padx=5, sticky="ew")
         
         btn_agenda = self.create_styled_button(frame_db, "Agenda Plannings", 
-                                                self.ouvrir_agenda_plannings, "action")
+                                                self.ouvrir_agenda_plannings, "load")
         btn_agenda.grid(row=0, column=2, padx=5, sticky="ew")
         
         # Colonne droite - Affichage du planning
         right_frame = ttk.Frame(main_frame, padding=10)
         right_frame.pack(side=tk.RIGHT, fill="both", expand=True)
         
-        # Titre
-        titre_planning = ttk.Label(right_frame, text="Planning de la Semaine", font=self.title_font)
+        # Title
+        titre_planning = ttk.Label(right_frame, text="Week Planning", font=self.title_font)
         titre_planning.pack(pady=(0, 20))
         
-        # Création du canvas pour le planning visuel
+        # Creation of the canvas for the visual planning
         self.canvas_frame = ttk.Frame(right_frame, padding=5)
         self.canvas_frame.pack(fill="both", expand=True)
         
@@ -171,13 +173,13 @@ class InterfacePlanning:
         self.creer_planning_visuel()
 
     def create_styled_button(self, parent, text, command, button_type="action"):
-        """Crée un bouton stylisé avec des couleurs vives garanties"""
-        # Définir des couleurs très vives pour s'assurer qu'elles s'affichent
+        """Create a styled button with vibrant colors"""
+        # Define vibrant colors to ensure they display
         if button_type == "action":
-            bg_color = "#007BFF"  # Bleu vif
+            bg_color = "#007BFF"  # Bright blue
             hover_color = "#0056b3"
         elif button_type == "cancel":
-            bg_color = "#DC3545"  # Rouge vif
+            bg_color = "#DC3545"  # Bright red
             hover_color = "#c82333"
         elif button_type == "save":
             bg_color = "#28A745"  # Vert vif
@@ -256,7 +258,7 @@ class InterfacePlanning:
 
     def creer_formulaire_travailleur(self, frame):
         # Frame pour le formulaire d'ajout de travailleur
-        self.form_label_frame = ttk.LabelFrame(frame, text="Ajouter un travailleur", padding=10, style="Section.TLabelframe")
+        self.form_label_frame = ttk.LabelFrame(frame, text="Add a worker", padding=10, style="Section.TLabelframe")
         self.form_label_frame.grid(row=0, column=0, sticky="nsew")
         self.form_label_frame.columnconfigure(0, weight=1)
         self.form_label_frame.rowconfigure(0, weight=0)  # Info frame
@@ -271,13 +273,13 @@ class InterfacePlanning:
         info_frame.columnconfigure(2, weight=0)
         info_frame.columnconfigure(3, weight=0)
         
-        ttk.Label(info_frame, text="Nom:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        ttk.Label(info_frame, text="Name:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         ttk.Entry(info_frame, textvariable=self.nom_var, width=25).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
         
-        ttk.Label(info_frame, text="Nombre de shifts souhaités:").grid(row=0, column=2, sticky="w", padx=5, pady=5)
+        ttk.Label(info_frame, text="Desired number of shifts:").grid(row=0, column=2, sticky="w", padx=5, pady=5)
         ttk.Entry(info_frame, textvariable=self.nb_shifts_var, width=5).grid(row=0, column=3, padx=5, pady=5)
         
-        # Conteneur pour la section des disponibilités avec scrollbar
+        # Container for the availability section with scrollbar
         dispo_container = ttk.Frame(self.form_label_frame)
         dispo_container.grid(row=1, column=0, sticky="nsew", pady=5)
         dispo_container.columnconfigure(0, weight=1)
@@ -288,8 +290,8 @@ class InterfacePlanning:
         dispo_canvas = tk.Canvas(dispo_container, borderwidth=0, highlightthickness=0)
         dispo_scrollbar = ttk.Scrollbar(dispo_container, orient="vertical", command=dispo_canvas.yview)
         
-        # Frame à l'intérieur du canvas qui contiendra les disponibilités
-        dispo_frame = ttk.LabelFrame(dispo_canvas, text="Disponibilités", padding=10)
+        # Frame inside the canvas that will contain the availabilities
+        dispo_frame = ttk.LabelFrame(dispo_canvas, text="Availabilities", padding=10)
         
         # Configurer le canvas pour qu'il défile avec la frame interne
         dispo_canvas.configure(yscrollcommand=dispo_scrollbar.set)
@@ -308,17 +310,17 @@ class InterfacePlanning:
             else:
                 dispo_frame.columnconfigure(i, weight=2, minsize=120)  # Colonnes des shifts et 12h
         
-        # En-têtes des colonnes
-        ttk.Label(dispo_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=10, pady=5)
+        # Headers of the columns
+        ttk.Label(dispo_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=10, pady=5)
         col = 1
         for shift in Horaire.SHIFTS.values():
             ttk.Label(dispo_frame, text=shift, font=self.header_font).grid(row=0, column=col, padx=20, pady=5)
             col += 1
         
         # Ajouter les colonnes pour les gardes de 12h
-        ttk.Label(dispo_frame, text="Matin 12h\n(06-18)", font=self.header_font).grid(row=0, column=col, padx=20, pady=5)
+        ttk.Label(dispo_frame, text="Morning 12h\n(06-18)", font=self.header_font).grid(row=0, column=col, padx=20, pady=5)
         col += 1
-        ttk.Label(dispo_frame, text="Nuit 12h\n(18-06)", font=self.header_font).grid(row=0, column=col, padx=20, pady=5)
+        ttk.Label(dispo_frame, text="Night 12h\n(18-06)", font=self.header_font).grid(row=0, column=col, padx=20, pady=5)
         
         # Lignes pour chaque jour avec plus d'espace horizontal
         for i, jour in enumerate(Horaire.JOURS, 1):
@@ -354,11 +356,11 @@ class InterfacePlanning:
         btn_frame.columnconfigure(1, weight=1)
         
         # Utiliser des boutons stylisés
-        self.btn_ajouter = self.create_styled_button(btn_frame, "Ajouter Travailleur", 
+        self.btn_ajouter = self.create_styled_button(btn_frame, "Add worker", 
                                                   self.ajouter_travailleur, "action")
         self.btn_ajouter.grid(row=0, column=0, padx=5, sticky="ew")
         
-        self.btn_annuler = self.create_styled_button(btn_frame, "Annuler", 
+        self.btn_annuler = self.create_styled_button(btn_frame, "Cancel", 
                                                   self.annuler_edition, "cancel")
         self.btn_annuler.enabled = False
         self.btn_annuler.config(bg="#cccccc")
@@ -369,7 +371,7 @@ class InterfacePlanning:
 
     def creer_liste_travailleurs(self, frame):
         # Liste des travailleurs
-        frame_liste = ttk.LabelFrame(frame, text="Travailleurs enregistrés", padding=10, style="Section.TLabelframe")
+        frame_liste = ttk.LabelFrame(frame, text="Workers registered", padding=10, style="Section.TLabelframe")
         frame_liste.grid(row=0, column=0, sticky="nsew")
         frame_liste.columnconfigure(0, weight=1)
         frame_liste.rowconfigure(0, weight=1)  # Table
@@ -378,8 +380,8 @@ class InterfacePlanning:
         # Création d'un Treeview pour afficher les travailleurs sous forme de tableau
         columns = ("nom", "shifts")
         self.table_travailleurs = ttk.Treeview(frame_liste, columns=columns, show="headings", height=8)
-        self.table_travailleurs.heading("nom", text="Nom")
-        self.table_travailleurs.heading("shifts", text="Shifts souhaités")
+        self.table_travailleurs.heading("nom", text="Name")
+        self.table_travailleurs.heading("shifts", text="Desired shifts")
         
         self.table_travailleurs.column("nom", width=150)
         self.table_travailleurs.column("shifts", width=100)
@@ -400,14 +402,14 @@ class InterfacePlanning:
         btn_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         btn_frame.columnconfigure(0, weight=1)
         
-        # Utiliser un bouton stylisé
-        btn_supprimer = self.create_styled_button(btn_frame, "Supprimer", 
+        # Use a styled button
+        btn_supprimer = self.create_styled_button(btn_frame, "Delete", 
                                                self.supprimer_travailleur, "cancel")
         btn_supprimer.grid(row=0, column=0, sticky="e", padx=5)
 
     def creer_planning_visuel(self):
-        """Crée une représentation visuelle du planning"""
-        # Supprimer l'ancien planning s'il existe
+        """Create a visual representation of the planning"""
+        # Delete the old planning if it exists
         for widget in self.canvas_frame.winfo_children():
             widget.destroy()
         
@@ -429,8 +431,8 @@ class InterfacePlanning:
                     color = f"#{r:02x}{g:02x}{b:02x}"
                 self.travailleur_colors[travailleur.nom] = color
         
-        # En-têtes des colonnes
-        ttk.Label(planning_frame, text="Jour", font=self.header_font).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        # Headers of the columns
+        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=5, sticky="w")
         for i, shift in enumerate(Horaire.SHIFTS.values()):
             ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=5)
         
@@ -487,8 +489,8 @@ class InterfacePlanning:
                                        font=self.normal_font, relief="raised", borderwidth=1)
                         label.pack(fill="both", expand=True)
                 else:
-                    # Cellule vide
-                    label = tk.Label(cell_frame, text="Non assigné", bg="#F0F0F0", 
+                    # Empty cell
+                    label = tk.Label(cell_frame, text="Unassigned", bg="#F0F0F0", 
                                    font=self.normal_font, relief="sunken", borderwidth=1)
                     label.pack(fill="both", expand=True)
         
@@ -507,15 +509,15 @@ class InterfacePlanning:
         
         # Validation des entrées
         if not nom:
-            messagebox.showerror("Erreur", "Veuillez entrer un nom")
+            messagebox.showerror("Error", "Please enter a name")
             return
         
         try:
             nb_shifts = int(nb_shifts_str)
             if nb_shifts <= 0:
-                raise ValueError("Le nombre de shifts doit être positif")
+                raise ValueError("The number of shifts must be positive")
         except ValueError:
-            messagebox.showerror("Erreur", "Veuillez entrer un nombre valide de shifts")
+            messagebox.showerror("Error", "Please enter a valid number of shifts")
             return
         
         # Récupérer les disponibilités
@@ -541,7 +543,7 @@ class InterfacePlanning:
                 disponibilites_12h[jour] = shifts_12h
         
         if not disponibilites and not disponibilites_12h:
-            messagebox.showerror("Erreur", "Veuillez sélectionner au moins une disponibilité")
+            messagebox.showerror("Error", "Please select at least one availability")
             return
         
         # Créer ou mettre à jour le travailleur
@@ -555,16 +557,16 @@ class InterfacePlanning:
             self.planning.travailleurs[index].disponibilites = disponibilites
             self.planning.travailleurs[index].disponibilites_12h = disponibilites_12h
             
-            messagebox.showinfo("Succès", f"Travailleur {nom} modifié avec succès")
+            messagebox.showinfo("Success", f"Worker {nom} modified successfully")
             
-            # Sauvegarder dans la base de données
+            # Save in the database
             db = Database()
             db.sauvegarder_travailleur(self.planning.travailleurs[index])
             
-            # Réinitialiser le mode édition
+            # Reset the edition mode
             self.mode_edition = False
             self.travailleur_en_edition = None
-            self.btn_ajouter.config(text="Ajouter Travailleur")
+            self.btn_ajouter.config(text="Add worker")
             self.btn_annuler.config(state=tk.DISABLED)
         else:
             # Création d'un nouveau travailleur
@@ -576,7 +578,7 @@ class InterfacePlanning:
             db = Database()
             db.sauvegarder_travailleur(travailleur)
             
-            messagebox.showinfo("Succès", f"Travailleur {nom} ajouté avec succès")
+            messagebox.showinfo("Success", f"Worker {nom} added successfully")
         
         # Mise à jour de la liste des travailleurs
         self.mettre_a_jour_liste_travailleurs()
@@ -603,7 +605,7 @@ class InterfacePlanning:
             self.table_travailleurs.insert("", tk.END, values=(travailleur.nom, travailleur.nb_shifts_souhaites))
 
     def selectionner_travailleur(self, event):
-        """Sélectionne un travailleur dans la liste pour l'éditer"""
+        """Select a worker in the list to edit"""
         selection = self.table_travailleurs.selection()
         if not selection:
             return
@@ -642,16 +644,16 @@ class InterfacePlanning:
                 self.travailleur_en_edition = travailleur
                 
                 # Changer le titre du formulaire
-                self.form_label_frame.configure(text="Modifier un travailleur")
+                self.form_label_frame.configure(text="Modify worker")
                 
                 # Changer le texte du bouton Ajouter en Modifier
                 if hasattr(self.btn_ajouter, 'itemconfig'):
                     # Si c'est un canvas
                     text_id = self.btn_ajouter.find_withtag("all")[0]  # Trouver le texte dans le canvas
-                    self.btn_ajouter.itemconfig(text_id, text="Modifier Travailleur")
+                    self.btn_ajouter.itemconfig(text_id, text="Modify worker")
                 else:
                     # Si c'est un bouton standard
-                    self.btn_ajouter.config(text="Modifier Travailleur")
+                    self.btn_ajouter.config(text="Modify worker")
                 
                 # Activer le bouton Annuler
                 if hasattr(self.btn_annuler, 'configure'):
@@ -667,7 +669,7 @@ class InterfacePlanning:
                 break
 
     def annuler_edition(self):
-        """Annule l'édition en cours et réinitialise le formulaire"""
+        """Cancel the current edition and reset the form"""
         self.mode_edition = False
         self.travailleur_en_edition = None
         
@@ -682,17 +684,17 @@ class InterfacePlanning:
             self.disponibilites_12h[jour]["matin_12h"].set(False)
             self.disponibilites_12h[jour]["nuit_12h"].set(False)
         
-        # Changer le titre du formulaire
-        self.form_label_frame.configure(text="Ajouter un travailleur")
+        # Change the title of the form
+        self.form_label_frame.configure(text="Add a worker")
         
         # Changer le texte du bouton Modifier en Ajouter
         if hasattr(self.btn_ajouter, 'itemconfig'):
             # Si c'est un canvas
             text_id = self.btn_ajouter.find_withtag("all")[0]  # Trouver le texte dans le canvas
-            self.btn_ajouter.itemconfig(text_id, text="Ajouter Travailleur")
+            self.btn_ajouter.itemconfig(text_id, text="Add worker")
         else:
             # Si c'est un bouton standard
-            self.btn_ajouter.config(text="Ajouter Travailleur")
+            self.btn_ajouter.config(text="Add worker")
         
         # Désactiver le bouton Annuler
         if hasattr(self.btn_annuler, 'configure'):
@@ -706,8 +708,8 @@ class InterfacePlanning:
             self.btn_annuler.unbind("<Leave>")
 
     def verifier_repos_entre_gardes(self, planning, travailleur):
-        """Vérifie qu'il y a suffisamment de repos entre les gardes d'un travailleur"""
-        # Créer une liste chronologique de toutes les gardes
+        """Check that there is enough rest between the shifts of a worker"""
+        # Create a chronological list of all shifts
         gardes_chronologiques = []
         
         # Mapping des noms de shifts aux heures de début
@@ -769,7 +771,7 @@ class InterfacePlanning:
 
     def generer_planning(self):
         if not self.planning.travailleurs:
-            messagebox.showerror("Erreur", "Veuillez ajouter au moins un travailleur")
+            messagebox.showerror("Error", "Please add at least one worker")
             return
         
         # Générer un planning initial
@@ -806,10 +808,10 @@ class InterfacePlanning:
         self.planning.planning = meilleur_planning
         
         self.creer_planning_visuel()
-        messagebox.showinfo("Succès", f"Planning généré avec succès ({meilleure_evaluation} trous restants)")
+        messagebox.showinfo("Success", f"Planning generated successfully ({meilleure_evaluation} holes remaining)")
 
     def compter_trous(self, planning):
-        """Compte le nombre de trous dans un planning"""
+        """Count the number of holes in a planning"""
         trous = 0
         for jour in Horaire.JOURS:
             for shift in Horaire.SHIFTS.values():
@@ -818,8 +820,8 @@ class InterfacePlanning:
         return trous
 
     def evaluer_planning(self, planning):
-        """Évalue la qualité d'un planning en fonction de plusieurs critères"""
-        # Copier le planning pour ne pas le modifier
+        """Evaluate the quality of a planning based on several criteria"""
+        # Copy the planning to avoid modifying it
         planning_copie = {j: {s: planning[j][s] for s in Horaire.SHIFTS.values()} for j in Horaire.JOURS}
         
         # Vérifier la répartition des gardes de nuit
@@ -834,8 +836,8 @@ class InterfacePlanning:
         return planning_copie
 
     def evaluer_repartition_nuit(self, planning):
-        """Évalue la répartition des gardes de nuit entre les travailleurs"""
-        # Compter les gardes de nuit par travailleur
+        """Evaluate the distribution of night shifts between workers"""
+        # Count the night shifts per worker
         gardes_nuit_par_travailleur = {}
         for jour in Horaire.JOURS:
             travailleur = planning[jour]["22-06"]
@@ -857,8 +859,8 @@ class InterfacePlanning:
         return ecart_type  # Plus l'écart-type est petit, plus la répartition est équilibrée
 
     def evaluer_proximite_gardes(self, planning):
-        """Évalue le nombre de gardes rapprochées (8h d'écart) pour chaque travailleur"""
-        # Mapping des shifts à des heures de début et de fin
+        """Evaluate the number of adjacent shifts (8h gap) for each worker"""
+        # Mapping of shifts to start and end times
         shift_heures = {
             "06-14": (6, 14),
             "14-22": (14, 22),
@@ -908,9 +910,9 @@ class InterfacePlanning:
         return total_gardes_rapprochees
 
     def generer_planning_12h(self):
-        """Génère des gardes de 12h en fonction des disponibilités des travailleurs"""
+        """Generate 12h shifts based on the workers' availabilities"""
         if not self.planning.travailleurs:
-            messagebox.showerror("Erreur", "Veuillez ajouter au moins un travailleur")
+            messagebox.showerror("Error", "Please add at least one worker")
             return
         
         # Identifier les jours où des gardes de 12h peuvent être créées
@@ -921,7 +923,7 @@ class InterfacePlanning:
                     jours_avec_12h.add(jour)
         
         if not jours_avec_12h:
-            messagebox.showinfo("Information", "Aucun travailleur n'a de disponibilités pour les gardes de 12h")
+            messagebox.showinfo("Information", "No worker has availability for 12h shifts")
             return
         
         # Pour chaque jour, essayer de créer des gardes de 12h
@@ -971,14 +973,14 @@ class InterfacePlanning:
         self.creer_planning_visuel()
         
         if gardes_12h_creees > 0:
-            messagebox.showinfo("Succès", f"{gardes_12h_creees} garde(s) de 12h créée(s) avec succès")
+            messagebox.showinfo("Success", f"{gardes_12h_creees} 12h shift(s) created successfully")
         else:
-            messagebox.showinfo("Information", "Aucune garde de 12h n'a pu être créée. Vérifiez les disponibilités des travailleurs pour les gardes de 12h.")
+            messagebox.showinfo("Information", "No 12h shift could be created. Check the workers' availabilities for 12h shifts.")
 
     def combler_trous(self):
-        """Comble les trous dans le planning en respectant les contraintes de repos
-        et en tenant compte des disponibilités des travailleurs, mais pas du nombre de shifts souhaités"""
-        # Créer une liste des trous à combler
+        """Fill the holes in the planning while respecting the repo constraints
+        and taking into account the workers' availabilities, but not the desired number of shifts"""
+        # Create a list of holes to fill
         trous = []
         for jour in Horaire.JOURS:
             for shift in Horaire.SHIFTS.values():
@@ -986,7 +988,7 @@ class InterfacePlanning:
                     trous.append((jour, shift))
         
         if not trous:
-            messagebox.showinfo("Information", "Aucun trou à combler dans le planning")
+            messagebox.showinfo("Information", "No holes to fill in the planning")
             return
         
         # Trier les trous pour favoriser les possibilités de gardes de 12h
@@ -1079,12 +1081,12 @@ class InterfacePlanning:
         self.creer_planning_visuel()
         
         if trous_combles == len(trous):
-            messagebox.showinfo("Succès", f"Tous les trous ont été comblés avec succès ({trous_combles} trous)")
+            messagebox.showinfo("Success", f"All holes have been filled successfully ({trous_combles} holes)")
         else:
-            messagebox.showinfo("Information", f"{trous_combles} trous comblés sur {len(trous)}")
+            messagebox.showinfo("Information", f"{trous_combles} holes filled on {len(trous)}")
 
     def compter_gardes_rapprochees(self, planning, nom_travailleur):
-        """Compte le nombre de gardes rapprochées pour un travailleur donné"""
+        """Count the number of adjacent shifts for a given worker"""
         # Mapping des shifts à des heures de début et de fin
         shift_heures = {
             "06-14": (6, 14),
@@ -1130,7 +1132,7 @@ class InterfacePlanning:
         return gardes_rapprochees
 
     def charger_travailleurs_db(self):
-        """Charge les travailleurs depuis la base de données"""
+        """Charge the workers from the database"""
         db = Database()
         travailleurs = db.charger_travailleurs()
         for travailleur in travailleurs:
@@ -1138,8 +1140,8 @@ class InterfacePlanning:
         self.mettre_a_jour_liste_travailleurs()
 
     def sauvegarder_planning(self):
-        """Sauvegarde le planning actuel dans la base de données"""
-        # Obtenir la date du prochain dimanche
+        """Save the current planning in the database"""
+        # Get the date of the next Sunday
         import datetime
         
         # Obtenir la date actuelle
@@ -1158,28 +1160,28 @@ class InterfacePlanning:
         prochain_dimanche = aujourd_hui + datetime.timedelta(days=jours_jusqu_a_dimanche)
         
         # Formater la date pour le nom du planning
-        nom_planning = f"Planning semaine du {prochain_dimanche.strftime('%d/%m/%Y')}"
+        nom_planning = f"Planning week starting on {prochain_dimanche.strftime('%d/%m/%Y')}"
         
         # Demander confirmation à l'utilisateur
         confirmation = messagebox.askyesno(
             "Confirmation", 
-            f"Voulez-vous sauvegarder ce planning pour la semaine commençant le {prochain_dimanche.strftime('%d/%m/%Y')} ?"
+            f"Do you want to save this planning for the week starting on {prochain_dimanche.strftime('%d/%m/%Y')} ?"
         )
         
         if confirmation:
             # Sauvegarder le planning avec le nom formaté
             planning_id = self.planning.sauvegarder(nom_planning)
-            messagebox.showinfo("Succès", f"Planning sauvegardé pour la semaine du {prochain_dimanche.strftime('%d/%m/%Y')}")
+            messagebox.showinfo("Success", f"Planning saved for the week starting on {prochain_dimanche.strftime('%d/%m/%Y')}")
             return planning_id
         return None
 
     def charger_planning(self):
-        """Charge un planning depuis la base de données"""
+        """Charge a planning from the database"""
         # Récupérer la liste des plannings disponibles
         plannings = self.planning.lister_plannings()
         
         if not plannings:
-            messagebox.showinfo("Information", "Aucun planning sauvegardé")
+            messagebox.showinfo("Information", "No planning saved")
             return
         
         # Créer une liste de choix avec les noms des plannings
@@ -1190,8 +1192,8 @@ class InterfacePlanning:
         
         # Demander à l'utilisateur de choisir un planning
         choix_planning = simpledialog.askstring(
-            "Charger un planning",
-            "Choisissez un planning à charger (entrez le numéro):",
+            "Load a planning",
+            "Choose a planning to load (enter the number):",
             initialvalue=choix[0].split(' - ')[0]
         )
         
@@ -1210,27 +1212,27 @@ class InterfacePlanning:
                 self.mettre_a_jour_liste_travailleurs()
                 self.creer_planning_visuel()
                 
-                messagebox.showinfo("Succès", "Planning chargé avec succès")
+                messagebox.showinfo("Success", "Planning loaded successfully")
                 
                 # Proposer de télécharger le planning
                 self.proposer_telechargement_planning()
             else:
-                messagebox.showerror("Erreur", "Impossible de charger le planning")
+                messagebox.showerror("Error", "Impossible to load the planning")
         except ValueError:
-            messagebox.showerror("Erreur", "Numéro de planning invalide")
+            messagebox.showerror("Error", "Invalid planning number")
 
     def proposer_telechargement_planning(self):
-        """Propose à l'utilisateur de télécharger le planning au format CSV"""
+        """Propose to the user to download the planning in CSV format"""
         confirmation = messagebox.askyesno(
-            "Téléchargement", 
-            "Voulez-vous télécharger ce planning au format CSV ?"
+            "Download", 
+            "Do you want to download this planning in CSV format ?"
         )
         
         if confirmation:
             self.telecharger_planning_csv()
 
     def telecharger_planning_csv(self):
-        """Exporte le planning actuel au format CSV"""
+        """Export the current planning to CSV format"""
         import csv
         from tkinter import filedialog
         
@@ -1238,7 +1240,7 @@ class InterfacePlanning:
         fichier = filedialog.asksaveasfilename(
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            title="Enregistrer le planning"
+            title="Save the planning"
         )
         
         if not fichier:
@@ -1249,7 +1251,7 @@ class InterfacePlanning:
                 writer = csv.writer(csvfile)
                 
                 # Écrire l'en-tête
-                en_tete = ["Jour"] + list(Horaire.SHIFTS.values())
+                en_tete = ["Day"] + list(Horaire.SHIFTS.values())
                 writer.writerow(en_tete)
                 
                 # Écrire les données du planning
@@ -1257,18 +1259,18 @@ class InterfacePlanning:
                     ligne = [jour]
                     for shift in Horaire.SHIFTS.values():
                         travailleur = self.planning.planning[jour][shift]
-                        ligne.append(travailleur if travailleur else "Non assigné")
+                        ligne.append(travailleur if travailleur else "Not assigned")
                     writer.writerow(ligne)
                 
-            messagebox.showinfo("Succès", f"Planning exporté avec succès vers {fichier}")
+            messagebox.showinfo("Success", f"Planning exported successfully to {fichier}")
         except Exception as e:
-            messagebox.showerror("Erreur", f"Erreur lors de l'exportation: {str(e)}")
+            messagebox.showerror("Error", f"Error during exportation: {str(e)}")
 
     def supprimer_travailleur(self):
         # Récupérer l'item sélectionné
         selection = self.table_travailleurs.selection()
         if not selection:
-            messagebox.showinfo("Information", "Veuillez sélectionner un travailleur à supprimer")
+            messagebox.showinfo("Information", "Please select a worker to delete")
             return
         
         # Récupérer le nom du travailleur sélectionné
@@ -1276,7 +1278,7 @@ class InterfacePlanning:
         nom_travailleur = self.table_travailleurs.item(item, "values")[0]
         
         # Demander confirmation
-        confirmation = messagebox.askyesno("Confirmation", f"Êtes-vous sûr de vouloir supprimer {nom_travailleur} ?")
+        confirmation = messagebox.askyesno("Confirmation", f"Are you sure you want to delete {nom_travailleur} ?")
         if not confirmation:
             return
         
@@ -1296,21 +1298,21 @@ class InterfacePlanning:
                 
                 # Mettre à jour l'affichage
                 self.mettre_a_jour_liste_travailleurs()
-                messagebox.showinfo("Succès", f"Travailleur {nom_travailleur} supprimé avec succès")
+                messagebox.showinfo("Success", f"Worker {nom_travailleur} deleted successfully")
                 break
 
     def ouvrir_agenda_plannings(self):
-        """Ouvre une fenêtre d'agenda pour visualiser et modifier les plannings existants"""
+        """Open a window to view and modify existing plannings"""
         # Récupérer tous les plannings
         plannings = self.planning.lister_plannings()
         
         if not plannings:
-            messagebox.showinfo("Information", "Aucun planning sauvegardé")
+            messagebox.showinfo("Information", "No planning saved")
             return
         
         # Créer une nouvelle fenêtre
         agenda_window = tk.Toplevel(self.root)
-        agenda_window.title("Agenda des Plannings")
+        agenda_window.title("Agenda of Plannings")
         agenda_window.geometry("900x600")
         agenda_window.configure(bg="#f0f0f0")
         
@@ -1324,8 +1326,8 @@ class InterfacePlanning:
         
         # Configurer les en-têtes
         agenda_tree.heading("id", text="ID")
-        agenda_tree.heading("nom", text="Nom du Planning")
-        agenda_tree.heading("date_creation", text="Date de création")
+        agenda_tree.heading("nom", text="Planning name")
+        agenda_tree.heading("date_creation", text="Creation date")
         
         # Configurer les colonnes
         agenda_tree.column("id", width=50, anchor="center")
@@ -1363,7 +1365,7 @@ class InterfacePlanning:
         def get_selected_planning():
             selection = agenda_tree.selection()
             if not selection:
-                messagebox.showwarning("Attention", "Veuillez sélectionner un planning")
+                messagebox.showwarning("Attention", "Please select a planning")
                 return None
             
             item = selection[0]
@@ -1390,8 +1392,8 @@ class InterfacePlanning:
             
             # Demander le nouveau nom
             nouveau_nom = simpledialog.askstring(
-                "Renommer le planning",
-                "Entrez le nouveau nom du planning:",
+                "Rename the planning",
+                "Enter the new name of the planning:",
                 initialvalue=nom_actuel,
                 parent=agenda_window
             )
@@ -1404,9 +1406,9 @@ class InterfacePlanning:
                     values = list(agenda_tree.item(item, "values"))
                     values[1] = nouveau_nom
                     agenda_tree.item(item, values=values)
-                    messagebox.showinfo("Succès", "Planning renommé avec succès")
+                    messagebox.showinfo("Success", "Planning renamed successfully")
                 else:
-                    messagebox.showerror("Erreur", "Impossible de renommer le planning")
+                    messagebox.showerror("Error", "Impossible to rename the planning")
         
         # Fonction pour supprimer un planning
         def supprimer_planning():
@@ -1419,7 +1421,7 @@ class InterfacePlanning:
             # Demander confirmation
             confirmation = messagebox.askyesno(
                 "Confirmation",
-                "Êtes-vous sûr de vouloir supprimer ce planning ?\nCette action est irréversible.",
+                "Are you sure you want to delete this planning?\nThis action is irreversible.",
                 parent=agenda_window
             )
             
@@ -1429,34 +1431,34 @@ class InterfacePlanning:
                 if db.supprimer_planning(planning_id):
                     # Supprimer l'item de l'arbre
                     agenda_tree.delete(item)
-                    messagebox.showinfo("Succès", "Planning supprimé avec succès")
+                    messagebox.showinfo("Success", "Planning deleted successfully")
                 else:
-                    messagebox.showerror("Erreur", "Impossible de supprimer le planning")
+                    messagebox.showerror("Error", "Impossible to delete the planning")
         
         # Ajouter les boutons d'action
-        btn_ouvrir = ttk.Button(action_frame, text="Ouvrir", command=ouvrir_planning_selectionne)
+        btn_ouvrir = ttk.Button(action_frame, text="Open", command=ouvrir_planning_selectionne)
         btn_ouvrir.pack(side="left", padx=5)
         
-        btn_renommer = ttk.Button(action_frame, text="Renommer", command=renommer_planning)
+        btn_renommer = ttk.Button(action_frame, text="Rename", command=renommer_planning)
         btn_renommer.pack(side="left", padx=5)
         
-        btn_supprimer = ttk.Button(action_frame, text="Supprimer", command=supprimer_planning)
+        btn_supprimer = ttk.Button(action_frame, text="Delete", command=supprimer_planning)
         btn_supprimer.pack(side="left", padx=5)
         
         # Double-clic pour ouvrir un planning
         agenda_tree.bind("<Double-1>", lambda event: ouvrir_planning_selectionne())
         
         # Ajouter un bouton pour fermer l'agenda
-        btn_fermer = ttk.Button(agenda_window, text="Fermer", command=agenda_window.destroy)
+        btn_fermer = ttk.Button(agenda_window, text="Close", command=agenda_window.destroy)
         btn_fermer.pack(pady=10)
 
     def ouvrir_planning_pour_modification(self, planning_id, parent_window=None):
-        """Ouvre un planning existant pour modification avec le même style visuel que la page principale"""
+        """Open an existing planning for modification with the same visual style as the main page"""
         # Charger le planning depuis la base de données
         planning_charge = Planning.charger(planning_id)
         
         if not planning_charge:
-            messagebox.showerror("Erreur", "Impossible de charger le planning")
+            messagebox.showerror("Error", "Impossible to load the planning")
             return
         
         # Récupérer les informations du planning
@@ -1465,7 +1467,7 @@ class InterfacePlanning:
             planning_info = db.obtenir_info_planning(planning_id)
             
             if not planning_info:
-                messagebox.showerror("Erreur", "Impossible de récupérer les informations du planning")
+                messagebox.showerror("Error", "Impossible to retrieve planning information")
                 return
             
             # Créer une nouvelle fenêtre
@@ -1542,7 +1544,7 @@ class InterfacePlanning:
                     rect_id = canvas.create_rectangle(x0, y0, x1, y1, fill="white", outline="#ccc")
                     text_id = canvas.create_text(
                         (x0 + x1)/2, (y0 + y1)/2, 
-                        text=travailleur if travailleur else "Non assigné", 
+                        text=travailleur if travailleur else "Not assigned", 
                         width=cell_width*0.9,  # Limiter la largeur du texte
                         font=("Arial", 9)
                     )
@@ -1564,7 +1566,7 @@ class InterfacePlanning:
             def modifier_cellule(jour, shift):
                 # Liste de tous les travailleurs + "Non assigné"
                 travailleurs = [t.nom for t in planning_charge.travailleurs]
-                travailleurs.append("Non assigné")
+                travailleurs.append("Not assigned")
                 
                 # Obtenir une liste de tous les noms des travailleurs dans la base de données
                 db = Database()
@@ -1576,7 +1578,7 @@ class InterfacePlanning:
                 
                 # Fenêtre de sélection pour choisir un travailleur
                 selection_window = tk.Toplevel(planning_window)
-                selection_window.title(f"Assigner un travailleur pour {jour} - {shift}")
+                selection_window.title(f"Assign a worker for {jour} - {shift}")
                 selection_window.geometry("300x400")
                 selection_window.transient(planning_window)
                 selection_window.grab_set()
@@ -1587,7 +1589,7 @@ class InterfacePlanning:
                 frame.pack(fill="both", expand=True)
                 
                 # Label
-                ttk.Label(frame, text=f"Choisir un travailleur pour\n{jour} - {shift}:", 
+                ttk.Label(frame, text=f"Choose a worker for\n{jour} - {shift}:", 
                          font=("Arial", 10, "bold")).pack(pady=10)
                 
                 # Listbox avec scrollbar
@@ -1607,8 +1609,8 @@ class InterfacePlanning:
                     listbox.insert(tk.END, nom)
                 
                 # Ajouter "Non assigné" comme dernière option
-                if "Non assigné" not in tous_noms:
-                    listbox.insert(tk.END, "Non assigné")
+                if "Not assigned" not in tous_noms:
+                    listbox.insert(tk.END, "Not assigned")
                 
                 # Sélectionner le travailleur actuel
                 actuel = cellules[jour][shift]["travailleur"]
@@ -1616,8 +1618,8 @@ class InterfacePlanning:
                     index = tous_noms.index(actuel)
                     listbox.selection_set(index)
                     listbox.see(index)
-                elif actuel is None and "Non assigné" in tous_noms:
-                    index = tous_noms.index("Non assigné")
+                elif actuel is None and "Not assigned" in tous_noms:
+                    index = tous_noms.index("Not assigned")
                     listbox.selection_set(index)
                     listbox.see(index)
                 
@@ -1626,10 +1628,10 @@ class InterfacePlanning:
                     selections = listbox.curselection()
                     if selections:
                         choix = listbox.get(selections[0])
-                        if choix == "Non assigné":
+                        if choix == "Not assigned":
                             planning_window.planning.planning[jour][shift] = None
                             cellules[jour][shift]["travailleur"] = None
-                            canvas.itemconfig(cellules[jour][shift]["text"], text="Non assigné")
+                            canvas.itemconfig(cellules[jour][shift]["text"], text="Not assigned")
                         else:
                             planning_window.planning.planning[jour][shift] = choix
                             cellules[jour][shift]["travailleur"] = choix
@@ -1640,8 +1642,8 @@ class InterfacePlanning:
                 btn_frame = ttk.Frame(frame)
                 btn_frame.pack(fill="x", pady=10)
                 
-                ttk.Button(btn_frame, text="Valider", command=appliquer_choix).pack(side="left", padx=5, expand=True)
-                ttk.Button(btn_frame, text="Annuler", command=selection_window.destroy).pack(side="right", padx=5, expand=True)
+                ttk.Button(btn_frame, text="Validate", command=appliquer_choix).pack(side="left", padx=5, expand=True)
+                ttk.Button(btn_frame, text="Cancel", command=selection_window.destroy).pack(side="right", padx=5, expand=True)
                 
                 # Double-clic pour sélectionner
                 listbox.bind("<Double-1>", lambda e: appliquer_choix())
@@ -1649,7 +1651,7 @@ class InterfacePlanning:
             # Fonction pour sauvegarder le planning modifié
             def sauvegarder_planning_modifie():
                 if db.mettre_a_jour_planning(planning_id, planning_window.planning):
-                    messagebox.showinfo("Succès", "Planning mis à jour avec succès")
+                    messagebox.showinfo("Success", "Planning updated successfully")
                     # Fermer la fenêtre d'édition
                     planning_window.destroy()
                     # Rafraîchir l'agenda si nécessaire
@@ -1657,7 +1659,7 @@ class InterfacePlanning:
                         parent_window.destroy()
                         self.ouvrir_agenda_plannings()
                 else:
-                    messagebox.showerror("Erreur", "Impossible de mettre à jour le planning")
+                    messagebox.showerror("Error", "Impossible to update the planning")
             
             # Fonctions pour exporter le planning
             def exporter_planning():
@@ -1668,15 +1670,15 @@ class InterfacePlanning:
             button_frame.pack(fill="x", side="bottom")
             
             # Boutons
-            ttk.Button(button_frame, text="Sauvegarder", command=sauvegarder_planning_modifie).pack(side="left", padx=5)
-            ttk.Button(button_frame, text="Exporter en CSV", command=exporter_planning).pack(side="left", padx=5)
-            ttk.Button(button_frame, text="Fermer sans sauvegarder", command=planning_window.destroy).pack(side="right", padx=5)
+            ttk.Button(button_frame, text="Save", command=sauvegarder_planning_modifie).pack(side="left", padx=5)
+            ttk.Button(button_frame, text="Export to CSV", command=exporter_planning).pack(side="left", padx=5)
+            ttk.Button(button_frame, text="Close without saving", command=planning_window.destroy).pack(side="right", padx=5)
         
         except Exception as e:
-            messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
+            messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
     def telecharger_planning_csv(self, planning_to_export=None):
-        """Exporte le planning actuel ou spécifié au format CSV"""
+        """Export the current or specified planning to CSV format"""
         import csv
         from tkinter import filedialog
         
@@ -1687,7 +1689,7 @@ class InterfacePlanning:
         fichier = filedialog.asksaveasfilename(
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            title="Enregistrer le planning"
+            title="Save planning"
         )
         
         if not fichier:
@@ -1698,7 +1700,7 @@ class InterfacePlanning:
                 writer = csv.writer(csvfile)
                 
                 # Écrire l'en-tête
-                en_tete = ["Jour"] + list(Horaire.SHIFTS.values())
+                en_tete = ["Day"] + list(Horaire.SHIFTS.values())
                 writer.writerow(en_tete)
                 
                 # Écrire les données du planning
@@ -1706,12 +1708,12 @@ class InterfacePlanning:
                     ligne = [jour]
                     for shift in Horaire.SHIFTS.values():
                         travailleur = planning_a_exporter.planning[jour][shift]
-                        ligne.append(travailleur if travailleur else "Non assigné")
+                        ligne.append(travailleur if travailleur else "Not assigned")
                     writer.writerow(ligne)
                 
-            messagebox.showinfo("Succès", f"Planning exporté avec succès vers {fichier}")
+            messagebox.showinfo("Success", f"Planning exported successfully to {fichier}")
         except Exception as e:
-            messagebox.showerror("Erreur", f"Erreur lors de l'exportation: {str(e)}")
+            messagebox.showerror("Error", f"Error during exportation: {str(e)}")
 
     def run(self):
         self.root.mainloop() 
