@@ -52,8 +52,5 @@ The graphical interface will allow you to:
 - Evaluation of night shift distribution
 - Management of closely scheduled shifts
 
-## Contribution
-Contributions to this project are welcome. Feel free to open an issue or submit a pull request.
 
-## License
-[Insert license information here]
+

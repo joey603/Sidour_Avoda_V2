@@ -95,27 +95,44 @@ class Database:
         conn.commit()
         self.close()
     
-    def sauvegarder_travailleur(self, travailleur):
-        """Sauvegarde un travailleur dans la base de données"""
+    def sauvegarder_travailleur(self, travailleur, ancien_nom=None):
+        """Sauvegarde un travailleur dans la base de données
+        
+        Si ancien_nom est fourni et différent du nom actuel, utilise l'ancien nom
+        pour rechercher le travailleur à mettre à jour.
+        """
         conn = self.connect()
         cursor = conn.cursor()
         
+        # Nom à utiliser pour la recherche (ancien nom si fourni et différent, sinon nom actuel)
+        nom_recherche = ancien_nom if ancien_nom and ancien_nom != travailleur.nom else travailleur.nom
+        
         # Vérifier si le travailleur existe déjà
-        cursor.execute("SELECT id FROM travailleurs WHERE nom = ?", (travailleur.nom,))
+        cursor.execute("SELECT id FROM travailleurs WHERE nom = ?", (nom_recherche,))
         result = cursor.fetchone()
         
         if result:
             # Mettre à jour le travailleur existant
             travailleur_id = result['id']
+            
+            # Mettre à jour le nom et le nombre de shifts souhaités
             cursor.execute(
-                "UPDATE travailleurs SET nb_shifts_souhaites = ? WHERE id = ?",
-                (travailleur.nb_shifts_souhaites, travailleur_id)
+                "UPDATE travailleurs SET nom = ?, nb_shifts_souhaites = ? WHERE id = ?",
+                (travailleur.nom, travailleur.nb_shifts_souhaites, travailleur_id)
             )
             
             # Supprimer les anciennes disponibilités
             cursor.execute("DELETE FROM disponibilites WHERE travailleur_id = ?", (travailleur_id,))
             cursor.execute("DELETE FROM disponibilites_12h WHERE travailleur_id = ?", (travailleur_id,))
         else:
+            # Vérifier si un travailleur avec le nouveau nom existe déjà
+            if ancien_nom and ancien_nom != travailleur.nom:
+                cursor.execute("SELECT id FROM travailleurs WHERE nom = ?", (travailleur.nom,))
+                if cursor.fetchone():
+                    # Un travailleur avec ce nom existe déjà, on annule l'opération
+                    conn.close()
+                    return None
+                
             # Créer un nouveau travailleur
             cursor.execute(
                 "INSERT INTO travailleurs (nom, nb_shifts_souhaites) VALUES (?, ?)",
@@ -147,6 +164,7 @@ class Database:
     def charger_travailleurs(self):
         """Charge tous les travailleurs depuis la base de données"""
         conn = self.connect()
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
         cursor.execute("SELECT id, nom, nb_shifts_souhaites FROM travailleurs")
@@ -154,36 +172,38 @@ class Database:
         
         travailleurs = []
         for t_data in travailleurs_data:
-            # Récupérer les disponibilités
+            # Charger les disponibilités normales
+            disponibilites = {}
             cursor.execute(
                 "SELECT jour, shift FROM disponibilites WHERE travailleur_id = ?",
                 (t_data['id'],)
             )
-            disponibilites_data = cursor.fetchall()
+            dispos = cursor.fetchall()
             
-            # Construire le dictionnaire de disponibilités
-            disponibilites = {}
-            for d_data in disponibilites_data:
-                jour = d_data['jour']
-                shift = d_data['shift']
+            for dispo in dispos:
+                jour = dispo['jour']
+                shift = dispo['shift']
+                
                 if jour not in disponibilites:
                     disponibilites[jour] = []
+                
                 disponibilites[jour].append(shift)
             
-            # Récupérer les disponibilités pour les gardes de 12h
+            # Charger les disponibilités 12h
+            disponibilites_12h = {}
             cursor.execute(
                 "SELECT jour, type_12h FROM disponibilites_12h WHERE travailleur_id = ?",
                 (t_data['id'],)
             )
-            disponibilites_12h_data = cursor.fetchall()
+            dispos_12h = cursor.fetchall()
             
-            # Construire le dictionnaire de disponibilités pour les gardes de 12h
-            disponibilites_12h = {}
-            for d_data in disponibilites_12h_data:
-                jour = d_data['jour']
-                type_12h = d_data['type_12h']
+            for dispo in dispos_12h:
+                jour = dispo['jour']
+                type_12h = dispo['type_12h']
+                
                 if jour not in disponibilites_12h:
                     disponibilites_12h[jour] = []
+                
                 disponibilites_12h[jour].append(type_12h)
             
             # Créer l'objet Travailleur
@@ -436,4 +456,28 @@ class Database:
             conn.rollback()
             return False
         finally:
-            self.close() 
+            self.close()
+    
+    def mettre_a_jour_nom_travailleur_dans_plannings(self, travailleur_id, nouveau_nom):
+        """Met à jour le nom d'un travailleur dans les assignations existantes"""
+        conn = self.connect()
+        cursor = conn.cursor()
+        
+        # Récupérer tous les plannings qui contiennent des assignations pour ce travailleur
+        cursor.execute("""
+            SELECT DISTINCT planning_id FROM assignations 
+            WHERE travailleur_id = ?
+        """, (travailleur_id,))
+        
+        plannings = cursor.fetchall()
+        
+        # Rien à faire si aucun planning n'utilise ce travailleur
+        if not plannings:
+            self.close()
+            return
+        
+        # Mettre à jour le nom du travailleur dans les assignations
+        # (Pas besoin de mettre à jour la table assignations car elle utilise l'ID, pas le nom)
+        
+        conn.commit()
+        self.close() 

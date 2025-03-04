@@ -548,26 +548,24 @@ class InterfacePlanning:
         
         # Créer ou mettre à jour le travailleur
         if self.mode_edition and self.travailleur_en_edition:
-            # Trouver l'index du travailleur en édition
-            index = self.planning.travailleurs.index(self.travailleur_en_edition)
+            # Stocker l'ancien nom avant modification
+            ancien_nom = self.travailleur_en_edition.nom
             
-            # Mettre à jour le travailleur
-            self.planning.travailleurs[index].nom = nom
-            self.planning.travailleurs[index].nb_shifts_souhaites = nb_shifts
-            self.planning.travailleurs[index].disponibilites = disponibilites
-            self.planning.travailleurs[index].disponibilites_12h = disponibilites_12h
-            
-            messagebox.showinfo("Success", f"Worker {nom} modified successfully")
+            # Mettre à jour le travailleur existant
+            self.travailleur_en_edition.nom = nom
+            self.travailleur_en_edition.nb_shifts_souhaites = nb_shifts
+            self.travailleur_en_edition.disponibilites = disponibilites
+            self.travailleur_en_edition.disponibilites_12h = disponibilites_12h
             
             # Save in the database
             db = Database()
-            db.sauvegarder_travailleur(self.planning.travailleurs[index])
+            db.sauvegarder_travailleur(self.travailleur_en_edition, ancien_nom)
             
-            # Reset the edition mode
-            self.mode_edition = False
-            self.travailleur_en_edition = None
-            self.btn_ajouter.config(text="Add worker")
-            self.btn_annuler.config(state=tk.DISABLED)
+            # Si le nom a changé, mettre à jour tous les plannings où ce travailleur est référencé
+            if ancien_nom != nom:
+                self.mettre_a_jour_references_travailleur(ancien_nom, nom)
+            
+            messagebox.showinfo("Success", f"Worker {nom} modified successfully")
         else:
             # Création d'un nouveau travailleur
             travailleur = Travailleur(nom, disponibilites, nb_shifts)
@@ -577,13 +575,16 @@ class InterfacePlanning:
             # Sauvegarder dans la base de données
             db = Database()
             db.sauvegarder_travailleur(travailleur)
-            
-            messagebox.showinfo("Success", f"Worker {nom} added successfully")
         
-        # Mise à jour de la liste des travailleurs
+        # Important: recharger la liste des travailleurs depuis la base de données
+        # pour s'assurer que la liste est synchronisée
+        db = Database()
+        self.planning.travailleurs = db.charger_travailleurs()
+        
+        # Mise à jour de la liste des travailleurs dans l'interface
         self.mettre_a_jour_liste_travailleurs()
         
-        # Réinitialisation du formulaire
+        # Réinitialiser le formulaire après l'ajout ou la modification
         self.reinitialiser_formulaire()
 
     def reinitialiser_formulaire(self):
@@ -596,13 +597,20 @@ class InterfacePlanning:
             self.disponibilites_12h[jour]["nuit_12h"].set(False)
 
     def mettre_a_jour_liste_travailleurs(self):
-        # Vider la table
+        """Met à jour la liste des travailleurs affichée dans l'interface"""
+        # Effacer tous les éléments existants
         for item in self.table_travailleurs.get_children():
             self.table_travailleurs.delete(item)
         
+        # Trier les travailleurs par nom pour une meilleure lisibilité
+        travailleurs_tries = sorted(self.planning.travailleurs, key=lambda t: t.nom)
+        
         # Remplir avec les travailleurs actuels
-        for travailleur in self.planning.travailleurs:
+        for travailleur in travailleurs_tries:
             self.table_travailleurs.insert("", tk.END, values=(travailleur.nom, travailleur.nb_shifts_souhaites))
+        
+        # Forcer le rafraîchissement de l'affichage
+        self.table_travailleurs.update()
 
     def selectionner_travailleur(self, event):
         """Select a worker in the list to edit"""
@@ -669,43 +677,11 @@ class InterfacePlanning:
                 break
 
     def annuler_edition(self):
-        """Cancel the current edition and reset the form"""
-        self.mode_edition = False
-        self.travailleur_en_edition = None
-        
-        # Réinitialiser le formulaire
-        self.nom_var.set("")
-        self.nb_shifts_var.set("")
-        
-        # Réinitialiser toutes les disponibilités
-        for jour in Horaire.JOURS:
-            for shift in Horaire.SHIFTS.values():
-                self.disponibilites[jour][shift].set(False)
-            self.disponibilites_12h[jour]["matin_12h"].set(False)
-            self.disponibilites_12h[jour]["nuit_12h"].set(False)
-        
-        # Change the title of the form
-        self.form_label_frame.configure(text="Add a worker")
-        
-        # Changer le texte du bouton Modifier en Ajouter
-        if hasattr(self.btn_ajouter, 'itemconfig'):
-            # Si c'est un canvas
-            text_id = self.btn_ajouter.find_withtag("all")[0]  # Trouver le texte dans le canvas
-            self.btn_ajouter.itemconfig(text_id, text="Add worker")
-        else:
-            # Si c'est un bouton standard
-            self.btn_ajouter.config(text="Add worker")
-        
-        # Désactiver le bouton Annuler
-        if hasattr(self.btn_annuler, 'configure'):
-            self.btn_annuler.configure(state=tk.DISABLED)
-        else:
-            # Si c'est un canvas
-            self.btn_annuler.enabled = False
-            self.btn_annuler.config(bg="#cccccc")
-            self.btn_annuler.unbind("<Button-1>")
-            self.btn_annuler.unbind("<Enter>")
-            self.btn_annuler.unbind("<Leave>")
+        """Annule l'édition en cours et réinitialise le formulaire"""
+        self.reinitialiser_formulaire()
+        # Désélectionner dans la table
+        for item in self.table_travailleurs.selection():
+            self.table_travailleurs.selection_remove(item)
 
     def verifier_repos_entre_gardes(self, planning, travailleur):
         """Check that there is enough rest between the shifts of a worker"""
@@ -1267,39 +1243,28 @@ class InterfacePlanning:
             messagebox.showerror("Error", f"Error during exportation: {str(e)}")
 
     def supprimer_travailleur(self):
-        # Récupérer l'item sélectionné
+        # Obtenir la sélection actuelle
         selection = self.table_travailleurs.selection()
         if not selection:
-            messagebox.showinfo("Information", "Please select a worker to delete")
+            messagebox.showwarning("Warning", "Please select a worker to delete")
             return
         
-        # Récupérer le nom du travailleur sélectionné
         item = selection[0]
         nom_travailleur = self.table_travailleurs.item(item, "values")[0]
         
         # Demander confirmation
-        confirmation = messagebox.askyesno("Confirmation", f"Are you sure you want to delete {nom_travailleur} ?")
-        if not confirmation:
-            return
-        
-        # Trouver et supprimer le travailleur
-        for index, travailleur in enumerate(self.planning.travailleurs):
-            if travailleur.nom == nom_travailleur:
-                # Supprimer de la liste des travailleurs
-                self.planning.travailleurs.pop(index)
-                
-                # Supprimer de la base de données
-                db = Database()
-                db.supprimer_travailleur(travailleur.nom)
-                
-                # Si le travailleur était en édition, annuler l'édition
-                if self.mode_edition and self.travailleur_en_edition and self.travailleur_en_edition.nom == nom_travailleur:
-                    self.annuler_edition()
-                
-                # Mettre à jour l'affichage
-                self.mettre_a_jour_liste_travailleurs()
-                messagebox.showinfo("Success", f"Worker {nom_travailleur} deleted successfully")
-                break
+        if messagebox.askyesno("Confirmation", f"Are you sure you want to delete worker {nom_travailleur}?"):
+            db = Database()
+            db.supprimer_travailleur(nom_travailleur)
+            
+            # Recharger les travailleurs depuis la base de données
+            self.planning.travailleurs = db.charger_travailleurs()
+            
+            # Mettre à jour l'interface
+            self.mettre_a_jour_liste_travailleurs()
+            self.reinitialiser_formulaire()
+            
+            messagebox.showinfo("Success", f"Worker {nom_travailleur} deleted successfully")
 
     def ouvrir_agenda_plannings(self):
         """Open a window to view and modify existing plannings"""
@@ -1717,3 +1682,32 @@ class InterfacePlanning:
 
     def run(self):
         self.root.mainloop() 
+
+    def mettre_a_jour_references_travailleur(self, ancien_nom, nouveau_nom):
+        """Met à jour toutes les références à un travailleur dont le nom a changé"""
+        # Mise à jour dans le planning actuel
+        for jour in self.planning.planning:
+            for shift in self.planning.planning[jour]:
+                if self.planning.planning[jour][shift] == ancien_nom:
+                    self.planning.planning[jour][shift] = nouveau_nom
+                elif self.planning.planning[jour][shift] and " / " in self.planning.planning[jour][shift]:
+                    noms = self.planning.planning[jour][shift].split(" / ")
+                    if ancien_nom in noms:
+                        index = noms.index(ancien_nom)
+                        noms[index] = nouveau_nom
+                        self.planning.planning[jour][shift] = " / ".join(noms)
+        
+        # Mise à jour des couleurs
+        if ancien_nom in self.travailleur_colors:
+            color = self.travailleur_colors[ancien_nom]
+            self.travailleur_colors[nouveau_nom] = color
+            del self.travailleur_colors[ancien_nom]
+        
+        # Rafraîchir l'affichage
+        self.afficher_planning()
+
+    def recharger_travailleurs(self):
+        """Recharge tous les travailleurs depuis la base de données et met à jour l'interface"""
+        db = Database()
+        self.planning.travailleurs = db.charger_travailleurs()
+        self.mettre_a_jour_liste_travailleurs()
