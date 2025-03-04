@@ -588,13 +588,40 @@ class InterfacePlanning:
         self.reinitialiser_formulaire()
 
     def reinitialiser_formulaire(self):
+        """Réinitialise le formulaire de saisie"""
         self.nom_var.set("")
         self.nb_shifts_var.set("")
+        
+        # Réinitialiser toutes les disponibilités
         for jour in Horaire.JOURS:
             for shift in Horaire.SHIFTS.values():
                 self.disponibilites[jour][shift].set(False)
             self.disponibilites_12h[jour]["matin_12h"].set(False)
             self.disponibilites_12h[jour]["nuit_12h"].set(False)
+        
+        # Réinitialiser le mode édition
+        self.mode_edition = False
+        self.travailleur_en_edition = None
+        
+        # Au lieu de:
+        # self.btn_ajouter.config(text="Add worker")
+        
+        # Utilisez:
+        self.mettre_a_jour_texte_bouton(self.btn_ajouter, "Add worker")
+        
+        # Changer le titre du formulaire
+        self.form_label_frame.configure(text="Add worker")
+        
+        # Désactiver le bouton Annuler
+        if hasattr(self.btn_annuler, 'configure'):
+            self.btn_annuler.configure(state=tk.DISABLED)
+        else:
+            # Si c'est un canvas
+            self.btn_annuler.enabled = False
+            self.btn_annuler.config(bg="#6c757d")  # Couleur grisée
+            self.btn_annuler.unbind("<Button-1>")
+            self.btn_annuler.unbind("<Enter>")
+            self.btn_annuler.unbind("<Leave>")
 
     def mettre_a_jour_liste_travailleurs(self):
         """Met à jour la liste des travailleurs affichée dans l'interface"""
@@ -655,13 +682,7 @@ class InterfacePlanning:
                 self.form_label_frame.configure(text="Modify worker")
                 
                 # Changer le texte du bouton Ajouter en Modifier
-                if hasattr(self.btn_ajouter, 'itemconfig'):
-                    # Si c'est un canvas
-                    text_id = self.btn_ajouter.find_withtag("all")[0]  # Trouver le texte dans le canvas
-                    self.btn_ajouter.itemconfig(text_id, text="Modify worker")
-                else:
-                    # Si c'est un bouton standard
-                    self.btn_ajouter.config(text="Modify worker")
+                self.mettre_a_jour_texte_bouton(self.btn_ajouter, "Modify worker")
                 
                 # Activer le bouton Annuler
                 if hasattr(self.btn_annuler, 'configure'):
@@ -1711,3 +1732,18 @@ class InterfacePlanning:
         db = Database()
         self.planning.travailleurs = db.charger_travailleurs()
         self.mettre_a_jour_liste_travailleurs()
+
+    def mettre_a_jour_texte_bouton(self, bouton, nouveau_texte):
+        """Met à jour le texte d'un bouton de manière appropriée selon le type de bouton utilisé"""
+        # Si votre bouton est une instance personnalisée avec une méthode spécifique
+        if hasattr(bouton, 'set_text'):
+            bouton.set_text(nouveau_texte)
+        # Si votre bouton utilise une étiquette (label) interne
+        elif hasattr(bouton, 'label'):
+            bouton.label.config(text=nouveau_texte)
+        # Si votre bouton est un canvas avec du texte
+        elif isinstance(bouton, tk.Canvas):
+            # Trouver l'ID du texte dans le canvas
+            text_items = [item for item in bouton.find_all() if bouton.type(item) == "text"]
+            if text_items:
+                bouton.itemconfig(text_items[0], text=nouveau_texte)
