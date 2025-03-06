@@ -1,0 +1,4 @@
+([('Sidour Avoda',
+   '/Users/yoelibarthel/dossier sans '
+   'titre/Sidour-avoda-Tzora-chevron/dist/Sidour Avoda',
+   'EXECUTABLE')],)

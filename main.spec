@@ -1,28 +1,32 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+block_cipher = None
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('planning_data.db', '.')],
+    datas=[('assets/calender-2389150_960_720.png', 'assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
     noarchive=False,
-    optimize=0,
 )
-pyz = PYZ(a.pure)
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
+    a.zipfiles,
     a.datas,
     [],
-    name='main',
+    name='Sidour Avoda',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,10 +39,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/calender-2389150_960_720.png',
 )
 app = BUNDLE(
     exe,
-    name='main.app',
-    icon=None,
-    bundle_identifier=None,
+    name='Sidour Avoda.app',
+    icon='assets/calender-2389150_960_720.png',
+    bundle_identifier='com.sidouravoda.app',
 )

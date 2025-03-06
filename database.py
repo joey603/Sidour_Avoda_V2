@@ -1,11 +1,23 @@
 import sqlite3
 import os
+import sys
 from travailleur import Travailleur
 from horaire import Horaire
 
 class Database:
     def __init__(self, db_file="planning_data.db"):
-        self.db_file = db_file
+        # Utiliser un chemin absolu pour la base de données
+        if getattr(sys, 'frozen', False):
+            # Si l'application est empaquetée avec PyInstaller
+            application_path = os.path.dirname(sys.executable)
+            if sys.platform == 'darwin':  # macOS
+                # Pour les applications macOS, le chemin est différent
+                application_path = os.path.join(os.path.dirname(sys.executable), '..', 'Resources')
+            self.db_file = os.path.join(application_path, db_file)
+        else:
+            # En mode développement
+            self.db_file = db_file
+        
         self.conn = None
         self.init_database()
     

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Sidour Avoda</string>
+	<key>CFBundleExecutable</key>
+	<string>Sidour Avoda</string>
+	<key>CFBundleIconFile</key>
+	<string>generated-c8bcf7e43e58fad8cfbdf57ecde07500d1e869a736c8b976dd6f5cd8ab7223de.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.sidouravoda.app</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Sidour Avoda</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>LSBackgroundOnly</key>
+	<false/>
+	<key>LSUIElement</key>
+	<false/>
+	<key>NSAppleScriptEnabled</key>
+	<false/>
+	<key>NSHighResolutionCapable</key>
+	<string>True</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+</dict>
+</plist>
