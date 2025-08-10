@@ -1,5 +1,5 @@
 class Travailleur:
-    def __init__(self, nom, disponibilites, nb_shifts_souhaites):
+    def __init__(self, nom, disponibilites, nb_shifts_souhaites, site_id=1):
         self.nom = nom
         # disponibilites sera un dictionnaire avec les jours comme clés
         # et une liste des horaires disponibles comme valeurs
@@ -7,6 +7,7 @@ class Travailleur:
         self.disponibilites_12h = {}  # Pour les gardes de 12h (matin_12h: 06-18, nuit_12h: 18-06)
         self.nb_shifts_souhaites = nb_shifts_souhaites
         self.shifts_assignes = 0
+        self.site_id = site_id  # NOUVEAU
 
     def est_disponible(self, jour, shift):
         """Vérifie si le travailleur est disponible pour un jour et un shift donnés"""
