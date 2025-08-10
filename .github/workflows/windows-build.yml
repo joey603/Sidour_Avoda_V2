@@ -1,0 +1,60 @@
+name: build-windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  win:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build app (PyInstaller)
+        shell: pwsh
+        run: |
+          if (Test-Path windows_app.spec) {
+            pyinstaller windows_app.spec
+          }
+          else {
+            pyinstaller --noconsole --name "Sidour Avoda" `
+              --icon assets\calender-2389150_960_720.png `
+              --add-data "assets\calender-2389150_960_720.png;assets" `
+              --add-data "planning_data.db;." `
+              main.py
+          }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe"
+          if (-Not (Test-Path $iscc)) { throw "ISCC.exe not found" }
+          & $iscc "installer\\Sidour-Avoda.iss"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidour-avoda-windows
+          path: |
+            dist/**
+            dist_installer/**
+
