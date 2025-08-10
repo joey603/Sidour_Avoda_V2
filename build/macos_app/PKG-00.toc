@@ -1,5 +1,5 @@
-('/Users/yoelibarthel/dossier sans '
- 'titre/Sidour-avoda-Tzora-chevron/build/macos_app/Sidour Avoda.pkg',
+('/Users/yoelibarthel/Sidour avoda '
+ 'v2/Sidour-avoda-Tzora-chevron/build/macos_app/Sidour Avoda.pkg',
  {'BINARY': True,
   'DATA': True,
   'EXECUTABLE': True,
@@ -12,8 +12,8 @@
  [('pyi-macos-argv-emulation', '', 'OPTION'),
   ('pyi-contents-directory _internal', '', 'OPTION'),
   ('PYZ-00.pyz',
-   '/Users/yoelibarthel/dossier sans '
-   'titre/Sidour-avoda-Tzora-chevron/build/macos_app/PYZ-00.pyz',
+   '/Users/yoelibarthel/Sidour avoda '
+   'v2/Sidour-avoda-Tzora-chevron/build/macos_app/PYZ-00.pyz',
    'PYZ'),
   ('lib-dynload/_struct.cpython-312-darwin.so',
    '/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/lib-dynload/_struct.cpython-312-darwin.so',
@@ -22,20 +22,20 @@
    '/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/lib-dynload/zlib.cpython-312-darwin.so',
    'EXTENSION'),
   ('struct',
-   '/Users/yoelibarthel/dossier sans '
-   'titre/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/struct.pyc',
+   '/Users/yoelibarthel/Sidour avoda '
+   'v2/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/struct.pyc',
    'PYMODULE'),
   ('pyimod01_archive',
-   '/Users/yoelibarthel/dossier sans '
-   'titre/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/pyimod01_archive.pyc',
+   '/Users/yoelibarthel/Sidour avoda '
+   'v2/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/pyimod01_archive.pyc',
    'PYMODULE'),
   ('pyimod02_importers',
-   '/Users/yoelibarthel/dossier sans '
-   'titre/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/pyimod02_importers.pyc',
+   '/Users/yoelibarthel/Sidour avoda '
+   'v2/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/pyimod02_importers.pyc',
    'PYMODULE'),
   ('pyimod03_ctypes',
-   '/Users/yoelibarthel/dossier sans '
-   'titre/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/pyimod03_ctypes.pyc',
+   '/Users/yoelibarthel/Sidour avoda '
+   'v2/Sidour-avoda-Tzora-chevron/build/macos_app/localpycs/pyimod03_ctypes.pyc',
    'PYMODULE'),
   ('pyiboot01_bootstrap',
    '/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/PyInstaller/loader/pyiboot01_bootstrap.py',
@@ -47,7 +47,7 @@
    '/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/PyInstaller/hooks/rthooks/pyi_rth__tkinter.py',
    'PYSOURCE'),
   ('main',
-   '/Users/yoelibarthel/dossier sans titre/Sidour-avoda-Tzora-chevron/main.py',
+   '/Users/yoelibarthel/Sidour avoda v2/Sidour-avoda-Tzora-chevron/main.py',
    'PYSOURCE')],
  'Python',
  True,

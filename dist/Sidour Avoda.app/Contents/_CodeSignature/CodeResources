@@ -1254,15 +1254,15 @@
 		</data>
 		<key>Resources/base_library.zip</key>
 		<data>
-		kbGjzISHLG/x9YhkQ3R+jEj36e8=
+		AclhkuEabsj+8O6zsne7yXWKLPQ=
 		</data>
-		<key>Resources/generated-c8bcf7e43e58fad8cfbdf57ecde07500d1e869a736c8b976dd6f5cd8ab7223de.icns</key>
+		<key>Resources/generated-37be624d225ff8b9ba259cd5bae5017f8589dc7d44b1511975d8889b477d8ae4.icns</key>
 		<data>
 		s/74fHIFm8PES6KmlkN3txIJjLo=
 		</data>
 		<key>Resources/planning_data.db</key>
 		<data>
-		maUAHyDvDfpNyMVMmxoXMYi38QA=
+		/GL5IazA1lmtMG3kkqM05YqjEuY=
 		</data>
 		<key>Resources/tcl8/8.4/platform-1.0.19.tm</key>
 		<data>
@@ -1559,15 +1559,6 @@
 			<key>requirement</key>
 			<string>cdhash H"712cfee4832321be9cf3c35c7fb9289145b7eb06" or cdhash H"56738fe8e761ed8837c0a7134724459eba787a34"</string>
 		</dict>
-		<key>Frameworks/lib-dynload/_sqlite3.cpython-312-darwin.so</key>
-		<dict>
-			<key>cdhash</key>
-			<data>
-			pqBh8Ol5S8BB3HnanrkhRu/xwqo=
-			</data>
-			<key>requirement</key>
-			<string>cdhash H"cd68b91f35f639e5ecacfbc39d4ceb773d48eeee" or cdhash H"a6a061f0e9794bc041dc79da9eb92146eff1c2aa"</string>
-		</dict>
 		<key>Frameworks/lib-dynload/_statistics.cpython-312-darwin.so</key>
 		<dict>
 			<key>cdhash</key>
@@ -1639,15 +1630,6 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"dc01d9c3ae668c41c829d317d3fa6a827fd7f7bc" or cdhash H"ed5222f3b7268da4ba457ded74bbf129afc19db1"</string>
-		</dict>
-		<key>Frameworks/lib-dynload/readline.cpython-312-darwin.so</key>
-		<dict>
-			<key>cdhash</key>
-			<data>
-			oBLAXBZqzqbj8SXZvZRcGWrE6C4=
-			</data>
-			<key>requirement</key>
-			<string>cdhash H"4f1300a44a818cd1edf2fc98e516333f20003d1d" or cdhash H"a012c05c166acea6e3f125d9bd945c196ac4e82e"</string>
 		</dict>
 		<key>Frameworks/lib-dynload/resource.cpython-312-darwin.so</key>
 		<dict>
@@ -3920,10 +3902,10 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			73C8NyxCubFuGJ7DLs/olMpFJuRUw/8WeCsVVEOBKfc=
+			KWUWU1b2iTxtG3Eh4IobjczbVtXS52BXn2H0zzsX+KU=
 			</data>
 		</dict>
-		<key>Resources/generated-c8bcf7e43e58fad8cfbdf57ecde07500d1e869a736c8b976dd6f5cd8ab7223de.icns</key>
+		<key>Resources/generated-37be624d225ff8b9ba259cd5bae5017f8589dc7d44b1511975d8889b477d8ae4.icns</key>
 		<dict>
 			<key>hash2</key>
 			<data>
@@ -3954,7 +3936,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Ek7IpFFp3A7FbBvCOahXwT83LDhoQRIMcoHW7+ZtZsY=
+			ZA/N3TAOLJixyrAhSwBu7D3GisKLmilWvbrZxSJDu1w=
 			</data>
 		</dict>
 		<key>Resources/tcl8/8.4/platform-1.0.19.tm</key>
