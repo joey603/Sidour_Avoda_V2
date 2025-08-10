@@ -21,5 +21,4 @@ missing module named nt - imported by shutil (conditional), importlib._bootstrap
 missing module named _winapi - imported by encodings (delayed, conditional, optional), shutil (conditional), ntpath (optional), subprocess (conditional)
 missing module named client_config - imported by /Users/yoelibarthel/Sidour avoda v2/Sidour-avoda-Tzora-chevron/main.py (delayed, optional)
 missing module named pyupdater - imported by /Users/yoelibarthel/Sidour avoda v2/Sidour-avoda-Tzora-chevron/main.py (delayed, optional)
-invalid module named interface - imported by /Users/yoelibarthel/Sidour avoda v2/Sidour-avoda-Tzora-chevron/main.py (top-level)
 missing module named msvcrt - imported by subprocess (optional)

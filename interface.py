@@ -310,7 +310,7 @@ class InterfacePlanning:
                 # Debounce: temporarily unbind during execution
                 canvas.unbind("<ButtonRelease-1>")
                 try:
-                    command()
+            command()
                 finally:
                     canvas.bind("<ButtonRelease-1>", on_release)
             return "break"
@@ -504,7 +504,7 @@ class InterfacePlanning:
                     if nom:
                         color = self.travailleur_colors.get(nom, "#FFFFFF")
                         lbl = tk.Label(inner, text=nom, bg=color, font=self.normal_font, relief="raised", borderwidth=1)
-                    else:
+                        else:
                         lbl = tk.Label(inner, text="Unassigned", bg="#F0F0F0", font=self.normal_font, relief="sunken", borderwidth=1)
                     lbl.grid(row=idx, column=0, sticky="nsew")
         
@@ -693,14 +693,14 @@ class InterfacePlanning:
                 for jour, shifts in travailleur.disponibilites.items():
                     for shift in shifts:
                         if jour in self.disponibilites and shift in self.disponibilites[jour]:
-                            self.disponibilites[jour][shift].set(True)
+                        self.disponibilites[jour][shift].set(True)
                 
                 # Définir les disponibilités 12h si elles existent
                 if hasattr(travailleur, 'disponibilites_12h'):
                     for jour, shifts_12h in travailleur.disponibilites_12h.items():
                         for shift_12h in shifts_12h:
                             if jour in self.disponibilites_12h and shift_12h in self.disponibilites_12h[jour]:
-                                self.disponibilites_12h[jour][shift_12h].set(True)
+                            self.disponibilites_12h[jour][shift_12h].set(True)
                 
                 # Passer en mode édition
                 self.mode_edition = True
@@ -757,7 +757,7 @@ class InterfacePlanning:
                 intervalle = d2 - fin1
                 if intervalle < 0:
                     intervalle += 24
-            else:
+                else:
                 intervalle = (j2 - j1) * 24 + (d2 - fin1)
                 if intervalle < 0:
                     intervalle += 24
@@ -1741,7 +1741,7 @@ class InterfacePlanning:
                 if site_id_planning_local:
                     tous_travailleurs = [t.nom for t in db.charger_travailleurs_par_site(site_id_planning_local)]
                 else:
-                    tous_travailleurs = [t.nom for t in db.charger_travailleurs()]
+                tous_travailleurs = [t.nom for t in db.charger_travailleurs()]
                 
                 # Fusionner avec les travailleurs actuels et éliminer les doublons
                 tous_noms = list(set(travailleurs + tous_travailleurs))
@@ -1801,7 +1801,7 @@ class InterfacePlanning:
                         choix = listbox.get(selections[0])
                         if choix == "Not assigned":
                             if jour in planning_window.planning.planning and shift in planning_window.planning.planning[jour]:
-                                planning_window.planning.planning[jour][shift] = None
+                            planning_window.planning.planning[jour][shift] = None
                             cellules[jour][shift]["travailleur"] = None
                             # Redessiner pour prendre la couleur rouge Not assigned
                             _draw_cell(jour, shift)
