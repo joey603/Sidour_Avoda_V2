@@ -503,9 +503,14 @@ class InterfacePlanning:
                 for idx, nom in enumerate(noms[:cap]):
                     if nom:
                         color = self.travailleur_colors.get(nom, "#FFFFFF")
-                        lbl = tk.Label(inner, text=nom, bg=color, font=self.normal_font, relief="raised", borderwidth=1)
+                        text_value = nom
+                        bg_value = color
+                        relief_value = "raised"
                         else:
-                        lbl = tk.Label(inner, text="Unassigned", bg="#F0F0F0", font=self.normal_font, relief="sunken", borderwidth=1)
+                        text_value = "Unassigned"
+                        bg_value = "#F0F0F0"
+                        relief_value = "sunken"
+                    lbl = tk.Label(inner, text=text_value, bg=bg_value, font=self.normal_font, relief=relief_value, borderwidth=1)
                     lbl.grid(row=idx, column=0, sticky="nsew")
         
         # Configurer les colonnes pour qu'elles s'étendent
@@ -758,7 +763,7 @@ class InterfacePlanning:
                 if intervalle < 0:
                     intervalle += 24
                 else:
-                intervalle = (j2 - j1) * 24 + (d2 - fin1)
+                    intervalle = (j2 - j1) * 24 + (d2 - fin1)
                 if intervalle < 0:
                     intervalle += 24
             if intervalle < self.repos_minimum_entre_gardes:
