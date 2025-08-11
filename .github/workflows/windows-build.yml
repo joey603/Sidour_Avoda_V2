@@ -1,18 +1,14 @@
-name: build-windows
+name: build-windows-installer
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - '**'
     tags:
       - 'v*'
 
 jobs:
-  win:
+  build:
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,55 +23,49 @@ jobs:
       - name: Install dependencies
         shell: pwsh
         run: |
-          if (Test-Path "Sidour-avoda-Tzora-chevron") { cd "Sidour-avoda-Tzora-chevron" }
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
-
-      - name: Build app (PyInstaller)
-        shell: pwsh
-        run: |
-          if (Test-Path "Sidour-avoda-Tzora-chevron") { cd "Sidour-avoda-Tzora-chevron" }
-          if (Test-Path windows_app.spec) {
-            pyinstaller windows_app.spec
-          }
-          else {
-            pyinstaller --noconsole --name "Sidour Avoda" --icon "assets\\calender-2389150_960_720.png" --add-data "assets\\calender-2389150_960_720.png;assets" --add-data "planning_data.db;." main.py
+          pip install pyinstaller
+          if (Test-Path "requirements.txt") {
+            pip install -r requirements.txt
+          } elseif (Test-Path "Sidour-avoda-Tzora-chevron/requirements.txt") {
+            pip install -r "Sidour-avoda-Tzora-chevron/requirements.txt"
+          } else {
+            Write-Host "No requirements.txt found, continuing with PyInstaller only."
           }
 
-      - name: Install Inno Setup
+      - name: Build portable exe with PyInstaller
         shell: pwsh
         run: |
-          choco install innosetup --yes --no-progress
+          $proj = if (Test-Path "Sidour-avoda-Tzora-chevron/main.py") { "Sidour-avoda-Tzora-chevron" } elseif (Test-Path "main.py") { "." } else { "." }
+          $main = if (Test-Path "$proj/main.py") { "$proj/main.py" } else { "main.py" }
+          $icon = if (Test-Path "$proj/assets/calender-2389150_960_720.png") { "$proj/assets/calender-2389150_960_720.png" } else { $null }
+          $assetArg = if ($icon) { "--icon `"$icon`" --add-data `"$icon;assets`"" } else { "" }
+          $db = if (Test-Path "$proj/planning_data.db") { "$proj/planning_data.db" } elseif (Test-Path "planning_data.db") { "planning_data.db" } else { $null }
+          $dbArg = if ($db) { "--add-data `"$db;.`"" } else { "" }
+          $args = "--noconsole --name `"Sidour Avoda`" $assetArg $dbArg `"$main`""
+          Write-Host "PyInstaller args: $args"
+          pyinstaller $args
 
-      - name: Build installer (Inno Setup)
-        shell: pwsh
-        run: |
-          $iscc = "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe"
-          if (-Not (Test-Path $iscc)) { throw "ISCC.exe not found" }
-          $iss = "Sidour-avoda-Tzora-chevron\\installer\\Sidour-Avoda.iss"
-          if (-Not (Test-Path $iss)) { $iss = "installer\\Sidour-Avoda.iss" }
-          & $iscc $iss
-
-      - name: Upload artifacts
+      - name: Upload portable build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sidour-avoda-windows
-          if-no-files-found: warn
+          name: sidour-avoda-win-portable
           path: |
-            Sidour-avoda-Tzora-chevron/dist/**
-            Sidour-avoda-Tzora-chevron/dist_installer/**
             dist/**
-            dist_installer/**
+            Sidour-avoda-Tzora-chevron/dist/**
 
-      - name: Create GitHub Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+      - name: Install Inno Setup
+        run: choco install innosetup --yes
+
+      - name: Build Windows installer (Inno Setup)
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "Sidour-avoda-Tzora-chevron\windows_installer.iss"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
         with:
-          draft: false
-          prerelease: false
-          fail_on_unmatched_files: false
-          files: |
-            Sidour-avoda-Tzora-chevron/dist_installer/Sidour-Avoda-Setup.exe
-            Sidour-avoda-Tzora-chevron/dist/**
-            dist_installer/Sidour-Avoda-Setup.exe
-            dist/**
+          name: sidour-avoda-setup
+          path: Sidour-avoda-Tzora-chevron/dist_installer/**
+
+
