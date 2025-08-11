@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -19,21 +22,38 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install -r "Sidour-avoda-Tzora-chevron/requirements.txt" pyinstaller
+          pip install pyinstaller
+          if (Test-Path "requirements.txt") {
+            pip install -r requirements.txt
+          } elseif (Test-Path "Sidour-avoda-Tzora-chevron/requirements.txt") {
+            pip install -r "Sidour-avoda-Tzora-chevron/requirements.txt"
+          } else {
+            Write-Host "No requirements.txt found, continuing with PyInstaller only."
+          }
 
       - name: Build portable exe with PyInstaller
         shell: pwsh
         run: |
-          cd "Sidour-avoda-Tzora-chevron"
-          pyinstaller --noconsole --name "Sidour Avoda" --icon assets\calender-2389150_960_720.png --add-data "assets\calender-2389150_960_720.png;assets" --add-data "planning_data.db;." main.py
+          $proj = if (Test-Path "Sidour-avoda-Tzora-chevron/main.py") { "Sidour-avoda-Tzora-chevron" } elseif (Test-Path "main.py") { "." } else { "." }
+          $main = if (Test-Path "$proj/main.py") { "$proj/main.py" } else { "main.py" }
+          $icon = if (Test-Path "$proj/assets/calender-2389150_960_720.png") { "$proj/assets/calender-2389150_960_720.png" } else { $null }
+          $assetArg = if ($icon) { "--icon `"$icon`" --add-data `"$icon;assets`"" } else { "" }
+          $db = if (Test-Path "$proj/planning_data.db") { "$proj/planning_data.db" } elseif (Test-Path "planning_data.db") { "planning_data.db" } else { $null }
+          $dbArg = if ($db) { "--add-data `"$db;.`"" } else { "" }
+          $args = "--noconsole --name `"Sidour Avoda`" $assetArg $dbArg `"$main`""
+          Write-Host "PyInstaller args: $args"
+          pyinstaller $args
 
       - name: Upload portable build artifact
         uses: actions/upload-artifact@v4
         with:
           name: sidour-avoda-win-portable
-          path: Sidour-avoda-Tzora-chevron/dist/**
+          path: |
+            dist/**
+            Sidour-avoda-Tzora-chevron/dist/**
 
       - name: Install Inno Setup
         run: choco install innosetup --yes
