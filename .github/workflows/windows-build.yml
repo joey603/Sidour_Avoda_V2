@@ -43,7 +43,7 @@ jobs:
           $icon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
           $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
 
-          $piArgs = @("--noconsole", "--name", "Sidour Avoda")
+          $piArgs = @("--noconsole", "--name", "SidourAvoda")
           if ($icon) {
             $piArgs += @("--icon", $icon, "--add-data", "$icon;assets")
           }

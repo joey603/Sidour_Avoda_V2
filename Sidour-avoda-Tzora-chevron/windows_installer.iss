@@ -17,13 +17,13 @@ ArchitecturesInstallIn64BitMode=x64
 Source: "dist\Sidour Avoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{src}\dist\Sidour Avoda'))
 
 [Icons]
-Name: "{group}\Sidour Avoda"; Filename: "{app}\Sidour Avoda.exe"
-Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\Sidour Avoda.exe"; Tasks: desktopicon
+Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"
+Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDescription: "Raccourcis:"
 
 [Run]
-Filename: "{app}\\Sidour Avoda.exe"; Description: "Lancer Sidour Avoda"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\\SidourAvoda.exe"; Description: "Lancer Sidour Avoda"; Flags: nowait postinstall skipifsilent
 
 
