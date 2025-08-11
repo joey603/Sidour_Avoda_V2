@@ -1,6 +1,8 @@
 import sys
 import os
 import traceback
+# Rendre robustes les imports quand packagé
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from interface import InterfacePlanning
 import threading
 

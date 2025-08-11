@@ -46,6 +46,8 @@ jobs:
           $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
 
           $piArgs = @("--noconsole", "--name", "SidourAvoda", "--clean")
+          # Assurer que le répertoire des modules locaux est dans l'analyse
+          $piArgs += @('--paths', '.')
           # Forcer l'inclusion de modules locaux si l'analyse statique les rate
           $hidden = @('interface','planning','database','horaire','travailleur')
           foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
