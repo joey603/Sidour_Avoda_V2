@@ -40,12 +40,19 @@ jobs:
           $proj = if (Test-Path "Sidour-avoda-Tzora-chevron/main.py") { "Sidour-avoda-Tzora-chevron" } elseif (Test-Path "main.py") { "." } else { "." }
           $main = if (Test-Path "$proj/main.py") { "$proj/main.py" } else { "main.py" }
           $icon = if (Test-Path "$proj/assets/calender-2389150_960_720.png") { "$proj/assets/calender-2389150_960_720.png" } else { $null }
-          $assetArg = if ($icon) { "--icon `"$icon`" --add-data `"$icon;assets`"" } else { "" }
           $db = if (Test-Path "$proj/planning_data.db") { "$proj/planning_data.db" } elseif (Test-Path "planning_data.db") { "planning_data.db" } else { $null }
-          $dbArg = if ($db) { "--add-data `"$db;.`"" } else { "" }
-          $args = "--noconsole --name `"Sidour Avoda`" $assetArg $dbArg `"$main`""
-          Write-Host "PyInstaller args: $args"
-          pyinstaller $args
+
+          $piArgs = @("--noconsole", "--name", "Sidour Avoda")
+          if ($icon) {
+            $piArgs += @("--icon", $icon, "--add-data", "$icon;assets")
+          }
+          if ($db) {
+            $piArgs += @("--add-data", "$db;.")
+          }
+          $piArgs += @($main)
+
+          Write-Host ("PyInstaller arg list: " + ($piArgs -join ' '))
+          pyinstaller @piArgs
 
       - name: Upload portable build artifact
         uses: actions/upload-artifact@v4
