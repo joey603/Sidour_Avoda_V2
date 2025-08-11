@@ -44,6 +44,9 @@ jobs:
           $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
 
           $piArgs = @("--noconsole", "--name", "SidourAvoda", "--clean")
+          # Forcer l'inclusion de modules locaux si l'analyse statique les rate
+          $hidden = @('interface','planning','database','horaire','travailleur')
+          foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
           if ($icon) {
             $piArgs += @("--icon", $icon, "--add-data", "$icon;assets")
           }
