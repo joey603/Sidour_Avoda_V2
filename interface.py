@@ -310,7 +310,9 @@ class InterfacePlanning:
                 # Debounce: temporarily unbind during execution
                 canvas.unbind("<ButtonRelease-1>")
                 try:
-            command()
+                    command()
+                except Exception:
+                    pass
                 finally:
                     canvas.bind("<ButtonRelease-1>", on_release)
             return "break"
@@ -502,16 +504,23 @@ class InterfacePlanning:
                 inner.columnconfigure(0, weight=1)
                 for idx, nom in enumerate(noms[:cap]):
                     if nom:
-                        color = self.travailleur_colors.get(nom, "#FFFFFF")
+                        assigned_color = self.travailleur_colors.get(nom, '#FFFFFF')
                         text_value = nom
-                        bg_value = color
-                        relief_value = "raised"
-                        else:
-                        text_value = "Unassigned"
-                        bg_value = "#F0F0F0"
-                        relief_value = "sunken"
-                    lbl = tk.Label(inner, text=text_value, bg=bg_value, font=self.normal_font, relief=relief_value, borderwidth=1)
-                    lbl.grid(row=idx, column=0, sticky="nsew")
+                        bg_value = assigned_color
+                        relief_value = 'raised'
+                    else:
+                        text_value = 'Unassigned'
+                        bg_value = '#F0F0F0'
+                        relief_value = 'sunken'
+                    label_widget = tk.Label(
+                        inner,
+                        text=text_value,
+                        bg=bg_value,
+                        font=self.normal_font,
+                        relief=relief_value,
+                        borderwidth=1,
+                    )
+                    label_widget.grid(row=idx, column=0, sticky='nsew')
         
         # Configurer les colonnes pour qu'elles s'étendent
         for i in range(len(dynamic_shifts) + 1):  # 1 colonne pour les jours + colonnes dynamiques
@@ -698,14 +707,14 @@ class InterfacePlanning:
                 for jour, shifts in travailleur.disponibilites.items():
                     for shift in shifts:
                         if jour in self.disponibilites and shift in self.disponibilites[jour]:
-                        self.disponibilites[jour][shift].set(True)
+                            self.disponibilites[jour][shift].set(True)
                 
                 # Définir les disponibilités 12h si elles existent
                 if hasattr(travailleur, 'disponibilites_12h'):
                     for jour, shifts_12h in travailleur.disponibilites_12h.items():
                         for shift_12h in shifts_12h:
                             if jour in self.disponibilites_12h and shift_12h in self.disponibilites_12h[jour]:
-                            self.disponibilites_12h[jour][shift_12h].set(True)
+                                self.disponibilites_12h[jour][shift_12h].set(True)
                 
                 # Passer en mode édition
                 self.mode_edition = True
@@ -1746,7 +1755,7 @@ class InterfacePlanning:
                 if site_id_planning_local:
                     tous_travailleurs = [t.nom for t in db.charger_travailleurs_par_site(site_id_planning_local)]
                 else:
-                tous_travailleurs = [t.nom for t in db.charger_travailleurs()]
+                    tous_travailleurs = [t.nom for t in db.charger_travailleurs()]
                 
                 # Fusionner avec les travailleurs actuels et éliminer les doublons
                 tous_noms = list(set(travailleurs + tous_travailleurs))
@@ -1806,10 +1815,10 @@ class InterfacePlanning:
                         choix = listbox.get(selections[0])
                         if choix == "Not assigned":
                             if jour in planning_window.planning.planning and shift in planning_window.planning.planning[jour]:
-                            planning_window.planning.planning[jour][shift] = None
-                            cellules[jour][shift]["travailleur"] = None
-                            # Redessiner pour prendre la couleur rouge Not assigned
-                            _draw_cell(jour, shift)
+                                planning_window.planning.planning[jour][shift] = None
+                                cellules[jour][shift]["travailleur"] = None
+                                # Redessiner pour prendre la couleur rouge Not assigned
+                                _draw_cell(jour, shift)
                         else:
                             # garantir une couleur pour le travailleur
                             if choix not in self.travailleur_colors:
