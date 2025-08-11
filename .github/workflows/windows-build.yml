@@ -49,7 +49,7 @@ jobs:
           # Assurer que le répertoire des modules locaux est dans l'analyse
           $piArgs += @('--paths', '.')
           # Forcer l'inclusion de modules locaux si l'analyse statique les rate
-          $hidden = @('interface','planning','database','horaire','travailleur')
+          $hidden = @('interface','planning','database','horaire','travailleur','tkinter','tkinter.ttk')
           foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
           if ($icon) {
             $piArgs += @("--icon", $icon, "--add-data", "$icon;assets")

@@ -2,7 +2,13 @@ import sys
 import os
 import traceback
 # Rendre robustes les imports quand packagé
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+base_dir = None
+try:
+    base_dir = sys._MEIPASS  # dossier d'extraction PyInstaller
+except Exception:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+if base_dir and base_dir not in sys.path:
+    sys.path.insert(0, base_dir)
 from interface import InterfacePlanning
 import threading
 
