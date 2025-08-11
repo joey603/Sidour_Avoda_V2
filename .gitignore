@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Environnements virtuels
+Sidour-avoda-Tzora-chevron/.venv/
+.venv/
+
+# PyInstaller
+Sidour-avoda-Tzora-chevron/dist/
+Sidour-avoda-Tzora-chevron/build/
+dist/
+build/
+
+# Base de données locale
+Sidour-avoda-Tzora-chevron/planning_data.db
+
+# Logs
+*.log
