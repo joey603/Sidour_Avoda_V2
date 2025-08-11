@@ -88,6 +88,6 @@ jobs:
         with:
           files: |
             Sidour-avoda-Tzora-chevron/dist_installer/Sidour-Avoda-Setup.exe
-            dist/SidourAvoda/SidourAvoda.exe
+            Sidour-avoda-Tzora-chevron/dist/SidourAvoda/SidourAvoda.exe
 
 
