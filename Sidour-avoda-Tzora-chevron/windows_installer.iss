@@ -14,7 +14,8 @@ ArchitecturesInstallIn64BitMode=x64
 
 [Files]
 ; Sortie PyInstaller (nom sans espace): dist\SidourAvoda\*
-Source: "dist\SidourAvoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{src}\dist\SidourAvoda'))
+; IMPORTANT: ne pas utiliser "Check" ici, sinon les fichiers ne seront pas copiés à l'installation
+Source: "dist\SidourAvoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"
