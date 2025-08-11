@@ -252,7 +252,7 @@ class InterfacePlanning:
         # Initialisation du canvas vide
         self.creer_planning_visuel()
 
-    def create_styled_button(self, parent, text, command, button_type="action"):
+    def create_styled_button(self, parent, text, command, button_type="action", width: int = 150, height: int = 40):
         """Create a styled button with vibrant colors"""
         # Define vibrant colors to ensure they display
         if button_type == "action":
@@ -276,8 +276,8 @@ class InterfacePlanning:
         fg_color = "black" if button_type == "load" else "white"
         
         # Créer un Canvas pour le bouton personnalisé
-        canvas_width = 150
-        canvas_height = 40
+        canvas_width = max(60, int(width))
+        canvas_height = max(28, int(height))
         
         canvas = tk.Canvas(
             parent,
@@ -310,7 +310,7 @@ class InterfacePlanning:
                 # Debounce: temporarily unbind during execution
                 canvas.unbind("<ButtonRelease-1>")
                 try:
-            command()
+                    command()
                 finally:
                     canvas.bind("<ButtonRelease-1>", on_release)
             return "break"
@@ -503,14 +503,23 @@ class InterfacePlanning:
                 for idx, nom in enumerate(noms[:cap]):
                     if nom:
                         color = self.travailleur_colors.get(nom, "#FFFFFF")
-                        text_value = nom
-                        bg_value = color
-                        relief_value = "raised"
-                        else:
-                        text_value = "Unassigned"
-                        bg_value = "#F0F0F0"
-                        relief_value = "sunken"
-                    lbl = tk.Label(inner, text=text_value, bg=bg_value, font=self.normal_font, relief=relief_value, borderwidth=1)
+                        lbl = tk.Label(
+                            inner,
+                            text=nom,
+                            bg=color,
+                            font=self.normal_font,
+                            relief="raised",
+                            borderwidth=1,
+                        )
+                    else:
+                        lbl = tk.Label(
+                            inner,
+                            text="Unassigned",
+                            bg="#F0F0F0",
+                            font=self.normal_font,
+                            relief="sunken",
+                            borderwidth=1,
+                        )
                     lbl.grid(row=idx, column=0, sticky="nsew")
         
         # Configurer les colonnes pour qu'elles s'étendent
@@ -698,14 +707,14 @@ class InterfacePlanning:
                 for jour, shifts in travailleur.disponibilites.items():
                     for shift in shifts:
                         if jour in self.disponibilites and shift in self.disponibilites[jour]:
-                        self.disponibilites[jour][shift].set(True)
+                            self.disponibilites[jour][shift].set(True)
                 
                 # Définir les disponibilités 12h si elles existent
                 if hasattr(travailleur, 'disponibilites_12h'):
                     for jour, shifts_12h in travailleur.disponibilites_12h.items():
                         for shift_12h in shifts_12h:
                             if jour in self.disponibilites_12h and shift_12h in self.disponibilites_12h[jour]:
-                            self.disponibilites_12h[jour][shift_12h].set(True)
+                                self.disponibilites_12h[jour][shift_12h].set(True)
                 
                 # Passer en mode édition
                 self.mode_edition = True
@@ -1746,7 +1755,7 @@ class InterfacePlanning:
                 if site_id_planning_local:
                     tous_travailleurs = [t.nom for t in db.charger_travailleurs_par_site(site_id_planning_local)]
                 else:
-                tous_travailleurs = [t.nom for t in db.charger_travailleurs()]
+                    tous_travailleurs = [t.nom for t in db.charger_travailleurs()]
                 
                 # Fusionner avec les travailleurs actuels et éliminer les doublons
                 tous_noms = list(set(travailleurs + tous_travailleurs))
@@ -1806,7 +1815,7 @@ class InterfacePlanning:
                         choix = listbox.get(selections[0])
                         if choix == "Not assigned":
                             if jour in planning_window.planning.planning and shift in planning_window.planning.planning[jour]:
-                            planning_window.planning.planning[jour][shift] = None
+                                planning_window.planning.planning[jour][shift] = None
                             cellules[jour][shift]["travailleur"] = None
                             # Redessiner pour prendre la couleur rouge Not assigned
                             _draw_cell(jour, shift)
@@ -2019,10 +2028,15 @@ class InterfacePlanning:
         # Créer une nouvelle fenêtre
         sites_window = tk.Toplevel(self.root)
         sites_window.title("Manage Site")
-        sites_window.geometry("900x500")
+        sites_window.geometry("1000x650")
         sites_window.configure(bg="#f0f0f0")
         sites_window.transient(self.root)
         sites_window.grab_set()
+        try:
+            sites_window.update_idletasks()
+            sites_window.minsize(900, 550)
+        except Exception:
+            pass
         
         # Frame principal
         main_frame = ttk.Frame(sites_window, padding=20)
@@ -2300,8 +2314,16 @@ class InterfacePlanning:
                 if hasattr(self, 'alt_info_var'):
                     self.alt_info_var.set("")
 
-        btn_save_settings = ttk.Button(settings_frame, text="Save settings", command=sauvegarder_reglages_site_courant)
-        btn_save_settings.grid(row=2, column=1, pady=5, sticky="e")
+        # Gros bouton vert "Save settings"
+        btn_save_settings = self.create_styled_button(
+            settings_frame,
+            "Save settings",
+            sauvegarder_reglages_site_courant,
+            "save",
+            width=200,
+            height=50,
+        )
+        btn_save_settings.grid(row=2, column=1, pady=8, sticky="e")
 
         # Charger immédiatement les réglages du site courant
         try:
@@ -2310,129 +2332,136 @@ class InterfacePlanning:
             print(f"DEBUG: Impossible de charger les réglages du site courant: {e}")
         
         def supprimer_site_avec_travailleurs():
-            print("=== DEBUG: Début suppression site ===")
-            
-            # Supprimer le site courant
+            print("=== DEBUG: Begin site deletion ===")
+
+            # Current site
             vrai_site_id = self.site_actuel_id
             site_nom = self.site_actuel_nom.get()
             if not vrai_site_id:
                 messagebox.showwarning("Warning", "No site selected")
                 return
-            
-            print(f"DEBUG: Site à supprimer - ID: {vrai_site_id}, Nom: {site_nom}")
-            
-            # Autoriser désormais la suppression du site principal (ID=1)
-            
-            # Récupérer les informations sur ce qui va être supprimé
+
+            print(f"DEBUG: Site to delete - ID: {vrai_site_id}, Name: {site_nom}")
+
+            # Get counts to show in confirmation
             db = Database()
             nb_travailleurs, nb_plannings = db.compter_elements_site(vrai_site_id)
-            print(f"DEBUG: Éléments à supprimer - Travailleurs: {nb_travailleurs}, Plannings: {nb_plannings}")
-            
-            # Vérifier si c'est le site actuellement sélectionné
+            print(f"DEBUG: Items to delete - Workers: {nb_travailleurs}, Plannings: {nb_plannings}")
+
+            # Keep track of current site selection
             site_actuel_avant_rechargement = self.site_actuel_id
-            print(f"DEBUG: Site actuellement sélectionné - ID: {site_actuel_avant_rechargement}, Est actuel: {site_actuel_avant_rechargement == vrai_site_id}")
-            
-            # Demander confirmation
-            message = f"Êtes-vous sûr de vouloir supprimer le site '{site_nom}' ?\n\n"
-            message += f"Cette action supprimera définitivement :\n"
-            message += f"• {nb_travailleurs} travailleur(s)\n"
-            message += f"• {nb_plannings} planning(s)\n"
-            message += f"• Toutes les données associées\n\n"
-            message += f"Cette action est irréversible !"
-            
-            print("DEBUG: Affichage de la confirmation...")
-            if not messagebox.askyesno("🗑️ Delete confirmation", message):
-                print("DEBUG: Suppression annulée par l'utilisateur")
+            print(
+                f"DEBUG: Currently selected site - ID: {site_actuel_avant_rechargement}, "
+                f"Is current: {site_actuel_avant_rechargement == vrai_site_id}"
+            )
+
+            # Confirmation (English)
+            message = (
+                f"Are you sure you want to delete the site '{site_nom}'?\n\n"
+                f"This will permanently delete:\n"
+                f"• {nb_travailleurs} worker(s)\n"
+                f"• {nb_plannings} planning(s)\n"
+                f"• All associated data\n\n"
+                f"This action is irreversible!"
+            )
+
+            print("DEBUG: Showing confirmation dialog...")
+            if not messagebox.askyesno(" Delete confirmation", message):
+                print("DEBUG: Deletion cancelled by user")
                 return
-            
-            print("DEBUG: Confirmation reçue, suppression en cours...")
-            
-            # Effectuer la suppression
+
+            print("DEBUG: Confirmation received, deleting...")
+
+            # Execute deletion
             resultat = db.supprimer_site_avec_travailleurs(vrai_site_id)
-            print(f"DEBUG: Résultat de la suppression: {resultat}")
-            
+            print(f"DEBUG: Deletion result: {resultat}")
+
             if resultat:
-                print("DEBUG: Suppression réussie, mise à jour de l'interface...")
-                
-                # Recharger la liste des sites
-                print("DEBUG: Rechargement de la liste des sites...")
+                print("DEBUG: Deletion successful, updating UI...")
+
+                # Reload sites list
+                print("DEBUG: Reloading sites list...")
                 self.charger_sites()
                 site_values = [site['nom'] for site in self.sites_disponibles]
                 self.site_combobox.configure(values=site_values)
-                
-                # Si le site supprimé était sélectionné, vider complètement l'affichage
+
+                # If deleted site was selected, show clean empty page
                 if site_actuel_avant_rechargement == vrai_site_id:
-                    print("DEBUG: 🔄 Le site supprimé était sélectionné - Affichage d'une page vide...")
-                    
-                    # 1. Réinitialiser l'ID du site actuel (aucun site sélectionné)
-                    print("DEBUG: Étape 1 - Réinitialisation du site actuel")
+                    print("DEBUG: Deleted site was selected - showing empty page...")
+
+                    # 1) Reset current site
+                    print("DEBUG: Step 1 - Reset current site")
                     self.site_actuel_id = None
                     self.site_actuel_nom.set("")
                     self.site_combobox.set("")
-                    
-                    # 2. Vider complètement la liste des travailleurs
-                    print("DEBUG: Étape 2 - Vidage de tous les travailleurs")
+
+                    # 2) Clear workers list
+                    print("DEBUG: Step 2 - Clear all workers")
                     self.planning.travailleurs = []
-                    
-                    # 3. Vider la liste des travailleurs dans l'interface
-                    print("DEBUG: Étape 3 - Vidage de la liste d'affichage")
+
+                    # 3) Clear workers list UI
+                    print("DEBUG: Step 3 - Clear workers table")
                     for item in self.table_travailleurs.get_children():
                         self.table_travailleurs.delete(item)
-                    
-                    # 4. Réinitialiser complètement le planning (vide)
-                    print("DEBUG: Étape 4 - Réinitialisation du planning")
-                    self.planning.planning = {jour: {shift: None for shift in Horaire.SHIFTS.values()}
-                                            for jour in Horaire.JOURS}
-                    
-                    # 5. Mettre à jour l'affichage visuel du planning (vide)
-                    print("DEBUG: Étape 5 - Affichage d'un planning vide")
+
+                    # 4) Reset planning structure
+                    print("DEBUG: Step 4 - Reset planning")
+                    self.planning.planning = {
+                        jour: {shift: None for shift in Horaire.SHIFTS.values()}
+                        for jour in Horaire.JOURS
+                    }
+
+                    # 5) Refresh visual
+                    print("DEBUG: Step 5 - Refresh visual planning")
                     self.creer_planning_visuel()
-                    
-                    # 6. Mettre à jour le titre pour indiquer qu'aucun site n'est sélectionné
-                    print("DEBUG: Étape 6 - Mise à jour du titre")
+
+                    # 6) Update title
+                    print("DEBUG: Step 6 - Update title")
                     self.titre_label.configure(text="Planning workers - No site selected")
-                    
-                    # 7. Réinitialiser le formulaire d'ajout de travailleur
-                    print("DEBUG: Étape 7 - Réinitialisation du formulaire")
+
+                    # 7) Reset form
+                    print("DEBUG: Step 7 - Reset form")
                     self.reinitialiser_formulaire()
-                    
-                    # 8. Forcer la mise à jour de l'affichage
-                    print("DEBUG: Étape 8 - Forcer la mise à jour graphique")
+
+                    # 8) Force UI refresh
+                    print("DEBUG: Step 8 - Force UI refresh")
                     self.root.update_idletasks()
                     self.root.update()
-                    
-                    print("DEBUG: ✅ Page vide affichée")
-                    
-                    # Message informatif final
+
+                    print("DEBUG: ✅ Empty page displayed")
+
+                    # Final info message (English)
                     messagebox.showinfo(
-                        "🗑️ Site deleted", 
-                        f"The site '{site_nom}' has been successfully deleted.\n\n"
-                        f"All associated workers and plannings have been deleted.\n\n"
-                        f" Select an existing site or create a new site\n"
-                        f"to continue working."
+                        "🗑️ Site deleted",
+                        (
+                            f"The site '{site_nom}' has been successfully deleted.\n\n"
+                            f"All associated workers and plannings have been deleted.\n\n"
+                            f"Select an existing site or create a new one to continue."
+                        ),
                     )
                 else:
-                    print("DEBUG: Site supprimé n'était pas sélectionné")
+                    print("DEBUG: Deleted site was not the selected one")
                     messagebox.showinfo("✅ Success", f"Site '{site_nom}' deleted successfully")
-                # Fermer la fenêtre Manage Site après suppression
+
+                # Close Manage Site window after deletion
                 try:
                     sites_window.destroy()
                 except Exception:
                     pass
             else:
-                print("DEBUG: Erreur lors de la suppression")
-                messagebox.showerror("❌ Error", "Error occurred while deleting the site")
-            
-            print("=== DEBUG: Fin suppression site ===")
+                print("DEBUG: Error during deletion")
+                messagebox.showerror("❌ Error", "An error occurred while deleting the site")
+
+            print("=== DEBUG: End site deletion ===")
         
         # Boutons d'action (pour le site courant)
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill="x", pady=(10, 0))
-        
-        btn_supprimer = self.create_styled_button(btn_frame, "🗑️ Delete site", supprimer_site_avec_travailleurs, "cancel")
+        btn_frame.pack(side="bottom", fill="x", pady=(10, 0))
+
+        btn_supprimer = self.create_styled_button(btn_frame, "Delete site", supprimer_site_avec_travailleurs, "cancel")
         btn_supprimer.pack(side="left", padx=5)
         
-        btn_fermer = ttk.Button(btn_frame, text="Close", command=sites_window.destroy)
+        btn_fermer = ttk.Button(btn_frame, text="Cancel", command=sites_window.destroy)
         btn_fermer.pack(side="right", padx=5)
         
         # Rien à lister ici: on agit sur le site courant

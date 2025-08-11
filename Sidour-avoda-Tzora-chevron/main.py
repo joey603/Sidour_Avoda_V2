@@ -1,18 +1,6 @@
 import sys
 import os
 import traceback
-# Rendre robustes les imports quand packagé
-base_dir = None
-try:
-    base_dir = sys._MEIPASS  # dossier d'extraction PyInstaller
-except Exception:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-if base_dir and base_dir not in sys.path:
-    sys.path.insert(0, base_dir)
-# Si interface.py a été inclus comme data, ajouter aussi le répertoire courant
-cwd = os.getcwd()
-if cwd and cwd not in sys.path:
-    sys.path.append(cwd)
 from interface import InterfacePlanning
 import threading
 
@@ -49,7 +37,8 @@ def resource_path(relative_path):
         # PyInstaller crée un dossier temporaire et stocke le chemin dans _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.abspath(".")
+        # Utiliser le dossier du fichier courant (par ex. 'Sidour-avoda-Tzora-chevron')
+        base_path = os.path.dirname(os.path.abspath(__file__))
     
     return os.path.join(base_path, relative_path)
 
@@ -58,9 +47,14 @@ def main():
         # Création de l'interface avec 8 heures de repos minimum entre les gardes
         app = InterfacePlanning(repos_minimum_entre_gardes=8)
         
-        # Configurer l'icône et le titre
+        # Configurer l'icône et le titre (tolérant si l'icône est absente)
         icon_path = resource_path("assets/calender-2389150_960_720.png")
-        app.root.iconphoto(True, tk.PhotoImage(file=icon_path))
+        try:
+            if os.path.exists(icon_path):
+                app.root.iconphoto(True, tk.PhotoImage(file=icon_path))
+        except Exception:
+            # En cas d'absence de fichier ou d'erreur Tk, ignorer silencieusement
+            pass
         app.root.title("Sidour Avoda")
         # Centrer la fenêtre au lancement et assurer une largeur suffisante
         try:
