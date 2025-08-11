@@ -13,8 +13,8 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
 
 [Files]
-; Sortie PyInstaller attendue dans le même dossier que ce script
-Source: "dist\Sidour Avoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{src}\dist\Sidour Avoda'))
+; Sortie PyInstaller (nom sans espace): dist\SidourAvoda\*
+Source: "dist\SidourAvoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{src}\dist\SidourAvoda'))
 
 [Icons]
 Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"
