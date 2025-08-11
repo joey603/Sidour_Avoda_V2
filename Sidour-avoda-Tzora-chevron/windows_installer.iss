@@ -13,7 +13,9 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
 
 [Files]
-Source: "dist\Sidour Avoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+; Supporte deux emplacements possibles de la sortie PyInstaller
+Source: "dist\Sidour Avoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{src}\dist\Sidour Avoda'))
+Source: "Sidour-avoda-Tzora-chevron\dist\Sidour Avoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{src}\Sidour-avoda-Tzora-chevron\dist\Sidour Avoda'))
 
 [Icons]
 Name: "{group}\Sidour Avoda"; Filename: "{app}\Sidour Avoda.exe"

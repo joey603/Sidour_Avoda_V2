@@ -38,9 +38,10 @@ jobs:
         shell: pwsh
         run: |
           $proj = if (Test-Path "Sidour-avoda-Tzora-chevron/main.py") { "Sidour-avoda-Tzora-chevron" } elseif (Test-Path "main.py") { "." } else { "." }
-          $main = if (Test-Path "$proj/main.py") { "$proj/main.py" } else { "main.py" }
-          $icon = if (Test-Path "$proj/assets/calender-2389150_960_720.png") { "$proj/assets/calender-2389150_960_720.png" } else { $null }
-          $db = if (Test-Path "$proj/planning_data.db") { "$proj/planning_data.db" } elseif (Test-Path "planning_data.db") { "planning_data.db" } else { $null }
+          Set-Location $proj
+          $main = "main.py"
+          $icon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
+          $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
 
           $piArgs = @("--noconsole", "--name", "Sidour Avoda")
           if ($icon) {
