@@ -57,6 +57,10 @@ jobs:
           if ($db) {
             $piArgs += @("--add-data", "$db;.")
           }
+          # Ajouter interface.py comme data pour fallback de chargement runtime
+          if (Test-Path "interface.py") {
+            $piArgs += @("--add-data", "interface.py;.")
+          }
           $piArgs += @($main)
 
           Write-Host ("PyInstaller arg list: " + ($piArgs -join ' '))

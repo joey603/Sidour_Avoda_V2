@@ -9,6 +9,10 @@ except Exception:
     base_dir = os.path.dirname(os.path.abspath(__file__))
 if base_dir and base_dir not in sys.path:
     sys.path.insert(0, base_dir)
+# Si interface.py a été inclus comme data, ajouter aussi le répertoire courant
+cwd = os.getcwd()
+if cwd and cwd not in sys.path:
+    sys.path.append(cwd)
 from interface import InterfacePlanning
 import threading
 
