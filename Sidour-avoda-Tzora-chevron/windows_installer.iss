@@ -17,7 +17,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
-# Fermer les applis ouvertes et les relancer après install
+; Fermer les applis ouvertes et les relancer après install
 CloseApplications=yes
 RestartApplications=yes
 #ifexist "assets\\app.ico"
