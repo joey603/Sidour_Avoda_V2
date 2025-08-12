@@ -1,0 +1,98 @@
+name: build-macos-app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - macos-build
+
+jobs:
+  build:
+    name: Build macOS (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13   # Intel x86_64
+          - runner: macos-14   # Apple Silicon arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pillow
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          elif [ -f "Sidour-avoda-Tzora-chevron/requirements.txt" ]; then
+            pip install -r "Sidour-avoda-Tzora-chevron/requirements.txt"
+          else
+            echo "No requirements.txt found, continuing with PyInstaller only."
+          fi
+
+      - name: Build .app with PyInstaller
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJ_DIR="Sidour-avoda-Tzora-chevron"
+          if [ -f "main.py" ]; then PROJ_DIR="."; fi
+          cd "$PROJ_DIR"
+          MAIN=main.py
+          APP_NAME="SidourAvoda"
+          EXTRA_ARGS=(
+            --noconsole
+            --windowed
+            --name "$APP_NAME"
+            --clean
+            --paths .
+            --hidden-import interface --hidden-import planning --hidden-import database --hidden-import horaire --hidden-import travailleur --hidden-import tkinter --hidden-import tkinter.ttk
+          )
+          # Bundle assets if present
+          if [ -f assets/calender-2389150_960_720.png ]; then
+            EXTRA_ARGS+=(--add-data "assets/calender-2389150_960_720.png:assets")
+          fi
+          if [ -f ../planning_data.db ]; then
+            EXTRA_ARGS+=(--add-data "../planning_data.db:.")
+          elif [ -f planning_data.db ]; then
+            EXTRA_ARGS+=(--add-data "planning_data.db:.")
+          fi
+          echo "PyInstaller args: ${EXTRA_ARGS[@]} $MAIN"
+          pyinstaller ${EXTRA_ARGS[@]} "$MAIN"
+          echo "Built app at dist/$APP_NAME.app"
+
+      - name: Create DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJ_DIR="Sidour-avoda-Tzora-chevron"
+          if [ -d "dist" ] && [ -d "dist/SidourAvoda.app" ]; then PROJ_DIR="."; fi
+          APP_PATH="$PROJ_DIR/dist/SidourAvoda.app"
+          [ -d "$APP_PATH" ] || { echo "App not found: $APP_PATH"; exit 1; }
+          ARCH=$(uname -m)
+          DMG_NAME="SidourAvoda-${ARCH}.dmg"
+          # Stage folder
+          STAGE="dmg_staging"
+          rm -rf "$STAGE"; mkdir -p "$STAGE"
+          cp -R "$APP_PATH" "$STAGE/"
+          hdiutil create -volname "SidourAvoda" -srcfolder "$STAGE" -ov -format UDZO "$DMG_NAME"
+          echo "DMG created: $DMG_NAME"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidour-avoda-macos-${{ matrix.runner }}
+          path: |
+            SidourAvoda-*.dmg
+            dist/**
+            Sidour-avoda-Tzora-chevron/dist/**
+
+
