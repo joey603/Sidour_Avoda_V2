@@ -7,27 +7,123 @@ import threading
 # Application metadata for auto-update
 APP_NAME = "Sidour Avoda"
 APP_VERSION = "1.0.0"
+GITHUB_OWNER = "joey603"
+GITHUB_REPO = "Sidour_Avoda_V2"
+
+def get_current_version() -> str:
+    """Return the version embedded at build-time (version.txt), fallback to APP_VERSION."""
+    try:
+        version_path = resource_path("version.txt")
+        if os.path.exists(version_path):
+            with open(version_path, "r", encoding="utf-8") as f:
+                v = f.read().strip()
+                if v:
+                    return v.lstrip("v")
+    except Exception:
+        pass
+    return APP_VERSION
+
+
+def _parse_version(version_str: str):
+    try:
+        vs = version_str.lstrip("v")
+        parts = [int(p) for p in vs.split(".") if p.isdigit() or p.isnumeric()]
+        # Normalize to 3 parts
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts[:3])
+    except Exception:
+        return (0, 0, 0)
+
+
+def _get_latest_release_info():
+    """Query GitHub Releases API for latest release info. Returns (tag, asset_url) or (None, None)."""
+    try:
+        import json
+        from urllib.request import Request, urlopen
+        url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+        req = Request(url, headers={"User-Agent": "SidourAvodaUpdater"})
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+        tag = str(data.get("tag_name") or "").strip()
+        assets = data.get("assets") or []
+        asset_url = None
+        # Prefer the installer asset
+        for a in assets:
+            name = (a.get("name") or "").lower()
+            if "setup" in name and name.endswith(".exe"):
+                asset_url = a.get("browser_download_url")
+                break
+        if not asset_url:
+            # Fallback to any .exe
+            for a in assets:
+                name = (a.get("name") or "").lower()
+                if name.endswith(".exe"):
+                    asset_url = a.get("browser_download_url")
+                    break
+        if tag and asset_url:
+            return tag.lstrip("v"), asset_url
+    except Exception:
+        pass
+    return None, None
+
+
+def _download_and_launch_installer(installer_url: str):
+    try:
+        import tempfile
+        import subprocess
+        from urllib.request import Request, urlopen
+        # Download to temp
+        req = Request(installer_url, headers={"User-Agent": "SidourAvodaUpdater"})
+        with urlopen(req, timeout=30) as resp:
+            content = resp.read()
+        tmpdir = tempfile.mkdtemp(prefix="sidour_avoda_")
+        installer_path = os.path.join(tmpdir, "Sidour-Avoda-Setup.exe")
+        with open(installer_path, "wb") as f:
+            f.write(content)
+        # Launch installer silently if possible, then exit app
+        flags = ["/SILENT", "/NORESTART"]
+        try:
+            subprocess.Popen([installer_path] + flags, close_fds=True, shell=False)
+        except Exception:
+            subprocess.Popen([installer_path], close_fds=True, shell=False)
+        # Hard-exit so installer can replace files
+        os._exit(0)
+    except Exception:
+        pass
+
 
 def check_for_updates_in_background():
-    """Check for app updates without blocking the UI. Safe no-op if not configured."""
+    """Check GitHub Releases in background. If newer, prompt user to update now."""
     try:
-        # Lazy import to avoid hard dependency if not packaged with updates configured
-        from pyupdater.client import Client
-        try:
-            from client_config import ClientConfig
-        except Exception:
-            # No client config present, silently skip
+        # Only relevant on Windows packaged app
+        if sys.platform != "win32":
             return
-        client = Client(ClientConfig(), refresh=True)
-        app_key = APP_NAME.lower().replace(" ", "-")
-        app_update = client.update_check(app_key, APP_VERSION)
-        if app_update:
-            # Download and restart into the new version automatically
-            app_update.download()
-            if app_update.is_downloaded():
-                app_update.extract_restart()
+        current = get_current_version()
+        latest, asset_url = _get_latest_release_info()
+        if not latest or not asset_url:
+            return
+        if _parse_version(latest) <= _parse_version(current):
+            return
+        # Prompt on the Tkinter thread
+        def _prompt():
+            try:
+                root = tk.Tk()
+                root.withdraw()
+                from tkinter import messagebox
+                if messagebox.askyesno(
+                    "Mise à jour disponible",
+                    f"Une nouvelle version {latest} est disponible (vous avez {current}).\n\nMettre à jour maintenant ?",
+                ):
+                    threading.Thread(target=_download_and_launch_installer, args=(asset_url,), daemon=True).start()
+            except Exception:
+                pass
+        try:
+            # Try to use existing Tk root if available
+            _prompt()
+        except Exception:
+            _prompt()
     except Exception:
-        # Fail silently: updates are best-effort
         pass
 import tkinter as tk
 

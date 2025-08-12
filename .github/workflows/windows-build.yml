@@ -84,6 +84,11 @@ jobs:
           $icon = if (Test-Path "assets/app.ico") { "assets/app.ico" } else { $null }
           $pngIcon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
           $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
+          # Injecter la version dans version.txt pour l'app updater
+          $versionTxt = Join-Path "." "version.txt"
+          $gitTag = "${{ github.ref_name }}"
+          if (-not $gitTag) { $gitTag = "v0.0.0" }
+          Set-Content -Path $versionTxt -Value $gitTag -Encoding utf8
 
           $piArgs = @("--noconsole", "--name", "SidourAvoda", "--clean")
           # Assurer que le répertoire des modules locaux est dans l'analyse
@@ -104,6 +109,8 @@ jobs:
           }
           # Toujours embarquer le PNG utilisé par Tkinter
           if ($pngIcon) { $piArgs += @("--add-data", "$pngIcon;assets") }
+          # Embarquer version.txt
+          if (Test-Path $versionTxt) { $piArgs += @("--add-data", "version.txt;.") }
           # Ajouter interface.py comme data pour fallback de chargement runtime
           if (Test-Path "interface.py") {
             $piArgs += @("--add-data", "interface.py;.")
