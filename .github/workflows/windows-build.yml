@@ -81,7 +81,7 @@ jobs:
           $proj = if (Test-Path "Sidour-avoda-Tzora-chevron/main.py") { "Sidour-avoda-Tzora-chevron" } elseif (Test-Path "main.py") { "." } else { "." }
           Set-Location $proj
           $main = "main.py"
-          $icon = if (Test-Path "assets/app.ico") { "assets/app.ico" } elseif (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
+          $icon = if (Test-Path "assets/app.ico") { "assets/app.ico" } else { $null }
           $pngIcon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
           $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
 
@@ -92,14 +92,18 @@ jobs:
           $hidden = @('interface','planning','database','horaire','travailleur','tkinter','tkinter.ttk')
           foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
           if ($icon) {
-            $piArgs += @("--icon", $icon)
+            try {
+              $iconFull = (Resolve-Path $icon).Path
+            } catch {
+              $iconFull = $icon
+            }
+            $piArgs += @("--icon", $iconFull)
           }
           if ($db) {
             $piArgs += @("--add-data", "$db;.")
           }
-          if ($pngIcon) {
-            $piArgs += @("--add-data", "$pngIcon;assets")
-          }
+          # Toujours embarquer le PNG utilisé par Tkinter
+          if ($pngIcon) { $piArgs += @("--add-data", "$pngIcon;assets") }
           # Ajouter interface.py comme data pour fallback de chargement runtime
           if (Test-Path "interface.py") {
             $piArgs += @("--add-data", "interface.py;.")
