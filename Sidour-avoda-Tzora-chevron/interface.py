@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from tkinter import font as tkfont
 import random
+import threading
 from horaire import Horaire
 from travailleur import Travailleur
 from planning import Planning
@@ -51,6 +52,8 @@ class InterfacePlanning:
         self.normal_font = tkfont.Font(family="Helvetica", size=10)
         
         self.planning = Planning()
+        # Etat UI: planning généré ou non
+        self._has_generated_planning = False
         
         # Variables pour le formulaire
         self.nom_var = tk.StringVar()
@@ -100,11 +103,11 @@ class InterfacePlanning:
         self.site_combobox.bind('<<ComboboxSelected>>', self.changer_site)
         
         # Bouton pour ajouter un site
-        btn_add_site = self.create_styled_button(site_frame, "Add Site", 
+        btn_add_site = self.create_styled_button(site_frame, "➕ Add Site", 
                                                  self.ouvrir_ajout_site, "load")
         btn_add_site.pack(side="left", padx=(10, 0))
         # Bouton pour gérer le site sélectionné
-        btn_gerer_sites = self.create_styled_button(site_frame, "Manage Site", 
+        btn_gerer_sites = self.create_styled_button(site_frame, "⚙️ Manage Site", 
                                                    self.ouvrir_gestion_sites, "load")
         btn_gerer_sites.pack(side="left", padx=(10, 0))
         
@@ -131,7 +134,7 @@ class InterfacePlanning:
         style.configure("TLabelframe", background="#f0f0f0", font=self.header_font)
         style.configure("TLabelframe.Label", background="#f0f0f0", font=self.header_font)
         
-        # Colonne gauche - Formulaire et liste des travailleurs (plus étroit)
+        # Colonne gauche - Outils et liste des travailleurs (plus étroit)
         left_frame = ttk.Frame(main_frame, padding=10, width=360)
         left_frame.pack(side=tk.LEFT, fill="y")
         left_frame.pack_propagate(False)
@@ -143,33 +146,27 @@ class InterfacePlanning:
         main_frame.rowconfigure(0, weight=1)
         left_frame.columnconfigure(0, weight=1)
         left_frame.rowconfigure(0, weight=0)  # Titre
-        left_frame.rowconfigure(1, weight=1)  # Formulaire
-        left_frame.rowconfigure(2, weight=1)  # Liste
-        left_frame.rowconfigure(3, weight=0)  # Boutons génération
-        left_frame.rowconfigure(4, weight=0)  # Boutons DB
+        left_frame.rowconfigure(1, weight=1)  # Liste
+        left_frame.rowconfigure(2, weight=0)  # Boutons génération
+        left_frame.rowconfigure(3, weight=0)  # Boutons DB
         
         # Titre modifié pour inclure le site
         self.titre_label = ttk.Label(left_frame, text=f"Planning workers - {self.site_actuel_nom.get()}", 
                                     font=self.title_font)
         self.titre_label.grid(row=0, column=0, pady=(0, 20), sticky="ew")
         
-        # Frame pour l'ajout de travailleur
-        form_frame = ttk.Frame(left_frame)
-        form_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        form_frame.columnconfigure(0, weight=1)
-        form_frame.rowconfigure(0, weight=1)
-        self.creer_formulaire_travailleur(form_frame)
+        # (Toolbar supprimée) Le bouton Add est déplacé dans la section "Workers registered"
         
         # Liste des travailleurs
         liste_frame = ttk.Frame(left_frame)
-        liste_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        liste_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         liste_frame.columnconfigure(0, weight=1)
         liste_frame.rowconfigure(0, weight=1)
         self.creer_liste_travailleurs(liste_frame)
         
         # Frame pour les boutons de génération
         frame_generation = ttk.Frame(left_frame)
-        frame_generation.grid(row=3, column=0, sticky="ew", pady=10)
+        frame_generation.grid(row=2, column=0, sticky="ew", pady=10)
         frame_generation.columnconfigure(0, weight=1)
         frame_generation.columnconfigure(1, weight=1)
         frame_generation.columnconfigure(2, weight=1)
@@ -177,44 +174,49 @@ class InterfacePlanning:
         frame_generation.columnconfigure(4, weight=1)
         
         # Boutons pour générer le planning - utiliser des boutons tk standard pour plus de contrôle visuel
-        btn_generer = self.create_styled_button(frame_generation, "Planning creation", 
-                                              self.generer_planning, "action")
-        btn_generer.grid(row=0, column=0, padx=5, sticky="ew")
+        self.btn_generer_planning = self.create_styled_button(frame_generation, "🧮 Planning creation", 
+                                              self.generer_planning_async, "action")
+        self.btn_generer_planning.grid(row=0, column=0, padx=5, sticky="ew")
         
-        btn_combler = self.create_styled_button(frame_generation, "Fill holes", 
+        self.btn_fill_holes = self.create_styled_button(frame_generation, "🧩 Fill holes", 
                                              self.combler_trous, "action")
-        btn_combler.grid(row=0, column=1, padx=5, sticky="ew")
-        
-        btn_generer_12h = self.create_styled_button(frame_generation, " 12h", 
-                                                 self.generer_planning_12h, "action")
-        btn_generer_12h.grid(row=0, column=2, padx=5, sticky="ew")
+        self.btn_fill_holes.grid(row=0, column=1, padx=5, sticky="ew")
+        # Removed 12h generation button
 
         # Boutons pour parcourir les alternatives de même score
-        btn_prev_alt = self.create_styled_button(frame_generation, "Previous alternative", 
+        self.btn_prev_alt = self.create_styled_button(frame_generation, "⬅️ Previous alternative", 
                                                  self.prev_alternative_planning, "action")
-        btn_prev_alt.grid(row=0, column=3, padx=5, sticky="ew")
+        self.btn_prev_alt.grid(row=0, column=3, padx=5, sticky="ew")
 
-        btn_next_alt = self.create_styled_button(frame_generation, "Next alternative", 
+        self.btn_next_alt = self.create_styled_button(frame_generation, "➡️ Next alternative", 
                                                  self.next_alternative_planning, "action")
-        btn_next_alt.grid(row=0, column=4, padx=5, sticky="ew")
+        self.btn_next_alt.grid(row=0, column=4, padx=5, sticky="ew")
 
         # Label d'information sur les alternatives
         self.alt_info_var = tk.StringVar(value="")
         alt_info_label = ttk.Label(frame_generation, textvariable=self.alt_info_var)
         alt_info_label.grid(row=1, column=0, columnspan=5, sticky="w", padx=5)
         
+        # Désactiver par défaut tant qu'aucun planning n'est créé
+        try:
+            self.btn_fill_holes.configure(state=tk.DISABLED)
+            self.btn_prev_alt.configure(state=tk.DISABLED)
+            self.btn_next_alt.configure(state=tk.DISABLED)
+        except Exception:
+            pass
+        
         # Frame pour la sauvegarde et le chargement
         frame_db = ttk.Frame(left_frame)
-        frame_db.grid(row=4, column=0, sticky="ew", pady=10)
+        frame_db.grid(row=3, column=0, sticky="ew", pady=10)
         frame_db.columnconfigure(0, weight=1)
         frame_db.columnconfigure(1, weight=1)
         frame_db.columnconfigure(2, weight=1)
         
-        btn_sauvegarder = self.create_styled_button(frame_db, "Save Planning", 
+        btn_sauvegarder = self.create_styled_button(frame_db, "💾 Save Planning", 
                                                  self.sauvegarder_planning, "save")
         btn_sauvegarder.grid(row=0, column=0, padx=5, sticky="ew")
         
-        btn_agenda = self.create_styled_button(frame_db, "Agenda Plannings", 
+        btn_agenda = self.create_styled_button(frame_db, "📅 Agenda Plannings", 
                                                 self.ouvrir_agenda_plannings, "load")
         btn_agenda.grid(row=0, column=2, padx=5, sticky="ew")
         
@@ -268,6 +270,9 @@ class InterfacePlanning:
             bg_color = "#FFC107"  # Jaune vif
             hover_color = "#e0a800"
             fg_color = "black"    # Texte noir pour le jaune
+        elif button_type == "secondary":
+            bg_color = "#6c757d"  # Gris foncé
+            hover_color = "#5a6268"
         else:
             bg_color = "#007BFF"
             hover_color = "#0056b3"
@@ -308,11 +313,18 @@ class InterfacePlanning:
             x, y = event.x, event.y
             if 0 <= x <= canvas.winfo_width() and 0 <= y <= canvas.winfo_height():
                 # Debounce: temporarily unbind during execution
-                canvas.unbind("<ButtonRelease-1>")
+                try:
+                    canvas.unbind("<ButtonRelease-1>")
+                except Exception:
+                    pass
                 try:
                     command()
                 finally:
-                    canvas.bind("<ButtonRelease-1>", on_release)
+                    try:
+                        if canvas.winfo_exists():
+                            canvas.bind("<ButtonRelease-1>", on_release)
+                    except Exception:
+                        pass
             return "break"
         
         # Fonctions pour les effets de survol
@@ -405,8 +417,9 @@ class InterfacePlanning:
         frame_liste = ttk.LabelFrame(frame, text="Workers registered", padding=10, style="Section.TLabelframe")
         frame_liste.grid(row=0, column=0, sticky="nsew")
         frame_liste.columnconfigure(0, weight=1)
+        frame_liste.columnconfigure(1, weight=0)
         frame_liste.rowconfigure(0, weight=1)  # Table
-        frame_liste.rowconfigure(1, weight=0)  # Boutons
+        frame_liste.rowconfigure(1, weight=0)  # Ligne des boutons
         
         # Création d'un Treeview pour afficher les travailleurs sous forme de tableau
         columns = ("nom", "shifts")
@@ -424,19 +437,19 @@ class InterfacePlanning:
         # Placement de la table et de la scrollbar
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.table_travailleurs.grid(row=0, column=0, sticky="nsew")
+
+        # Ligne des boutons d'action (Add dans la section)
+        actions_row = ttk.Frame(frame_liste)
+        actions_row.grid(row=1, column=0, columnspan=2, sticky="e", pady=(8, 0))
+        # Bouton Add moins large
+        btn_add_small = self.create_styled_button(actions_row, "➕ Add worker", 
+                                                  lambda: self.ouvrir_popup_travailleur(modifier=False), 
+                                                  "action", width=120, height=34)
+        btn_add_small.grid(row=0, column=0, padx=4, sticky="e")
         
         # Lier la sélection dans la table à l'édition
         self.table_travailleurs.bind('<<TreeviewSelect>>', self.selectionner_travailleur)
-        
-        # Boutons pour gérer les travailleurs
-        btn_frame = ttk.Frame(frame_liste)
-        btn_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        btn_frame.columnconfigure(0, weight=1)
-        
-        # Use a styled button
-        btn_supprimer = self.create_styled_button(btn_frame, "Delete", 
-                                               self.supprimer_travailleur, "cancel")
-        btn_supprimer.grid(row=0, column=0, sticky="e", padx=5)
+
 
     def creer_planning_visuel(self):
         """Create a visual representation of the planning"""
@@ -530,11 +543,13 @@ class InterfacePlanning:
         for i in range(len(dynamic_days) + 1):  # 1 ligne pour les en-têtes + lignes dynamiques
             planning_frame.rowconfigure(i, weight=1)
 
-    def ajouter_travailleur(self):
+    def ajouter_travailleur(self) -> bool:
+        """Ajoute ou modifie un travailleur selon le mode courant.
+        Retourne True en cas de succès, False si validation invalide/erreur utilisateur."""
         # Vérifier qu'un site est sélectionné
         if self.site_actuel_id is None:
             messagebox.showerror("Error", "Please select a site before adding a worker.")
-            return
+            return False
         
         # Récupérer les valeurs du formulaire
         nom = self.nom_var.get().strip()
@@ -543,7 +558,7 @@ class InterfacePlanning:
         # Validation des entrées
         if not nom:
             messagebox.showerror("Error", "Please enter a name")
-            return
+            return False
         
         try:
             nb_shifts = int(nb_shifts_str)
@@ -551,31 +566,22 @@ class InterfacePlanning:
                 raise ValueError("The number of shifts must be positive")
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid number of shifts")
-            return
+            return False
         
         # Récupérer les disponibilités (dynamiques selon le site)
         disponibilites = {}
-        disponibilites_12h = {}
         dynamic_days = list(self.disponibilites.keys()) if self.disponibilites else (self.reglages_site.get("jours") if hasattr(self, 'reglages_site') else list(Horaire.JOURS))
         for jour in dynamic_days:
             shifts_dispo = []
             for shift, var in self.disponibilites.get(jour, {}).items():
                 if var.get():
                     shifts_dispo.append(shift)
-            shifts_12h = []
-            jour_12h = self.disponibilites_12h.get(jour, {})
-            if "matin_12h" in jour_12h and jour_12h["matin_12h"].get():
-                shifts_12h.append("matin_12h")
-            if "nuit_12h" in jour_12h and jour_12h["nuit_12h"].get():
-                shifts_12h.append("nuit_12h")
             if shifts_dispo:
                 disponibilites[jour] = shifts_dispo
-            if shifts_12h:
-                disponibilites_12h[jour] = shifts_12h
         
-        if not disponibilites and not disponibilites_12h:
+        if not disponibilites:
             messagebox.showerror("Error", "Please select at least one availability")
-            return
+            return False
         
         # Créer ou mettre à jour le travailleur
         if self.mode_edition and self.travailleur_en_edition:
@@ -586,7 +592,6 @@ class InterfacePlanning:
             self.travailleur_en_edition.nom = nom
             self.travailleur_en_edition.nb_shifts_souhaites = nb_shifts
             self.travailleur_en_edition.disponibilites = disponibilites
-            self.travailleur_en_edition.disponibilites_12h = disponibilites_12h
             
             # Save in the database
             db = Database()
@@ -600,7 +605,6 @@ class InterfacePlanning:
         else:
             # Création d'un nouveau travailleur AVEC le site actuel
             travailleur = Travailleur(nom, disponibilites, nb_shifts, self.site_actuel_id)
-            travailleur.disponibilites_12h = disponibilites_12h
             self.planning.ajouter_travailleur(travailleur)
             
             print(f"Nouveau travailleur '{nom}' ajouté au site {self.site_actuel_id}")
@@ -615,6 +619,7 @@ class InterfacePlanning:
         
         # Réinitialiser le formulaire après l'ajout ou la modification
         self.reinitialiser_formulaire()
+        return True
 
     def reinitialiser_formulaire(self):
         """Réinitialise le formulaire de saisie"""
@@ -625,9 +630,7 @@ class InterfacePlanning:
         for jour, shifts_map in self.disponibilites.items():
             for shift, var in shifts_map.items():
                 var.set(False)
-        for jour, types_map in self.disponibilites_12h.items():
-            for key, var in types_map.items():
-                var.set(False)
+        # 12h removed
         
         # Réinitialiser le mode édition
         self.mode_edition = False
@@ -636,22 +639,39 @@ class InterfacePlanning:
         # Au lieu de:
         # self.btn_ajouter.config(text="Add worker")
         
-        # Utilisez:
-        self.mettre_a_jour_texte_bouton(self.btn_ajouter, "Add worker")
+        # Utilisez (si la popup/form existe encore):
+        if hasattr(self, 'btn_ajouter') and self.btn_ajouter is not None:
+            try:
+                if self.btn_ajouter.winfo_exists():
+                    self.mettre_a_jour_texte_bouton(self.btn_ajouter, "Add worker")
+            except Exception:
+                pass
         
-        # Changer le titre du formulaire
-        self.form_label_frame.configure(text="Add worker")
+        # Changer le titre du formulaire (si présent)
+        try:
+            if hasattr(self, 'form_label_frame') and self.form_label_frame is not None and self.form_label_frame.winfo_exists():
+                self.form_label_frame.configure(text="Add worker")
+        except Exception:
+            pass
         
-        # Désactiver le bouton Annuler
-        if hasattr(self.btn_annuler, 'configure'):
-            self.btn_annuler.configure(state=tk.DISABLED)
-        else:
-            # Si c'est un canvas
-            self.btn_annuler.enabled = False
-            self.btn_annuler.config(bg="#6c757d")  # Couleur grisée
-            self.btn_annuler.unbind("<Button-1>")
-            self.btn_annuler.unbind("<Enter>")
-            self.btn_annuler.unbind("<Leave>")
+        # Désactiver le bouton Annuler uniquement si aucune popup n'est ouverte (contexte formulaire embarqué)
+        popup_ouverte = hasattr(self, '_worker_popup') and self._worker_popup is not None and self._worker_popup.winfo_exists()
+        if not popup_ouverte and hasattr(self, 'btn_annuler') and self.btn_annuler is not None:
+            if hasattr(self.btn_annuler, 'configure'):
+                try:
+                    self.btn_annuler.configure(state=tk.DISABLED)
+                except Exception:
+                    pass
+            else:
+                # Si c'est un canvas
+                try:
+                    self.btn_annuler.enabled = False
+                    self.btn_annuler.config(bg="#6c757d")
+                    self.btn_annuler.unbind("<Button-1>")
+                    self.btn_annuler.unbind("<Enter>")
+                    self.btn_annuler.unbind("<Leave>")
+                except Exception:
+                    pass
 
     def mettre_a_jour_liste_travailleurs(self):
         """Met à jour la liste des travailleurs affichée dans l'interface"""
@@ -720,22 +740,11 @@ class InterfacePlanning:
                 self.mode_edition = True
                 self.travailleur_en_edition = travailleur
                 
-                # Changer le titre du formulaire
-                self.form_label_frame.configure(text="Modify worker")
-                
-                # Changer le texte du bouton Ajouter en Modifier
-                self.mettre_a_jour_texte_bouton(self.btn_ajouter, "Modify worker")
-                
-                # Activer le bouton Annuler
-                if hasattr(self.btn_annuler, 'configure'):
-                    self.btn_annuler.configure(state=tk.NORMAL)
-                else:
-                    # Si c'est un canvas
-                    self.btn_annuler.enabled = True
-                    self.btn_annuler.config(bg="#DC3545")
-                    self.btn_annuler.bind("<Button-1>", lambda e: self.annuler_edition())
-                    self.btn_annuler.bind("<Enter>", lambda e: self.btn_annuler.config(bg="#c82333"))
-                    self.btn_annuler.bind("<Leave>", lambda e: self.btn_annuler.config(bg="#DC3545"))
+                # Si la popup n'est pas ouverte, ouvrir directement la popup de modification
+                try:
+                    self.ouvrir_popup_travailleur(modifier=True)
+                except Exception:
+                    pass
                 
                 break
 
@@ -780,9 +789,11 @@ class InterfacePlanning:
         return True
 
     def generer_planning(self):
+        """Calcule un nouveau planning optimisé et met à jour les données du modèle.
+        Ne fait aucun appel UI; retourne le nombre de trous (int)."""
         if not self.planning.travailleurs:
-            messagebox.showerror("Error", f"Please add at least one worker to site '{self.site_actuel_nom.get()}'")
-            return
+            # Ne pas appeler messagebox ici (thread worker). Signaler via valeur spéciale
+            return None
         
         # Générer un planning initial
         self.planning.generer_planning(mode_12h=False)
@@ -814,17 +825,11 @@ class InterfacePlanning:
                 meilleure_repartition_nuit = repartition_nuit
                 meilleure_proximite = proximite
         
-        # Utiliser le meilleur planning trouvé
+        # Utiliser le meilleur planning trouvé (modèle)
         self.planning.planning = meilleur_planning
         
-        self.creer_planning_visuel()
-        # Afficher info alternatives si disponibles côté Planning
-        total, index_1, best_score = self.planning.get_alternative_info() if hasattr(self.planning, 'get_alternative_info') else (0, 0, None)
-        if total > 1:
-            self.alt_info_var.set(f"Alternatives: {index_1}/{total} (score={best_score:.0f})")
-        else:
-            self.alt_info_var.set("")
-        messagebox.showinfo("Success", f"Planning generated successfully for site '{self.site_actuel_nom.get()}' ({meilleure_evaluation} holes remaining)")
+        # Retourner le nombre de trous pour l'affichage ultérieur sur le thread UI
+        return meilleure_evaluation
 
     def next_alternative_planning(self):
         if hasattr(self.planning, 'next_alternative') and self.planning.next_alternative():
@@ -835,6 +840,16 @@ class InterfacePlanning:
                 self.alt_info_var.set(f"Alternatives: {index_1}/{total} (score={best_score:.0f})")
             else:
                 self.alt_info_var.set("")
+            # Mettre à jour l'état des boutons alt
+            try:
+                if total and total > 1:
+                    self.btn_prev_alt.configure(state=tk.NORMAL)
+                    self.btn_next_alt.configure(state=tk.NORMAL)
+                else:
+                    self.btn_prev_alt.configure(state=tk.DISABLED)
+                    self.btn_next_alt.configure(state=tk.DISABLED)
+            except Exception:
+                pass
         else:
             messagebox.showinfo("Info", "No alternative available.")
 
@@ -846,6 +861,16 @@ class InterfacePlanning:
                 self.alt_info_var.set(f"Alternatives: {index_1}/{total} (score={best_score:.0f})")
             else:
                 self.alt_info_var.set("")
+            # Mettre à jour l'état des boutons alt
+            try:
+                if total and total > 1:
+                    self.btn_prev_alt.configure(state=tk.NORMAL)
+                    self.btn_next_alt.configure(state=tk.NORMAL)
+                else:
+                    self.btn_prev_alt.configure(state=tk.DISABLED)
+                    self.btn_next_alt.configure(state=tk.DISABLED)
+            except Exception:
+                pass
         else:
             messagebox.showinfo("Info", "No alternative available.")
 
@@ -1051,6 +1076,11 @@ class InterfacePlanning:
         self.creer_planning_visuel()
         after_missing = _count_unassigned_slots(self.planning)
         filled_effective = max(0, before_missing - after_missing)
+        # Mettre à jour l'état du bouton Fill Holes
+        try:
+            self.btn_fill_holes.configure(state=(tk.NORMAL if after_missing > 0 else tk.DISABLED))
+        except Exception:
+            pass
         try:
             from tkinter import messagebox
             messagebox.showinfo(
@@ -1258,14 +1288,17 @@ class InterfacePlanning:
             messagebox.showerror("Error", f"Error during exportation: {str(e)}")
 
     def supprimer_travailleur(self):
-        # Obtenir la sélection actuelle
-        selection = self.table_travailleurs.selection()
-        if not selection:
-            messagebox.showwarning("Warning", "Please select a worker to delete")
-            return
-        
-        item = selection[0]
-        nom_travailleur = self.table_travailleurs.item(item, "values")[0]
+        # Si on est en mode popup modification, supprimer directement le travailleur en édition
+        if getattr(self, 'mode_edition', False) and getattr(self, 'travailleur_en_edition', None):
+            nom_travailleur = self.travailleur_en_edition.nom
+        else:
+            # Obtenir la sélection actuelle depuis la liste
+            selection = self.table_travailleurs.selection()
+            if not selection:
+                messagebox.showwarning("Warning", "Please select a worker to delete")
+                return
+            item = selection[0]
+            nom_travailleur = self.table_travailleurs.item(item, "values")[0]
         
         # Demander confirmation
         if messagebox.askyesno("Confirmation", f"Are you sure you want to delete worker {nom_travailleur}?"):
@@ -1280,6 +1313,8 @@ class InterfacePlanning:
             self.reinitialiser_formulaire()
             
             messagebox.showinfo("Success", f"Worker {nom_travailleur} deleted successfully")
+            # Fermer la popup si ouverte
+            self._close_worker_popup_if_open()
 
     def ouvrir_agenda_plannings(self):
         """Open a window to view and modify existing plannings (supports empty list)."""
@@ -1457,13 +1492,13 @@ class InterfacePlanning:
                     messagebox.showerror("Error", "Impossible to delete the planning")
         
         # Ajouter les boutons d'action
-        btn_ouvrir = ttk.Button(action_frame, text="Open", command=ouvrir_planning_selectionne)
+        btn_ouvrir = ttk.Button(action_frame, text="📂 Open", command=ouvrir_planning_selectionne)
         btn_ouvrir.pack(side="left", padx=5)
         
-        btn_renommer = ttk.Button(action_frame, text="Rename", command=renommer_planning)
+        btn_renommer = ttk.Button(action_frame, text="✏️ Rename", command=renommer_planning)
         btn_renommer.pack(side="left", padx=5)
         
-        btn_supprimer = ttk.Button(action_frame, text="Delete", command=supprimer_planning)
+        btn_supprimer = ttk.Button(action_frame, text="🗑️ Delete", command=supprimer_planning)
         btn_supprimer.pack(side="left", padx=5)
         
         # Double-clic pour ouvrir un planning
@@ -1479,7 +1514,7 @@ class InterfacePlanning:
             agenda_window.destroy()
 
         agenda_window.protocol("WM_DELETE_WINDOW", _close_agenda)
-        btn_fermer = ttk.Button(agenda_window, text="Close", command=_close_agenda)
+        btn_fermer = ttk.Button(agenda_window, text="✖️ Close", command=_close_agenda)
         btn_fermer.pack(pady=10)
 
     def ouvrir_planning_pour_modification(self, planning_id, parent_window=None):
@@ -1847,8 +1882,8 @@ class InterfacePlanning:
                 btn_frame = ttk.Frame(frame)
                 btn_frame.pack(fill="x", pady=10)
                 
-                ttk.Button(btn_frame, text="Validate", command=appliquer_choix).pack(side="left", padx=5, expand=True)
-                ttk.Button(btn_frame, text="Cancel", command=selection_window.destroy).pack(side="right", padx=5, expand=True)
+                ttk.Button(btn_frame, text="✅ Validate", command=appliquer_choix).pack(side="left", padx=5, expand=True)
+                ttk.Button(btn_frame, text="✖️ Cancel", command=selection_window.destroy).pack(side="right", padx=5, expand=True)
                 
                 # Double-clic pour sélectionner
                 listbox.bind("<Double-1>", lambda e: appliquer_choix())
@@ -1875,9 +1910,9 @@ class InterfacePlanning:
             button_frame.pack(fill="x", side="bottom")
             
             # Boutons
-            ttk.Button(button_frame, text="Save", command=sauvegarder_planning_modifie).pack(side="left", padx=5)
-            ttk.Button(button_frame, text="Export to CSV", command=exporter_planning).pack(side="left", padx=5)
-            ttk.Button(button_frame, text="Close without saving", command=planning_window.destroy).pack(side="right", padx=5)
+            ttk.Button(button_frame, text="💾 Save", command=sauvegarder_planning_modifie).pack(side="left", padx=5)
+            ttk.Button(button_frame, text="📤 Export to CSV", command=exporter_planning).pack(side="left", padx=5)
+            ttk.Button(button_frame, text="✖️ Close without saving", command=planning_window.destroy).pack(side="right", padx=5)
         
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
@@ -1953,6 +1988,148 @@ class InterfacePlanning:
         # Rafraîchir l'affichage
         self.afficher_planning()
 
+    # --- Loader & exécution asynchrone pour la génération ---
+    def _show_loader(self, message: str = "Generating planning..."):
+        try:
+            if hasattr(self, '_loader_win') and self._loader_win is not None and self._loader_win.winfo_exists():
+                return
+        except Exception:
+            pass
+        # Désactiver temporairement les actions sensibles pour éviter des états intermédiaires d'UI
+        try:
+            if hasattr(self, 'btn_generer_planning') and self.btn_generer_planning is not None:
+                self.btn_generer_planning.configure(state=tk.DISABLED)
+        except Exception:
+            pass
+        win = tk.Toplevel(self.root)
+        win.title("Please wait")
+        win.configure(bg="#f0f0f0")
+        win.transient(self.root)
+        win.grab_set()
+        self._loader_win = win
+        frame = ttk.Frame(win, padding=16)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=message, font=self.normal_font).pack(pady=(0, 10))
+        # Progressbar indéterminée
+        pb = ttk.Progressbar(frame, mode="indeterminate")
+        pb.pack(fill="x")
+        pb.start(10)
+        self._loader_pb = pb
+        # Centrer la fenêtre du loader
+        try:
+            win.update_idletasks()
+            width, height = 320, 120
+            # Taille/position de la fenêtre parent si disponible
+            rw = self.root.winfo_width()
+            rh = self.root.winfo_height()
+            rx = self.root.winfo_rootx()
+            ry = self.root.winfo_rooty()
+            if rw and rh and rw > 1 and rh > 1:
+                x = rx + max(0, (rw - width) // 2)
+                y = ry + max(0, (rh - height) // 2)
+            else:
+                sw = win.winfo_screenwidth()
+                sh = win.winfo_screenheight()
+                x = max(0, (sw - width) // 2)
+                y = max(0, (sh - height) // 2)
+            win.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            try:
+                win.geometry("320x120")
+            except Exception:
+                pass
+
+    def _hide_loader(self):
+        try:
+            if hasattr(self, '_loader_pb') and self._loader_pb is not None:
+                try:
+                    self._loader_pb.stop()
+                except Exception:
+                    pass
+                self._loader_pb = None
+            if hasattr(self, '_loader_win') and self._loader_win is not None and self._loader_win.winfo_exists():
+                self._loader_win.destroy()
+            self._loader_win = None
+            # Réactiver le bouton générer et forcer un rafraîchissement final propre
+            try:
+                if hasattr(self, 'btn_generer_planning') and self.btn_generer_planning is not None:
+                    self.btn_generer_planning.configure(state=tk.NORMAL)
+            except Exception:
+                pass
+            # Recréer le planning visuel une fois que tout est prêt (dans le thread Tk)
+            try:
+                self.creer_planning_visuel()
+            except Exception:
+                pass
+        except Exception:
+            self._loader_win = None
+
+    def generer_planning_async(self):
+        # Afficher loader et lancer la génération en thread
+        self._show_loader("Generating planning... This may take a moment")
+        def _task():
+            try:
+                holes = self.generer_planning()
+            finally:
+                # Revenir au thread Tk via after
+                try:
+                    def _finish_ui():
+                        # Fermer le loader puis construire l'UI du planning et afficher la confirmation
+                        self._hide_loader()
+                        # Construire/rafraîchir visuel + info alternatives
+                        try:
+                            self.creer_planning_visuel()
+                            total, index_1, best_score = self.planning.get_alternative_info() if hasattr(self.planning, 'get_alternative_info') else (0, 0, None)
+                            if total > 1:
+                                self.alt_info_var.set(f"Alternatives: {index_1}/{total} (score={best_score:.0f})")
+                            else:
+                                self.alt_info_var.set("")
+                            # Activer/désactiver Fill Holes selon trous
+                            try:
+                                missing = 0
+                                jours = list(self.planning.planning.keys())
+                                shifts = list(next(iter(self.planning.planning.values())).keys()) if self.planning.planning else []
+                                for j in jours:
+                                    for s in shifts:
+                                        cap = 1
+                                        try:
+                                            cap = int(self.planning.capacites.get(j, {}).get(s, 1))
+                                        except Exception:
+                                            cap = 1
+                                        val = self.planning.planning[j].get(s)
+                                        names = []
+                                        if val:
+                                            names = [n.strip() for n in str(val).split(" / ") if n.strip()]
+                                        missing += max(0, cap - len(names))
+                                self.btn_fill_holes.configure(state=(tk.NORMAL if missing > 0 else tk.DISABLED))
+                            except Exception:
+                                pass
+                            # Activer/désactiver alternatives
+                            try:
+                                if total and total > 1:
+                                    self.btn_prev_alt.configure(state=tk.NORMAL)
+                                    self.btn_next_alt.configure(state=tk.NORMAL)
+                                else:
+                                    self.btn_prev_alt.configure(state=tk.DISABLED)
+                                    self.btn_next_alt.configure(state=tk.DISABLED)
+                            except Exception:
+                                pass
+                            # Marquer qu'un planning existe
+                            self._has_generated_planning = True
+                        except Exception:
+                            pass
+                        # Enfin, afficher la popup de confirmation si le calcul était valide
+                        if holes is None:
+                            messagebox.showerror("Error", f"Please add at least one worker to site '{self.site_actuel_nom.get()}'")
+                        else:
+                            messagebox.showinfo("Success", f"Planning generated successfully for site '{self.site_actuel_nom.get()}' ({holes} holes remaining)")
+                    # Petit délai pour s'assurer que le loader est fermé avant le popup
+                    self.root.after(50, _finish_ui)
+                except Exception:
+                    pass
+        th = threading.Thread(target=_task, daemon=True)
+        th.start()
+
     def recharger_travailleurs(self):
         """Recharge tous les travailleurs depuis la base de données et met à jour l'interface"""
         db = Database()
@@ -1969,10 +2146,14 @@ class InterfacePlanning:
             bouton.label.config(text=nouveau_texte)
         # Si votre bouton est un canvas avec du texte
         elif isinstance(bouton, tk.Canvas):
-            # Trouver l'ID du texte dans le canvas
-            text_items = [item for item in bouton.find_all() if bouton.type(item) == "text"]
-            if text_items:
-                bouton.itemconfig(text_items[0], text=nouveau_texte)
+            try:
+                if bouton.winfo_exists():
+                    # Trouver l'ID du texte dans le canvas
+                    text_items = [item for item in bouton.find_all() if bouton.type(item) == "text"]
+                    if text_items:
+                        bouton.itemconfig(text_items[0], text=nouveau_texte)
+            except Exception:
+                pass
 
     def changer_site(self, event):
         """Change le site actuel et recharge les travailleurs"""
@@ -2004,9 +2185,13 @@ class InterfacePlanning:
         jours, shifts = self.reglages_site['jours'], self.reglages_site['shifts']
         self.planning = Planning(site_id=self.site_actuel_id, jours=jours, shifts=shifts)
         self.charger_travailleurs_db()
-        # Rebuild availabilities section to match site settings
+        # Rebuild availabilities section to match site settings (si la popup est ouverte)
         self._rebuild_disponibilites_from_settings()
-        self._build_availabilities_section()
+        try:
+            if hasattr(self, 'form_label_frame') and self.form_label_frame is not None and self.form_label_frame.winfo_exists():
+                self._build_availabilities_section()
+        except Exception:
+            pass
         # Réinitialiser les infos d'alternatives/score lors d'un changement de site
         if hasattr(self, 'alt_info_var'):
             self.alt_info_var.set("")
@@ -2177,6 +2362,12 @@ class InterfacePlanning:
             # Mettre à jour les cases à cocher des jours actifs
             for _, key_fr in day_order:
                 day_vars[key_fr].set(key_fr in jours)
+            # Rebuild capacities grid to reflect times
+            if 'rebuild_capacities_grid' in locals():
+                try:
+                    rebuild_capacities_grid()
+                except Exception:
+                    pass
 
         # Capacités par jour/shift
         ttk.Label(settings_frame, text="Required staff (per day/shift):").grid(row=2, column=0, sticky="nw", pady=(10,0))
@@ -2300,6 +2491,11 @@ class InterfacePlanning:
             dbs = Database()
             dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts)
             messagebox.showinfo("Success", "Site settings saved")
+            # Rafraîchir immédiatement la popup avec les valeurs persistées
+            try:
+                charger_reglages_site_courant()
+            except Exception:
+                pass
             # Si l'on modifie le site courant, recharger structure et UI
             if self.site_actuel_id:
                 self._charger_reglages_site_actuel()
@@ -2314,16 +2510,7 @@ class InterfacePlanning:
                 if hasattr(self, 'alt_info_var'):
                     self.alt_info_var.set("")
 
-        # Gros bouton vert "Save settings"
-        btn_save_settings = self.create_styled_button(
-            settings_frame,
-            "Save settings",
-            sauvegarder_reglages_site_courant,
-            "save",
-            width=200,
-            height=50,
-        )
-        btn_save_settings.grid(row=2, column=1, pady=8, sticky="e")
+        # (Déplacé en bas à côté de Cancel)
 
         # Charger immédiatement les réglages du site courant
         try:
@@ -2458,10 +2645,21 @@ class InterfacePlanning:
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(side="bottom", fill="x", pady=(10, 0))
 
-        btn_supprimer = self.create_styled_button(btn_frame, "Delete site", supprimer_site_avec_travailleurs, "cancel")
+        btn_supprimer = self.create_styled_button(btn_frame, "🗑️ Delete site", supprimer_site_avec_travailleurs, "cancel")
         btn_supprimer.pack(side="left", padx=5)
-        
-        btn_fermer = ttk.Button(btn_frame, text="Cancel", command=sites_window.destroy)
+
+        # Boutons à droite: Save settings puis Cancel (Cancel tout à droite)
+        btn_save_settings_bottom = self.create_styled_button(
+            btn_frame,
+            "💾 Save settings",
+            sauvegarder_reglages_site_courant,
+            "save",
+            width=180,
+            height=44,
+        )
+        btn_save_settings_bottom.pack(side="right", padx=5)
+
+        btn_fermer = self.create_styled_button(btn_frame, "✖️ Cancel", sites_window.destroy, "secondary", width=140, height=44)
         btn_fermer.pack(side="right", padx=5)
         
         # Rien à lister ici: on agit sur le site courant
@@ -2517,17 +2715,17 @@ class InterfacePlanning:
         jours = jours if jours else list(Horaire.JOURS)
         shifts = shifts if shifts else list(Horaire.SHIFTS.values())
         self.disponibilites = {jour: {shift: tk.BooleanVar() for shift in shifts} for jour in jours}
-        # 12h only for morning/night if present
-        self.disponibilites_12h = {}
-        for jour in jours:
-            d = {}
-            if any(s.startswith("06") for s in shifts) or "06-14" in shifts:
-                d["matin_12h"] = tk.BooleanVar()
-            if any(s == "22-06" for s in shifts):
-                d["nuit_12h"] = tk.BooleanVar()
-            self.disponibilites_12h[jour] = d
+        # 12h removed
 
     def _build_availabilities_section(self):
+        # Si le conteneur de formulaire n'existe pas (popup fermée), ne pas construire l'UI
+        if not hasattr(self, 'form_label_frame') or self.form_label_frame is None:
+            return
+        try:
+            if not self.form_label_frame.winfo_exists():
+                return
+        except Exception:
+            return
         # Clear previous if exists
         existing = getattr(self, 'dispo_container', None)
         if existing and existing.winfo_exists():
@@ -2554,17 +2752,7 @@ class InterfacePlanning:
         ttk.Checkbutton(controls_bar, text="Select all shifts", variable=select_all_shifts_var, command=_on_select_all_shifts).pack(side="left")
         # Séparation visuelle
         ttk.Separator(controls_bar, orient='vertical').pack(side="left", fill="y", padx=8)
-        # Coche globale: 12h uniquement
-        select_all_12h_var = tk.BooleanVar(value=False)
-        self.select_all_12h_var = select_all_12h_var
-        def _on_select_all_12h():
-            value = bool(select_all_12h_var.get())
-            for jour, types_map in self.disponibilites_12h.items():
-                if "matin_12h" in types_map:
-                    types_map["matin_12h"].set(value)
-                if "nuit_12h" in types_map:
-                    types_map["nuit_12h"].set(value)
-        ttk.Checkbutton(controls_bar, text="Select all 12h", variable=select_all_12h_var, command=_on_select_all_12h).pack(side="left")
+        # 12h removed
         # Ligne 1: Canvas + scrollbar
         self.dispo_container.rowconfigure(1, weight=1)
         dispo_canvas = tk.Canvas(self.dispo_container, borderwidth=0, highlightthickness=0)
@@ -2577,11 +2765,8 @@ class InterfacePlanning:
         # Dynamic days/shifts
         dynamic_days = self.reglages_site.get("jours") if hasattr(self, 'reglages_site') else list(Horaire.JOURS)
         dynamic_shifts = self.reglages_site.get("shifts") if hasattr(self, 'reglages_site') else list(Horaire.SHIFTS.values())
-        show_morning12 = any(s.startswith("06") for s in dynamic_shifts) or ("06-14" in dynamic_shifts)
-        show_night12 = ("22-06" in dynamic_shifts)
-        # Compute columns count
-        extra_12h = (1 if show_morning12 else 0) + (1 if show_night12 else 0)
-        total_cols = 1 + len(dynamic_shifts) + extra_12h
+        # 12h removed
+        total_cols = 1 + len(dynamic_shifts)
         for i in range(total_cols):
             dispo_frame.columnconfigure(i, weight=1, uniform="avail")
         # Header
@@ -2590,18 +2775,8 @@ class InterfacePlanning:
         for shift in dynamic_shifts:
             ttk.Label(dispo_frame, text=shift, font=self.header_font).grid(row=0, column=col, padx=10, pady=5, sticky="nsew")
             col += 1
-        if show_morning12:
-            ttk.Label(dispo_frame, text="Morning 12h\n(06-18)", font=self.header_font).grid(row=0, column=col, padx=10, pady=5, sticky="nsew")
-            morning12_col = col
-            col += 1
-        else:
-            morning12_col = None
-        if show_night12:
-            ttk.Label(dispo_frame, text="Night 12h\n(18-06)", font=self.header_font).grid(row=0, column=col, padx=10, pady=5, sticky="nsew")
-            night12_col = col
-            col += 1
-        else:
-            night12_col = None
+        morning12_col = None
+        night12_col = None
         # Rows
         for i, jour in enumerate(dynamic_days, 1):
             ttk.Label(dispo_frame, text=self.traduire_jour(jour)).grid(row=i, column=0, padx=8, pady=2, sticky="nsew")
@@ -2610,13 +2785,7 @@ class InterfacePlanning:
                 var = self.disponibilites.setdefault(jour, {}).setdefault(shift, tk.BooleanVar())
                 ttk.Checkbutton(dispo_frame, variable=var).grid(row=i, column=col, padx=8, pady=2, sticky="nsew")
                 col += 1
-            # 12h optional
-            if morning12_col is not None:
-                var_m12 = self.disponibilites_12h.setdefault(jour, {}).setdefault("matin_12h", tk.BooleanVar())
-                ttk.Checkbutton(dispo_frame, variable=var_m12).grid(row=i, column=morning12_col, padx=8, pady=2, sticky="nsew")
-            if night12_col is not None:
-                var_n12 = self.disponibilites_12h.setdefault(jour, {}).setdefault("nuit_12h", tk.BooleanVar())
-                ttk.Checkbutton(dispo_frame, variable=var_n12).grid(row=i, column=night12_col, padx=8, pady=2, sticky="nsew")
+            # 12h removed
         # Scroll region
         def on_frame_configure(event):
             dispo_canvas.configure(scrollregion=dispo_canvas.bbox("all"))
@@ -2658,14 +2827,242 @@ class InterfacePlanning:
         dispo_canvas.bind("<Enter>", _bind_wheel)
         dispo_canvas.bind("<Leave>", _unbind_wheel)
 
+    def _close_worker_popup_if_open(self):
+        try:
+            if hasattr(self, '_worker_popup') and self._worker_popup is not None and self._worker_popup.winfo_exists():
+                self._worker_popup.destroy()
+            # Nettoyer les références des widgets de la popup pour éviter d'y accéder après destruction
+            self._worker_popup = None
+            try:
+                if hasattr(self, 'form_label_frame') and self.form_label_frame is not None and not self.form_label_frame.winfo_exists():
+                    self.form_label_frame = None
+            except Exception:
+                self.form_label_frame = None
+            try:
+                if hasattr(self, 'dispo_container') and self.dispo_container is not None and not self.dispo_container.winfo_exists():
+                    self.dispo_container = None
+            except Exception:
+                self.dispo_container = None
+            try:
+                if hasattr(self, 'btn_ajouter') and self.btn_ajouter is not None and not self.btn_ajouter.winfo_exists():
+                    self.btn_ajouter = None
+            except Exception:
+                self.btn_ajouter = None
+            try:
+                if hasattr(self, 'btn_annuler') and self.btn_annuler is not None and not self.btn_annuler.winfo_exists():
+                    self.btn_annuler = None
+            except Exception:
+                self.btn_annuler = None
+        except Exception:
+            self._worker_popup = None
+
+    def remplir_formulaire_pour_travailleur(self, travailleur):
+        """Pré-remplit les champs du formulaire avec un objet `Travailleur`."""
+        if not travailleur:
+            return
+        # Nom et shifts
+        self.nom_var.set(travailleur.nom)
+        self.nb_shifts_var.set(str(travailleur.nb_shifts_souhaites))
+        # Réinitialiser
+        for jour, shifts_map in self.disponibilites.items():
+            for shift, var in shifts_map.items():
+                var.set(False)
+        for jour, types_map in self.disponibilites_12h.items():
+            for key, var in types_map.items():
+                var.set(False)
+        # Coche dynamiques
+        for jour, shifts in getattr(travailleur, 'disponibilites', {}).items():
+            for shift in shifts:
+                if jour in self.disponibilites and shift in self.disponibilites[jour]:
+                    self.disponibilites[jour][shift].set(True)
+        if hasattr(travailleur, 'disponibilites_12h'):
+            for jour, shifts_12h in travailleur.disponibilites_12h.items():
+                for shift_12h in shifts_12h:
+                    if jour in self.disponibilites_12h and shift_12h in self.disponibilites_12h[jour]:
+                        self.disponibilites_12h[jour][shift_12h].set(True)
+
+    def _build_form_popup(self, parent, modifier: bool = False):
+        """Construit le formulaire dans une popup parent."""
+        # Cadre principal
+        container = ttk.Frame(parent, padding=10)
+        container.pack(fill="both", expand=True)
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(0, weight=1)
+
+        # LabelFrame utilisé par les méthodes existantes
+        self.form_label_frame = ttk.LabelFrame(container, text=("Modify worker" if modifier else "Add a worker"), padding=10, style="Section.TLabelframe")
+        self.form_label_frame.grid(row=0, column=0, sticky="nsew")
+        self.form_label_frame.columnconfigure(0, weight=1)
+        self.form_label_frame.rowconfigure(0, weight=0)
+        self.form_label_frame.rowconfigure(1, weight=1)
+        self.form_label_frame.rowconfigure(2, weight=0)
+
+        # Zone infos
+        info_frame = ttk.Frame(self.form_label_frame)
+        info_frame.grid(row=0, column=0, sticky="ew", pady=5)
+        info_frame.columnconfigure(0, weight=0)
+        info_frame.columnconfigure(1, weight=1)
+        info_frame.columnconfigure(2, weight=0)
+        info_frame.columnconfigure(3, weight=0)
+        ttk.Label(info_frame, text="Name:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        ttk.Entry(info_frame, textvariable=self.nom_var, width=25).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+        ttk.Label(info_frame, text="Desired number of shifts:").grid(row=0, column=2, sticky="w", padx=5, pady=5)
+        ttk.Entry(info_frame, textvariable=self.nb_shifts_var, width=5).grid(row=0, column=3, padx=5, pady=5)
+
+        # Availabilities dynamiques
+        self._rebuild_disponibilites_from_settings()
+        self._build_availabilities_section()
+
+        # Boutons
+        btns = ttk.Frame(self.form_label_frame)
+        btns.grid(row=2, column=0, sticky="ew", pady=10)
+        if modifier:
+            # En mode modification, on affiche Modify et Delete sur une première rangée
+            # et Cancel en dessous au centre
+            btns.columnconfigure(0, weight=1)
+            btns.columnconfigure(1, weight=1)
+            btns.rowconfigure(0, weight=0)
+            btns.rowconfigure(1, weight=0)
+        else:
+            btns.columnconfigure(0, weight=1)
+            btns.columnconfigure(1, weight=1)
+
+        def on_validate():
+            # Appelle la méthode existante; ne fermer la popup que si succès
+            ok = self.ajouter_travailleur()
+            if ok:
+                self._close_worker_popup_if_open()
+
+        def on_cancel():
+            # En mode ajout: réinitialiser et fermer; en mode modif: annuler édition et fermer
+            if not modifier:
+                try:
+                    self.reinitialiser_formulaire()
+                except Exception:
+                    pass
+            else:
+                self.annuler_edition()
+            self._close_worker_popup_if_open()
+
+        self.btn_ajouter = self.create_styled_button(btns, ("✏️ Modify worker" if modifier else "➕ Add worker"), on_validate, "action")
+        if modifier:
+            self.btn_ajouter.grid(row=0, column=0, padx=5, sticky="ew")
+        else:
+            self.btn_ajouter.grid(row=0, column=0, padx=5, sticky="ew")
+        
+        # Bouton Delete seulement en mode modification
+        if modifier:
+            def on_delete():
+                try:
+                    self.supprimer_travailleur()
+                except Exception:
+                    pass
+            btn_supprimer = self.create_styled_button(btns, "🗑️ Delete", on_delete, "cancel")
+            btn_supprimer.grid(row=0, column=1, padx=5, sticky="ew")
+            
+            # Close en gris clair, en dessous, centré
+            self.btn_annuler = self.create_styled_button(btns, "✖️ Close", on_cancel, "secondary")
+            self.btn_annuler.grid(row=1, column=0, columnspan=2, padx=60, pady=(8, 0), sticky="ew")
+        else:
+            # Mode ajout: Close en gris clair, centré en dessous du bouton Add
+            btns.rowconfigure(0, weight=0)
+            btns.rowconfigure(1, weight=0)
+            self.btn_annuler = self.create_styled_button(btns, "✖️ Close", on_cancel, "secondary")
+            # Étendre le bouton Add sur toute la ligne pour l'alignement
+            self.btn_ajouter.grid_configure(columnspan=2)
+            self.btn_annuler.grid(row=1, column=0, columnspan=2, padx=60, pady=(8, 0), sticky="ew")
+
+    def ouvrir_popup_travailleur(self, modifier: bool = False):
+        """Ouvre une popup pour ajouter/modifier un travailleur."""
+        # Vérifier qu'un site est sélectionné pour l'ajout
+        if not modifier and self.site_actuel_id is None:
+            messagebox.showerror("Error", "Please select a site before adding a worker.")
+            return
+        # Créer popup
+        self._close_worker_popup_if_open()
+        popup = tk.Toplevel(self.root)
+        popup.title("Modify worker" if modifier else "Add worker")
+        popup.geometry("760x600")
+        popup.configure(bg="#f0f0f0")
+        popup.transient(self.root)
+        popup.grab_set()
+        self._worker_popup = popup
+
+        # Construire le formulaire
+        self._build_form_popup(popup, modifier=modifier)
+
+        # Initialiser le formulaire selon le mode
+        if modifier and self.travailleur_en_edition:
+            # Pré-remplir pour modification
+            self.remplir_formulaire_pour_travailleur(self.travailleur_en_edition)
+        else:
+            # Mode ajout: champs vides + cases décochées
+            try:
+                self.reinitialiser_formulaire()
+            except Exception:
+                # Fallback manuel si nécessaire
+                self.nom_var.set("")
+                self.nb_shifts_var.set("")
+                for jour, shifts_map in self.disponibilites.items():
+                    for shift, var in shifts_map.items():
+                        var.set(False)
+                for jour, types_map in self.disponibilites_12h.items():
+                    for key, var in types_map.items():
+                        var.set(False)
+
+    def ouvrir_popup_modifier_selection(self):
+        """Ouvre la popup de modification pour l'élément sélectionné dans la table."""
+        selection = self.table_travailleurs.selection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a worker to modify")
+            return
+        item = selection[0]
+        nom_travailleur = self.table_travailleurs.item(item, "values")[0]
+        cible = None
+        for t in self.planning.travailleurs:
+            if t.nom == nom_travailleur:
+                cible = t
+                break
+        if not cible:
+            messagebox.showerror("Error", "Selected worker not found")
+            return
+        # Préparer mode édition
+        self.mode_edition = True
+        self.travailleur_en_edition = cible
+        # Ouvrir popup et pré-remplir
+        self.ouvrir_popup_travailleur(modifier=True)
+        try:
+            self.remplir_formulaire_pour_travailleur(cible)
+        except Exception:
+            pass
+
     def ouvrir_ajout_site(self):
         """Ouvre la fenêtre d'ajout d'un site avec configuration initiale (shifts + jours actifs)."""
         add_window = tk.Toplevel(self.root)
         add_window.title("Add Site")
-        add_window.geometry("640x520")
+        # Agrandir la fenêtre pour afficher tous les éléments confortablement
+        add_window.geometry("1000x720")
         add_window.configure(bg="#f0f0f0")
         add_window.transient(self.root)
         add_window.grab_set()
+        # Taille minimale et centrage
+        try:
+            add_window.update_idletasks()
+            add_window.minsize(900, 650)
+            # Centrer par rapport à la fenêtre principale
+            rw = self.root.winfo_width(); rh = self.root.winfo_height()
+            rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
+            width, height = 1000, 720
+            if rw and rh and rw > 1 and rh > 1:
+                x = rx + max(0, (rw - width) // 2)
+                y = ry + max(0, (rh - height) // 2)
+            else:
+                sw = add_window.winfo_screenwidth(); sh = add_window.winfo_screenheight()
+                x = max(0, (sw - width) // 2)
+                y = max(0, (sh - height) // 2)
+            add_window.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            pass
 
         main = ttk.Frame(add_window, padding=20)
         main.pack(fill="both", expand=True)
@@ -2740,6 +3137,84 @@ class InterfacePlanning:
                 shifts.append(f"{int(n_start.get()):02d}-{int(n_end.get()):02d}")
             return shifts
 
+        def get_active_days():
+            return [fr for _, fr in day_order if day_vars[fr].get()]
+
+        # Required staff (capacities)
+        caps_group = ttk.LabelFrame(main, text="Required staff (per day/shift)", padding=10)
+        caps_group.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(12, 8))
+        caps_vars = {}
+        caps_frame = ttk.Frame(caps_group)
+        caps_frame.pack(fill="x")
+
+        def rebuild_caps_grid():
+            # Reconstruire la grille selon shifts/days actifs
+            for child in caps_frame.winfo_children():
+                child.destroy()
+            shifts = build_shifts()
+            jours = get_active_days()
+            if not shifts or not jours:
+                return
+            # Conserver les valeurs saisies si possible
+            previous = {j: {s: (caps_vars.get(j, {}).get(s).get() if caps_vars.get(j, {}).get(s) else "") for s in (caps_vars.get(j, {}) or {})} for j in caps_vars}
+            # En-têtes
+            ttk.Label(caps_frame, text="Day").grid(row=0, column=0, padx=4, pady=2)
+            for ci, s in enumerate(shifts, 1):
+                ttk.Label(caps_frame, text=s).grid(row=0, column=ci, padx=4, pady=2)
+            # Lignes
+            for ri, j in enumerate(jours, 1):
+                ttk.Label(caps_frame, text=self.traduire_jour(j)).grid(row=ri, column=0, padx=4, pady=2, sticky="w")
+                for ci, s in enumerate(shifts, 1):
+                    default_val = previous.get(j, {}).get(s, "1") or "1"
+                    var = caps_vars.setdefault(j, {}).setdefault(s, tk.StringVar(value=default_val))
+                    tk.Spinbox(caps_frame, from_=1, to=10, width=3, textvariable=var).grid(row=ri, column=ci, padx=2, pady=2)
+
+        # Rebuild capacities grid when shifts/days change
+        def on_change_and_rebuild(fn=None):
+            if callable(fn):
+                fn()
+            rebuild_caps_grid()
+
+        # Hook changes for shifts
+        orig_update_spin_states = None
+        try:
+            orig_update_spin_states = update_spin_states
+        except Exception:
+            pass
+        def update_spin_states_wrapper():
+            if orig_update_spin_states:
+                orig_update_spin_states()
+            rebuild_caps_grid()
+        # Remplacer les callbacks sur les checkbuttons shift
+        try:
+            morning_var.trace_add('write', lambda *args: update_spin_states_wrapper())
+            afternoon_var.trace_add('write', lambda *args: update_spin_states_wrapper())
+            night_var.trace_add('write', lambda *args: update_spin_states_wrapper())
+        except Exception:
+            pass
+        # Rebuild when hours change
+        try:
+            m_start.trace_add('write', lambda *args: rebuild_caps_grid())
+            m_end.trace_add('write', lambda *args: rebuild_caps_grid())
+            a_start.trace_add('write', lambda *args: rebuild_caps_grid())
+            a_end.trace_add('write', lambda *args: rebuild_caps_grid())
+            n_start.trace_add('write', lambda *args: rebuild_caps_grid())
+            n_end.trace_add('write', lambda *args: rebuild_caps_grid())
+        except Exception:
+            pass
+        # Hook day checkbuttons
+        for i, (en, fr) in enumerate(day_order):
+            # reconfigurer la commande pour rebuild
+            # On recrée le checkbutton avec commande si nécessaire
+            # Mais ici on peut attacher un trace sur la variable
+            try:
+                day_vars[fr].trace_add('write', lambda *args: rebuild_caps_grid())
+            except Exception:
+                pass
+
+        # Première construction
+        rebuild_caps_grid()
+
         def save_site():
             nom = nom_var.get().strip()
             if not nom:
@@ -2747,19 +3222,28 @@ class InterfacePlanning:
                 return
             description = desc_var.get().strip()
             shifts_list = build_shifts()
-            days_list = [fr for _, fr in day_order if day_vars[fr].get()]
+            days_list = get_active_days()
             if not shifts_list:
                 messagebox.showerror("Erreur", "Veuillez définir au moins un shift")
                 return
             if not days_list:
                 messagebox.showerror("Erreur", "Veuillez sélectionner au moins un jour actif")
                 return
+            # Construire required_counts depuis la grille
+            required_counts = {}
+            for j in days_list:
+                required_counts[j] = {}
+                for s in shifts_list:
+                    try:
+                        required_counts[j][s] = int(caps_vars.get(j, {}).get(s, tk.StringVar(value="1")).get())
+                    except Exception:
+                        required_counts[j][s] = 1
             db = Database()
             site_id = db.sauvegarder_site(nom, description)
             if not site_id:
                 messagebox.showerror("Erreur", "Un site avec ce nom existe déjà")
                 return
-            db.sauvegarder_reglages_site(site_id, shifts_list, days_list)
+            db.sauvegarder_reglages_site(site_id, shifts_list, days_list, required_counts)
             messagebox.showinfo("Succès", f"Site '{nom}' créé")
             # Rafraîchir la liste en haut
             self.charger_sites()
@@ -2767,6 +3251,9 @@ class InterfacePlanning:
             add_window.destroy()
 
         btns = ttk.Frame(main)
-        btns.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(12, 0))
-        ttk.Button(btns, text="Create", command=save_site).pack(side="right")
-        ttk.Button(btns, text="Cancel", command=add_window.destroy).pack(side="right", padx=6)
+        btns.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        # Utiliser le même style que dans "Manage Site"
+        btn_create_site = self.create_styled_button(btns, "✅ Create", save_site, "save", width=180, height=44)
+        btn_create_site.pack(side="right", padx=(6, 0))
+        btn_cancel_site = self.create_styled_button(btns, "✖️ Cancel", add_window.destroy, "secondary", width=140, height=44)
+        btn_cancel_site.pack(side="right", padx=6)
