@@ -26,6 +26,14 @@ SetupIconFile=..\\assets\\app.ico
 ; IMPORTANT: ne pas utiliser "Check" ici, sinon les fichiers ne seront pas copiés à l'installation
 Source: "dist\SidourAvoda\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
+[InstallDelete]
+; Nettoyage d'anciens exécutables versionnés dans le dossier d'installation
+Type: files; Name: "{app}\\SidourAvoda-v*.exe"
+
+[UninstallDelete]
+; Nettoyage également à la désinstallation
+Type: files; Name: "{app}\\SidourAvoda-v*.exe"
+
 [Icons]
 Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; WorkingDir: "{app}"
 Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; Tasks: desktopicon; WorkingDir: "{app}"

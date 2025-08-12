@@ -115,6 +115,16 @@ def _download_and_launch_installer(installer_url: str, tk_root=None):
             subprocess.Popen([installer_path] + flags, close_fds=True, shell=False)
         except Exception:
             subprocess.Popen([installer_path], close_fds=True, shell=False)
+        # If current exe is a versioned portable (SidourAvoda-v*.exe), schedule its deletion on next reboot
+        try:
+            import ctypes, sys
+            exe_path = sys.executable
+            base = os.path.basename(exe_path).lower()
+            if base.startswith("sidouravoda-v") and base.endswith(".exe"):
+                # MoveFileEx with MOVEFILE_DELAY_UNTIL_REBOOT = 0x4
+                ctypes.windll.kernel32.MoveFileExW(exe_path, None, 0x4)
+        except Exception:
+            pass
         # Hard-exit so installer can replace files
         os._exit(0)
     except Exception:
