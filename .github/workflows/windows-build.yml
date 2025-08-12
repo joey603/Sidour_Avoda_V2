@@ -123,6 +123,13 @@ jobs:
       - name: Build Windows installer (Inno Setup)
         shell: pwsh
         run: |
+          # Ensure installer icon exists relative to the .iss script
+          if (-not (Test-Path "Sidour-avoda-Tzora-chevron/assets/app.ico")) {
+            if (Test-Path "assets/app.ico") {
+              New-Item -ItemType Directory -Force -Path "Sidour-avoda-Tzora-chevron/assets" | Out-Null
+              Copy-Item "assets/app.ico" "Sidour-avoda-Tzora-chevron/assets/app.ico" -Force
+            }
+          }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "Sidour-avoda-Tzora-chevron\windows_installer.iss"
 
       - name: Upload installer artifact
