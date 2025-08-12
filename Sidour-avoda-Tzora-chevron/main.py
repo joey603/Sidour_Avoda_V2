@@ -93,8 +93,10 @@ def _download_and_launch_installer(installer_url: str):
         pass
 
 
-def check_for_updates_in_background():
-    """Check GitHub Releases in background. If newer, prompt user to update now."""
+def check_for_updates_in_background(tk_root=None):
+    """Check GitHub Releases in background. If newer, prompt user to update now.
+    If a Tk root is provided, the prompt is scheduled on the UI thread.
+    """
     try:
         # Only relevant on Windows packaged app
         if sys.platform != "win32":
@@ -105,24 +107,41 @@ def check_for_updates_in_background():
             return
         if _parse_version(latest) <= _parse_version(current):
             return
-        # Prompt on the Tkinter thread
+        # Define prompt function
         def _prompt():
             try:
-                root = tk.Tk()
-                root.withdraw()
                 from tkinter import messagebox
                 if messagebox.askyesno(
                     "Mise à jour disponible",
                     f"Une nouvelle version {latest} est disponible (vous avez {current}).\n\nMettre à jour maintenant ?",
+                    parent=tk_root if tk_root else None,
                 ):
                     threading.Thread(target=_download_and_launch_installer, args=(asset_url,), daemon=True).start()
             except Exception:
                 pass
+        # Schedule on Tk main loop if possible
+        if tk_root is not None:
+            try:
+                tk_root.after(0, _prompt)
+                return
+            except Exception:
+                pass
+        # Fallback: use Windows system MessageBox from this thread
         try:
-            # Try to use existing Tk root if available
-            _prompt()
+            import ctypes
+            MB_YESNO = 0x00000004
+            MB_ICONINFORMATION = 0x00000040
+            res = ctypes.windll.user32.MessageBoxW(
+                0,
+                f"Une nouvelle version {latest} est disponible (vous avez {current}).\n\nMettre à jour maintenant ?",
+                "Mise à jour Sidour Avoda",
+                MB_YESNO | MB_ICONINFORMATION,
+            )
+            IDYES = 6
+            if res == IDYES:
+                threading.Thread(target=_download_and_launch_installer, args=(asset_url,), daemon=True).start()
         except Exception:
-            _prompt()
+            pass
     except Exception:
         pass
 import tkinter as tk
@@ -172,7 +191,7 @@ def main():
         
         # Lancer un check de mise à jour en arrière-plan (non bloquant)
         try:
-            threading.Thread(target=check_for_updates_in_background, daemon=True).start()
+            threading.Thread(target=lambda: check_for_updates_in_background(app.root), daemon=True).start()
         except Exception:
             pass
 
