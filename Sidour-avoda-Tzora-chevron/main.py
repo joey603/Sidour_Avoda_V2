@@ -68,11 +68,38 @@ def _get_latest_release_info():
     return None, None
 
 
-def _download_and_launch_installer(installer_url: str):
+def _download_and_launch_installer(installer_url: str, tk_root=None):
     try:
         import tempfile
         import subprocess
         from urllib.request import Request, urlopen
+        # Optional blocking modal
+        modal = None
+        if tk_root is not None:
+            try:
+                modal = tk.Toplevel(tk_root)
+                modal.title("Updating...")
+                modal.resizable(False, False)
+                modal.transient(tk_root)
+                modal.grab_set()
+                modal.protocol("WM_DELETE_WINDOW", lambda: None)
+                import tkinter.ttk as ttk
+                frame = ttk.Frame(modal, padding=20)
+                frame.pack(fill="both", expand=True)
+                label = ttk.Label(frame, text="Downloading and installing update...\nPlease wait.")
+                label.pack(pady=(0,10))
+                bar = ttk.Progressbar(frame, mode='indeterminate', length=260)
+                bar.pack()
+                bar.start(12)
+                tk_root.update_idletasks()
+                w = modal.winfo_reqwidth() or 320
+                h = modal.winfo_reqheight() or 120
+                sw = tk_root.winfo_screenwidth(); sh = tk_root.winfo_screenheight()
+                x = max((sw - w)//2, 0); y = max((sh - h)//2, 0)
+                modal.geometry(f"{w}x{h}+{x}+{y}")
+                tk_root.update()
+            except Exception:
+                modal = None
         # Download to temp
         req = Request(installer_url, headers={"User-Agent": "SidourAvodaUpdater"})
         with urlopen(req, timeout=30) as resp:
@@ -82,7 +109,7 @@ def _download_and_launch_installer(installer_url: str):
         with open(installer_path, "wb") as f:
             f.write(content)
         # Launch installer silently if possible, then exit app
-        flags = ["/SILENT", "/NORESTART"]
+        flags = ["/VERYSILENT", "/NORESTART"]
         try:
             subprocess.Popen([installer_path] + flags, close_fds=True, shell=False)
         except Exception:
@@ -112,11 +139,11 @@ def check_for_updates_in_background(tk_root=None):
             try:
                 from tkinter import messagebox
                 if messagebox.askyesno(
-                    "Mise à jour disponible",
-                    f"Une nouvelle version {latest} est disponible (vous avez {current}).\n\nMettre à jour maintenant ?",
+                    "Update available",
+                    f"A new version {latest} is available (you have {current}).\n\nDownload and install now?",
                     parent=tk_root if tk_root else None,
                 ):
-                    threading.Thread(target=_download_and_launch_installer, args=(asset_url,), daemon=True).start()
+                    threading.Thread(target=_download_and_launch_installer, args=(asset_url, tk_root), daemon=True).start()
             except Exception:
                 pass
         # Schedule on Tk main loop if possible
@@ -133,13 +160,13 @@ def check_for_updates_in_background(tk_root=None):
             MB_ICONINFORMATION = 0x00000040
             res = ctypes.windll.user32.MessageBoxW(
                 0,
-                f"Une nouvelle version {latest} est disponible (vous avez {current}).\n\nMettre à jour maintenant ?",
-                "Mise à jour Sidour Avoda",
+                f"A new version {latest} is available (you have {current}).\n\nDownload and install now?",
+                "Sidour Avoda Update",
                 MB_YESNO | MB_ICONINFORMATION,
             )
             IDYES = 6
             if res == IDYES:
-                threading.Thread(target=_download_and_launch_installer, args=(asset_url,), daemon=True).start()
+                threading.Thread(target=_download_and_launch_installer, args=(asset_url, None), daemon=True).start()
         except Exception:
             pass
     except Exception:

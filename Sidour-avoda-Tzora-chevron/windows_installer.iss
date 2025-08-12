@@ -1,6 +1,8 @@
 [Setup]
 AppName=Sidour Avoda
 AppVersion=1.0.0
+; AppId fixe pour remplacer proprement les anciennes versions
+AppId={{0F8D381B-6E4E-4E7D-B8F7-7C4E0B28B0B2}
 DefaultDirName={pf}\Sidour Avoda
 DefaultGroupName=Sidour Avoda
 DisableDirPage=no
