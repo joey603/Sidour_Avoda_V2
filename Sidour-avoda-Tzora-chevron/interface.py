@@ -60,6 +60,8 @@ class InterfacePlanning:
         self.nb_shifts_var = tk.StringVar()
         self.mode_edition = False
         self.travailleur_en_edition = None
+        # Compteur pour la liste des travailleurs
+        self.nb_workers_var = tk.StringVar(value="")
         
         # Création des disponibilités (sera reconstruit selon les réglages du site)
         self.disponibilites = {}
@@ -421,14 +423,42 @@ class InterfacePlanning:
         frame_liste.rowconfigure(0, weight=1)  # Table
         frame_liste.rowconfigure(1, weight=0)  # Ligne des boutons
         
+        # Style amélioré pour le tableau
+        tv_style = ttk.Style()
+        try:
+            tv_style.configure('Workers.Treeview', font=self.normal_font, rowheight=26)
+            tv_style.configure('Workers.Treeview.Heading', font=self.header_font, background="#e9ecef", foreground="#2c3e50")
+            tv_style.map('Workers.Treeview', background=[('selected', '#cfe8ff')], foreground=[('selected', '#000000')])
+        except Exception:
+            pass
+
         # Création d'un Treeview pour afficher les travailleurs sous forme de tableau
         columns = ("nom", "shifts")
-        self.table_travailleurs = ttk.Treeview(frame_liste, columns=columns, show="headings", height=8)
-        self.table_travailleurs.heading("nom", text="Name")
-        self.table_travailleurs.heading("shifts", text="Desired shifts")
+        self.table_travailleurs = ttk.Treeview(frame_liste, columns=columns, show="headings", height=10, style='Workers.Treeview')
+        # Fonctions de tri
+        def _sort_table(col, reverse=False):
+            try:
+                data = [(self.table_travailleurs.set(k, col), k) for k in self.table_travailleurs.get_children('')]
+                if col == 'shifts':
+                    def _as_int(val):
+                        try:
+                            return int(val)
+                        except Exception:
+                            return 0
+                    data.sort(key=lambda x: _as_int(x[0]), reverse=reverse)
+                else:
+                    data.sort(key=lambda x: str(x[0]).lower(), reverse=reverse)
+                for idx, (_val, k) in enumerate(data):
+                    self.table_travailleurs.move(k, '', idx)
+                self.table_travailleurs.heading(col, command=lambda: _sort_table(col, not reverse))
+            except Exception:
+                pass
+
+        self.table_travailleurs.heading("nom", text="Name", command=lambda: _sort_table('nom', False))
+        self.table_travailleurs.heading("shifts", text="Desired shifts", command=lambda: _sort_table('shifts', False))
         
-        self.table_travailleurs.column("nom", width=150)
-        self.table_travailleurs.column("shifts", width=100)
+        self.table_travailleurs.column("nom", width=180, minwidth=160, anchor='w', stretch=True)
+        self.table_travailleurs.column("shifts", width=110, minwidth=90, anchor='center', stretch=False)
         
         # Scrollbar pour la table
         scrollbar = ttk.Scrollbar(frame_liste, orient="vertical", command=self.table_travailleurs.yview)
@@ -438,14 +468,23 @@ class InterfacePlanning:
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.table_travailleurs.grid(row=0, column=0, sticky="nsew")
 
-        # Ligne des boutons d'action (Add dans la section)
+        # Tags pour zébrer les lignes
+        try:
+            self.table_travailleurs.tag_configure('evenrow', background='#ffffff')
+            self.table_travailleurs.tag_configure('oddrow', background='#f7f7f7')
+        except Exception:
+            pass
+
+        # Ligne des actions + compteur
         actions_row = ttk.Frame(frame_liste)
-        actions_row.grid(row=1, column=0, columnspan=2, sticky="e", pady=(8, 0))
+        actions_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        actions_row.columnconfigure(0, weight=1)
+        ttk.Label(actions_row, textvariable=self.nb_workers_var).grid(row=0, column=0, sticky='w', padx=4)
         # Bouton Add moins large
         btn_add_small = self.create_styled_button(actions_row, "➕ Add worker", 
                                                   lambda: self.ouvrir_popup_travailleur(modifier=False), 
                                                   "action", width=120, height=34)
-        btn_add_small.grid(row=0, column=0, padx=4, sticky="e")
+        btn_add_small.grid(row=0, column=1, padx=4, sticky="e")
         
         # Lier la sélection dans la table à l'édition
         self.table_travailleurs.bind('<<TreeviewSelect>>', self.selectionner_travailleur)
@@ -687,15 +726,22 @@ class InterfacePlanning:
         print(f"DEBUG: {len(travailleurs_tries)} travailleurs à afficher")
         
         # Remplir avec les travailleurs actuels
-        for travailleur in travailleurs_tries:
+        for idx, travailleur in enumerate(travailleurs_tries):
             print(f"DEBUG: Ajout de {travailleur.nom} à la liste")
-            self.table_travailleurs.insert("", tk.END, values=(travailleur.nom, travailleur.nb_shifts_souhaites))
+            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            self.table_travailleurs.insert("", tk.END, values=(travailleur.nom, travailleur.nb_shifts_souhaites), tags=(tag,))
         
         # Forcer le rafraîchissement de l'affichage
         print("DEBUG: Rafraîchissement de l'affichage...")
         self.table_travailleurs.update_idletasks()
         self.table_travailleurs.update()
         
+        # Mettre à jour le compteur
+        try:
+            self.nb_workers_var.set(f"Workers: {len(travailleurs_tries)}")
+        except Exception:
+            pass
+
         print("DEBUG: Fin mise à jour liste travailleurs")
 
     def selectionner_travailleur(self, event):
