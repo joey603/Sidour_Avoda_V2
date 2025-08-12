@@ -113,6 +113,21 @@ jobs:
           Write-Host ("PyInstaller arg list: " + ($piArgs -join ' '))
           pyinstaller @piArgs
 
+      - name: Create versioned copy of portable exe
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          if (-not $version -or -not $version.StartsWith('v')) { $version = (Get-Date -Format 'yyyyMMddHHmmss') }
+          $src = if (Test-Path 'Sidour-avoda-Tzora-chevron/dist/SidourAvoda/SidourAvoda.exe') { 'Sidour-avoda-Tzora-chevron/dist/SidourAvoda/SidourAvoda.exe' } elseif (Test-Path 'dist/SidourAvoda/SidourAvoda.exe') { 'dist/SidourAvoda/SidourAvoda.exe' } else { $null }
+          if ($src) {
+            $dir = Split-Path $src -Parent
+            $dst = Join-Path $dir ("SidourAvoda-" + $version + ".exe")
+            Copy-Item $src $dst -Force
+            Write-Host "Created versioned portable exe: $dst"
+          } else {
+            Write-Host 'Portable exe not found to version-copy.'
+          }
+
       - name: Upload portable build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -149,5 +164,6 @@ jobs:
           files: |
             Sidour-avoda-Tzora-chevron/dist_installer/Sidour-Avoda-Setup.exe
             Sidour-avoda-Tzora-chevron/dist/SidourAvoda/SidourAvoda.exe
+            Sidour-avoda-Tzora-chevron/dist/SidourAvoda/SidourAvoda-${{ github.ref_name }}.exe
 
 
