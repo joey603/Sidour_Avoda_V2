@@ -658,6 +658,8 @@ class InterfacePlanning:
         
         # Réinitialiser le formulaire après l'ajout ou la modification
         self.reinitialiser_formulaire()
+        # Invalider le planning généré (les données ont changé)
+        self._invalidate_generated_planning()
         return True
 
     def reinitialiser_formulaire(self):
@@ -793,6 +795,8 @@ class InterfacePlanning:
                     pass
                 
                 break
+        # Une sélection pour modification invalide le planning courant jusqu'à re-génération
+        self._invalidate_generated_planning()
 
     def annuler_edition(self):
         """Annule l'édition en cours et réinitialise le formulaire"""
@@ -1361,6 +1365,8 @@ class InterfacePlanning:
             messagebox.showinfo("Success", f"Worker {nom_travailleur} deleted successfully")
             # Fermer la popup si ouverte
             self._close_worker_popup_if_open()
+            # Invalider le planning généré
+            self._invalidate_generated_planning()
 
     def ouvrir_agenda_plannings(self):
         """Open a window to view and modify existing plannings (supports empty list)."""
@@ -2175,6 +2181,23 @@ class InterfacePlanning:
                     pass
         th = threading.Thread(target=_task, daemon=True)
         th.start()
+
+    # Marque le planning comme obsolète suite à une modification des workers
+    def _invalidate_generated_planning(self):
+        try:
+            self._has_generated_planning = False
+            # Désactiver les actions dépendantes d'un planning valide
+            if hasattr(self, 'btn_fill_holes') and self.btn_fill_holes is not None:
+                self.btn_fill_holes.configure(state=tk.DISABLED)
+            if hasattr(self, 'btn_prev_alt') and self.btn_prev_alt is not None:
+                self.btn_prev_alt.configure(state=tk.DISABLED)
+            if hasattr(self, 'btn_next_alt') and self.btn_next_alt is not None:
+                self.btn_next_alt.configure(state=tk.DISABLED)
+            # Nettoyer l'info alternatives
+            if hasattr(self, 'alt_info_var') and self.alt_info_var is not None:
+                self.alt_info_var.set("")
+        except Exception:
+            pass
 
     def recharger_travailleurs(self):
         """Recharge tous les travailleurs depuis la base de données et met à jour l'interface"""

@@ -68,7 +68,7 @@ class Database:
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS travailleurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT UNIQUE NOT NULL,
+            nom TEXT NOT NULL,
             nb_shifts_souhaites INTEGER NOT NULL,
             site_id INTEGER DEFAULT 1,
             FOREIGN KEY (site_id) REFERENCES sites (id)
@@ -85,6 +85,55 @@ class Database:
                 cursor.execute("ALTER TABLE travailleurs ADD COLUMN site_id INTEGER DEFAULT 1")
             except sqlite3.OperationalError:
                 pass
+
+        # Migration: s'assurer que la contrainte d'unicité porte sur (nom, site_id) et non sur nom seul
+        try:
+            cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='travailleurs'")
+            row = cursor.fetchone()
+            table_sql = row[0] if row else ''
+            needs_migration = ('nom TEXT UNIQUE' in table_sql) and ('UNIQUE(nom, site_id)' not in table_sql)
+        except Exception:
+            needs_migration = False
+
+        if needs_migration:
+            try:
+                # Désactiver les FK pour la migration de schéma
+                cursor.execute("PRAGMA foreign_keys=OFF")
+                cursor.execute("BEGIN TRANSACTION")
+                # Renommer l'ancienne table
+                cursor.execute("ALTER TABLE travailleurs RENAME TO travailleurs_old")
+                # Recréer la table avec la bonne contrainte d'unicité composite
+                cursor.execute('''
+                CREATE TABLE travailleurs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nom TEXT NOT NULL,
+                    nb_shifts_souhaites INTEGER NOT NULL,
+                    site_id INTEGER DEFAULT 1,
+                    FOREIGN KEY (site_id) REFERENCES sites (id),
+                    UNIQUE(nom, site_id)
+                )
+                ''')
+                # Copier les données en conservant les ids
+                cursor.execute('''
+                    INSERT INTO travailleurs (id, nom, nb_shifts_souhaites, site_id)
+                    SELECT id, nom, nb_shifts_souhaites, COALESCE(site_id, 1) FROM travailleurs_old
+                ''')
+                # Supprimer l'ancienne table
+                cursor.execute("DROP TABLE travailleurs_old")
+                cursor.execute("COMMIT")
+            except Exception:
+                cursor.execute("ROLLBACK")
+            finally:
+                try:
+                    cursor.execute("PRAGMA foreign_keys=ON")
+                except Exception:
+                    pass
+
+        # S'assurer qu'un index unique composite existe (au cas où)
+        try:
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_travailleurs_nom_site ON travailleurs(nom, site_id)")
+        except Exception:
+            pass
         
         # Table des disponibilités
         cursor.execute('''
