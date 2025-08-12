@@ -156,7 +156,9 @@ jobs:
               Copy-Item "assets/app.ico" "Sidour-avoda-Tzora-chevron/assets/app.ico" -Force
             }
           }
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "Sidour-avoda-Tzora-chevron\windows_installer.iss"
+          $ver = "${{ github.ref_name }}"
+          if (-not $ver) { $ver = "v0.0.0" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyVersion=$ver" "Sidour-avoda-Tzora-chevron\windows_installer.iss"
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
