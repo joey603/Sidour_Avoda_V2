@@ -2259,13 +2259,26 @@ class InterfacePlanning:
         # Créer une nouvelle fenêtre
         sites_window = tk.Toplevel(self.root)
         sites_window.title("Manage Site")
-        sites_window.geometry("1000x650")
+        # Agrandir la fenêtre pour afficher confortablement tous les composants
+        sites_window.geometry("1200x800")
         sites_window.configure(bg="#f0f0f0")
         sites_window.transient(self.root)
         sites_window.grab_set()
         try:
             sites_window.update_idletasks()
-            sites_window.minsize(900, 550)
+            sites_window.minsize(1100, 720)
+            # Centrer par rapport à la fenêtre principale
+            rw = self.root.winfo_width(); rh = self.root.winfo_height()
+            rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
+            width, height = 1200, 800
+            if rw and rh and rw > 1 and rh > 1:
+                x = rx + max(0, (rw - width) // 2)
+                y = ry + max(0, (rh - height) // 2)
+            else:
+                sw = sites_window.winfo_screenwidth(); sh = sites_window.winfo_screenheight()
+                x = max(0, (sw - width) // 2)
+                y = max(0, (sh - height) // 2)
+            sites_window.geometry(f"{width}x{height}+{x}+{y}")
         except Exception:
             pass
         
@@ -2279,10 +2292,13 @@ class InterfacePlanning:
         settings_frame = ttk.LabelFrame(main_frame, text="Selected site settings", padding=10)
         settings_frame.pack(fill="x", pady=(0, 20))
 
-        ttk.Label(settings_frame, text="Shifts:").grid(row=0, column=0, sticky="w", pady=(5, 0))
-        # Contrôles pour Morning / Afternoon / Night
-        controls_frame = ttk.Frame(settings_frame)
-        controls_frame.grid(row=0, column=1, sticky="ew", padx=(10, 0), pady=(5, 0))
+        # Sous-sections centrées et espacées: Shifts / Active days / Required staff
+        lf_shifts = ttk.LabelFrame(settings_frame, text="Shifts", padding=8)
+        lf_shifts.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(6, 10))
+        lf_shifts.columnconfigure(0, weight=1)
+        # Contrôles pour Morning / Afternoon / Night (centrés)
+        controls_frame = ttk.Frame(lf_shifts)
+        controls_frame.pack(anchor="center")
         controls_frame.columnconfigure(0, weight=1)
         controls_frame.columnconfigure(1, weight=1)
         controls_frame.columnconfigure(2, weight=1)
@@ -2350,9 +2366,10 @@ class InterfacePlanning:
         night_check.configure(command=update_spin_states)
         update_spin_states()
 
-        ttk.Label(settings_frame, text="Active days:").grid(row=1, column=0, sticky="w", pady=5)
-        days_frame = ttk.Frame(settings_frame)
-        days_frame.grid(row=1, column=1, sticky="w", padx=(10, 0), pady=5)
+        lf_days = ttk.LabelFrame(settings_frame, text="Active days", padding=8)
+        lf_days.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 10))
+        days_frame = ttk.Frame(lf_days)
+        days_frame.pack(anchor="center")
         # Map English labels to French keys used en base
         day_order = [
             ("Sunday", "dimanche"),
@@ -2416,35 +2433,96 @@ class InterfacePlanning:
                     pass
 
         # Capacités par jour/shift
-        ttk.Label(settings_frame, text="Required staff (per day/shift):").grid(row=2, column=0, sticky="nw", pady=(10,0))
-        capacities_frame = ttk.Frame(settings_frame)
-        capacities_frame.grid(row=2, column=1, sticky="ew", padx=(10,0), pady=(10,0))
-        capacities_vars = {}
+        lf_caps = ttk.LabelFrame(settings_frame, text="Required staff (per day/shift)", padding=8)
+        lf_caps.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 10))
+        capacities_frame = ttk.Frame(lf_caps)
+        capacities_frame.pack(anchor="center")
+        # Conserver les valeurs par type de shift (morning/afternoon/night)
+        capacities_vars_types = {"morning": {}, "afternoon": {}, "night": {}}
+        # Helpers pour construire shifts/jours depuis l'UI
+        def build_shifts_ms():
+            shifts_list = []
+            try:
+                if morning_var.get():
+                    shifts_list.append(f"{int(morning_start_var.get()):02d}-{int(morning_end_var.get()):02d}")
+                if afternoon_var.get():
+                    shifts_list.append(f"{int(afternoon_start_var.get()):02d}-{int(afternoon_end_var.get()):02d}")
+                if night_var.get():
+                    shifts_list.append(f"{int(night_start_var.get()):02d}-{int(night_end_var.get()):02d}")
+            except Exception:
+                pass
+            return shifts_list
+        def enabled_types_order():
+            types = []
+            if morning_var.get(): types.append("morning")
+            if afternoon_var.get(): types.append("afternoon")
+            if night_var.get(): types.append("night")
+            return types
+        def label_for_type(t: str) -> str:
+            if t == "morning":
+                return f"{int(morning_start_var.get()):02d}-{int(morning_end_var.get()):02d}"
+            if t == "afternoon":
+                return f"{int(afternoon_start_var.get()):02d}-{int(afternoon_end_var.get()):02d}"
+            if t == "night":
+                return f"{int(night_start_var.get()):02d}-{int(night_end_var.get()):02d}"
+            return t
+        def get_active_days_ms():
+            try:
+                return [key_fr for _, key_fr in day_order if day_vars[key_fr].get()]
+            except Exception:
+                return list(Horaire.JOURS)
         # Bâtir une grille dynamique des jours vs shifts avec Spinbox de 1..10
         def rebuild_capacities_grid():
             for child in capacities_frame.winfo_children():
                 child.destroy()
-            shifts, jours = [], []
+            shifts = build_shifts_ms()
+            jours = get_active_days_ms()
+            if not shifts or not jours:
+                return
+            # Valeurs par défaut depuis la DB (pour première init uniquement)
             try:
                 dbtmp = Database()
-                shifts, jours = dbtmp.charger_reglages_site(self.site_actuel_id)
                 saved_caps = dbtmp.charger_capacites_site(self.site_actuel_id)
             except Exception:
-                shifts, jours = (list(Horaire.SHIFTS.values()), list(Horaire.JOURS))
                 saved_caps = {j: {s: 1 for s in shifts} for j in jours}
             # entêtes
             ttk.Label(capacities_frame, text="Day").grid(row=0, column=0, padx=4, pady=2)
-            for ci, s in enumerate(shifts, 1):
-                ttk.Label(capacities_frame, text=s).grid(row=0, column=ci, padx=4, pady=2)
+            t_order = enabled_types_order()
+            for ci, t in enumerate(t_order, 1):
+                ttk.Label(capacities_frame, text=label_for_type(t)).grid(row=0, column=ci, padx=4, pady=2)
             # lignes
             for ri, j in enumerate(jours, 1):
                 ttk.Label(capacities_frame, text=self.traduire_jour(j)).grid(row=ri, column=0, padx=4, pady=2, sticky="w")
-                for ci, s in enumerate(shifts, 1):
-                    var = tk.StringVar(value=str(saved_caps.get(j, {}).get(s, 1)))
-                    capacities_vars.setdefault(j, {})[s] = var
+                for ci, t in enumerate(t_order, 1):
+                    # Conserver la même variable par type pour ne jamais perdre la valeur lors d'un changement d'horaire
+                    var = capacities_vars_types[t].get(j)
+                    if var is None:
+                        # Première initialisation: tenter de lire la valeur DB du label courant
+                        s_lbl = label_for_type(t)
+                        default_val = str(saved_caps.get(j, {}).get(s_lbl, 1))
+                        var = tk.StringVar(value=default_val)
+                        capacities_vars_types[t][j] = var
                     sb = tk.Spinbox(capacities_frame, from_=1, to=10, width=3, textvariable=var)
                     sb.grid(row=ri, column=ci, padx=2, pady=2)
         rebuild_capacities_grid()
+        # Rebuild dynamique lorsque l'UI change
+        try:
+            # Quand on (dé)coche un shift
+            morning_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            afternoon_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            night_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            # Quand les heures changent
+            morning_start_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            morning_end_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            afternoon_start_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            afternoon_end_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            night_start_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            night_end_var.trace_add('write', lambda *args: rebuild_capacities_grid())
+            # Quand les jours actifs changent
+            for _, key_fr in day_order:
+                day_vars[key_fr].trace_add('write', lambda *args: rebuild_capacities_grid())
+        except Exception:
+            pass
 
         def sauvegarder_reglages_site_courant():
             if not self.site_actuel_id:
@@ -2527,13 +2605,17 @@ class InterfacePlanning:
                 return
             # Capacités
             required_counts = {}
-            for j, m in capacities_vars.items():
+            # Cartographier par label courant pour chaque type actif
+            t_order = enabled_types_order()
+            for j in get_active_days_ms():
                 required_counts[j] = {}
-                for s, v in m.items():
+                for t in t_order:
+                    s_lbl = label_for_type(t)
                     try:
-                        required_counts[j][s] = int(v.get())
+                        v = capacities_vars_types.get(t, {}).get(j)
+                        required_counts[j][s_lbl] = int(v.get()) if v else 1
                     except Exception:
-                        required_counts[j][s] = 1
+                        required_counts[j][s_lbl] = 1
             dbs = Database()
             dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts)
             messagebox.showinfo("Success", "Site settings saved")
@@ -3122,15 +3204,15 @@ class InterfacePlanning:
         ttk.Entry(main, textvariable=desc_var, width=30).grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(6, 0))
         main.columnconfigure(1, weight=1)
 
-        # Shifts (Morning/Afternoon/Night)
+        # Shifts (Morning/Afternoon/Night) - centré et espacé
         settings_frame = ttk.LabelFrame(main, text="Shifts", padding=10)
-        settings_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(12, 8))
+        settings_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(12, 12))
 
         def make_hour_spinbox(parent, var):
             return tk.Spinbox(parent, from_=0, to=23, wrap=True, width=3, textvariable=var, state="normal", format="%02.0f")
 
         controls_frame = ttk.Frame(settings_frame)
-        controls_frame.pack(fill="x")
+        controls_frame.pack(anchor="center")
         morning_var = tk.BooleanVar(value=True)
         afternoon_var = tk.BooleanVar(value=True)
         night_var = tk.BooleanVar(value=True)
@@ -3162,16 +3244,18 @@ class InterfacePlanning:
         ttk.Label(nf, text="End:").grid(row=1, column=2, sticky="w")
         n_end = tk.StringVar(value="06"); n_end_sb = make_hour_spinbox(nf, n_end); n_end_sb.grid(row=1, column=3)
 
-        # Days
+        # Days - centré et espacé
         days_frame = ttk.LabelFrame(main, text="Active days", padding=10)
-        days_frame.grid(row=3, column=0, columnspan=2, sticky="ew")
+        days_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 12))
+        days_inner = ttk.Frame(days_frame)
+        days_inner.pack(anchor="center")
         day_order = [
             ("Sunday", "dimanche"), ("Monday", "lundi"), ("Tuesday", "mardi"),
             ("Wednesday", "mercredi"), ("Thursday", "jeudi"), ("Friday", "vendredi"), ("Saturday", "samedi")
         ]
         day_vars = {key_fr: tk.BooleanVar(value=True) for _, key_fr in day_order}
         for i, (en, fr) in enumerate(day_order):
-            ttk.Checkbutton(days_frame, text=en, variable=day_vars[fr]).grid(row=i // 4, column=i % 4, padx=4, pady=2, sticky="w")
+            ttk.Checkbutton(days_inner, text=en, variable=day_vars[fr]).grid(row=i // 4, column=i % 4, padx=6, pady=4, sticky="w")
 
         def build_shifts():
             shifts = []
@@ -3188,10 +3272,10 @@ class InterfacePlanning:
 
         # Required staff (capacities)
         caps_group = ttk.LabelFrame(main, text="Required staff (per day/shift)", padding=10)
-        caps_group.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(12, 8))
+        caps_group.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 12))
         caps_vars = {}
         caps_frame = ttk.Frame(caps_group)
-        caps_frame.pack(fill="x")
+        caps_frame.pack(anchor="center")
 
         def rebuild_caps_grid():
             # Reconstruire la grille selon shifts/days actifs
