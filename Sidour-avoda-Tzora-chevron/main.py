@@ -109,7 +109,8 @@ def _download_and_launch_installer(installer_url: str, tk_root=None):
         with open(installer_path, "wb") as f:
             f.write(content)
         # Launch installer silently if possible, then exit app
-        flags = ["/VERYSILENT", "/NORESTART"]
+        # /CLOSEAPPLICATIONS and /RESTARTAPPLICATIONS demand the app to register itself, but we rely on relaunch in installer [Run]
+        flags = ["/VERYSILENT", "/NORESTART", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"]
         try:
             subprocess.Popen([installer_path] + flags, close_fds=True, shell=False)
         except Exception:
