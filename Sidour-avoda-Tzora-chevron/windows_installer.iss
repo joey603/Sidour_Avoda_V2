@@ -11,6 +11,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
+SetupIconFile=assets\\app.ico
 
 [Files]
 ; Sortie PyInstaller (nom sans espace): dist\SidourAvoda\*

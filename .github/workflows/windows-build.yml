@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller
+          pip install pyinstaller pillow
           if (Test-Path "requirements.txt") {
             pip install -r requirements.txt
           } elseif (Test-Path "Sidour-avoda-Tzora-chevron/requirements.txt") {
@@ -36,13 +36,53 @@ jobs:
             Write-Host "No requirements.txt found, continuing with PyInstaller only."
           }
 
+      - name: Prepare icon (.ico from PNG if needed)
+        shell: pwsh
+        run: |
+          $pngCandidates = @(
+            "Sidour-avoda-Tzora-chevron/assets/calender-2389150_960_720.png",
+            "assets/calender-2389150_960_720.png"
+          )
+          $icoTargets = @(
+            "Sidour-avoda-Tzora-chevron/assets/app.ico",
+            "assets/app.ico"
+          )
+          $icoExists = $false
+          foreach ($p in $icoTargets) { if (Test-Path $p) { $icoExists = $true } }
+          if (-not $icoExists) {
+            $pngPath = $null
+            foreach ($c in $pngCandidates) { if (Test-Path $c) { $pngPath = $c; break } }
+            if ($pngPath) {
+              $targetIco = if ($pngPath -like "Sidour-avoda-Tzora-chevron/*") { "Sidour-avoda-Tzora-chevron/assets/app.ico" } else { "assets/app.ico" }
+              $targetDir = Split-Path $targetIco -Parent
+              if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Force -Path $targetDir | Out-Null }
+              Write-Host "Converting $pngPath to $targetIco"
+              $env:PNG_SRC = $pngPath
+              $env:ICO_DST = $targetIco
+              $py = @"
+import os
+from PIL import Image
+src = os.environ['PNG_SRC']
+dst = os.environ['ICO_DST']
+sizes = [(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)]
+img = Image.open(src).convert('RGBA')
+img.save(dst, format='ICO', sizes=sizes)
+print(f"ICO written: {dst}")
+"@
+              $tmp = Join-Path $env:TEMP "make_ico.py"
+              $py | Out-File -FilePath $tmp -Encoding utf8
+              python $tmp
+            }
+          }
+
       - name: Build portable exe with PyInstaller
         shell: pwsh
         run: |
           $proj = if (Test-Path "Sidour-avoda-Tzora-chevron/main.py") { "Sidour-avoda-Tzora-chevron" } elseif (Test-Path "main.py") { "." } else { "." }
           Set-Location $proj
           $main = "main.py"
-          $icon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
+          $icon = if (Test-Path "assets/app.ico") { "assets/app.ico" } elseif (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
+          $pngIcon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
           $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
 
           $piArgs = @("--noconsole", "--name", "SidourAvoda", "--clean")
@@ -52,10 +92,13 @@ jobs:
           $hidden = @('interface','planning','database','horaire','travailleur','tkinter','tkinter.ttk')
           foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
           if ($icon) {
-            $piArgs += @("--icon", $icon, "--add-data", "$icon;assets")
+            $piArgs += @("--icon", $icon)
           }
           if ($db) {
             $piArgs += @("--add-data", "$db;.")
+          }
+          if ($pngIcon) {
+            $piArgs += @("--add-data", "$pngIcon;assets")
           }
           # Ajouter interface.py comme data pour fallback de chargement runtime
           if (Test-Path "interface.py") {
