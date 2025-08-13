@@ -602,8 +602,8 @@ class InterfacePlanning:
         
         try:
             nb_shifts = int(nb_shifts_str)
-            if nb_shifts <= 0:
-                raise ValueError("The number of shifts must be positive")
+            if nb_shifts < 0:
+                raise ValueError("The number of shifts must be non-negative")
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid number of shifts")
             return False
@@ -619,9 +619,7 @@ class InterfacePlanning:
             if shifts_dispo:
                 disponibilites[jour] = shifts_dispo
         
-        if not disponibilites:
-            messagebox.showerror("Error", "Please select at least one availability")
-            return False
+        # Autoriser aucune disponibilité (ex: vacances)
         
         # Créer ou mettre à jour le travailleur
         if self.mode_edition and self.travailleur_en_edition:

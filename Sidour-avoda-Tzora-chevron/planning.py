@@ -322,6 +322,9 @@ class Planning:
                     for _ in range(cap):
                         travailleurs_disponibles = []
                         for travailleur in self.travailleurs:
+                            # Ignorer ceux avec 0 shifts souhaités (ex: vacances)
+                            if getattr(travailleur, 'nb_shifts_souhaites', 0) == 0:
+                                continue
                             if travailleur.nom in assigned_names:
                                 continue
                             conditions_ok = (
@@ -406,7 +409,7 @@ class Planning:
             sc = self.calculer_score_planning(cand)
             if abs(sc - meilleur_score) <= 20:
                 sig = self._signature_planning(cand)
-                if sig not in signatures_vues:
+                if sig not in signatures_vues and self._planning_respects_disponibilites(cand):
                     alternatives.append(copy.deepcopy(cand))
                     signatures_vues.add(sig)
         self.alternatives = alternatives if alternatives else [copy.deepcopy(self.planning)]
@@ -440,6 +443,21 @@ class Planning:
     def _write_names_in_cell(self, planning_dict, jour, shift, names_list):
         planning_dict[jour][shift] = " / ".join(names_list) if names_list else None
 
+    def _planning_respects_disponibilites(self, planning_dict) -> bool:
+        """Retourne True si toutes les affectations respectent les disponibilités des travailleurs."""
+        if not planning_dict:
+            return True
+        for jour, shifts_map in planning_dict.items():
+            for shift, val in shifts_map.items():
+                if not val:
+                    continue
+                noms = [n.strip() for n in str(val).split(" / ") if n.strip()]
+                for nom in noms:
+                    t = self._get_travailleur_par_nom(nom)
+                    if not t or not t.est_disponible(jour, shift):
+                        return False
+        return True
+
     def _generate_same_day_swaps(self, planning_base):
         candidats = []
         jours = list(planning_base.keys())
@@ -468,7 +486,8 @@ class Planning:
                             or self.travailleur_travaille_jour(nom, jour, cand)
                             or self.atteint_limite(nom, s2, cand)):
                             continue
-                        candidats.append(cand)
+                        if self._planning_respects_disponibilites(cand):
+                            candidats.append(cand)
         return candidats
 
     def next_alternative(self):
@@ -669,6 +688,9 @@ class Planning:
             travailleurs_disponibles = []
             for travailleur in self.travailleurs:
                 if travailleur.est_disponible(jour, shift):
+                    # Ignorer ceux avec 0 souhaités
+                    if getattr(travailleur, 'nb_shifts_souhaites', 0) == 0:
+                        continue
                     # Interdire deux gardes le même jour et gardes adjacentes
                     if self.travailleur_travaille_jour(travailleur.nom, jour) or self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift):
                         print(f"  {travailleur.nom} a un shift adjacent, ignoré")
@@ -698,6 +720,8 @@ class Planning:
                 print("  Assouplissement des contraintes...")
                 for travailleur in self.travailleurs:
                     if travailleur.est_disponible(jour, shift):
+                        if getattr(travailleur, 'nb_shifts_souhaites', 0) == 0:
+                            continue
                         # Même en assouplissement, interdire gardes consécutives/deux le même jour et respecter la limite
                         if (self.travailleur_travaille_jour(travailleur.nom, jour)
                             or self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift)
