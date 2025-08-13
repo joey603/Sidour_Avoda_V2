@@ -87,31 +87,31 @@ jobs:
           ln -s /Applications "$STAGE/Applications" || true
           # Add a README with manual open instructions (Gatekeeper)
           cat > "$STAGE/README-FIRST.txt" <<'TXT'
-Sidour Avoda - macOS
-====================
-
-Cette app n'est pas signée/notarisée par Apple.
-Au premier lancement, macOS peut afficher un avertissement Gatekeeper.
-
-Options pour ouvrir:
-1) Finder > clic droit sur "SidourAvoda.app" > Ouvrir > Ouvrir
-2) Ou exécuter le script "Remove Quarantine and Open.command"
-
-Le script (option 2) supprime l'attribut de quarantaine et lance l'app.
-TXT
+          Sidour Avoda - macOS
+          ====================
+          
+          Cette app n'est pas signée/notarisée par Apple.
+          Au premier lancement, macOS peut afficher un avertissement Gatekeeper.
+          
+          Options pour ouvrir:
+          1) Finder > clic droit sur "SidourAvoda.app" > Ouvrir > Ouvrir
+          2) Ou exécuter le script "Remove Quarantine and Open.command"
+          
+          Le script (option 2) supprime l'attribut de quarantaine et lance l'app.
+          TXT
           # Add a helper script to remove quarantine and open the app
           cat > "$STAGE/Remove Quarantine and Open.command" <<'SH'
-#!/bin/bash
-set -euo pipefail
-DIR="$(cd "$(dirname "$0")" && pwd)"
-APP="$DIR/SidourAvoda.app"
-if [ ! -d "$APP" ]; then
-  echo "App introuvable: $APP"; exit 1
-fi
-echo "Suppression de la quarantaine (peut demander votre mot de passe/autorisation)"
-xattr -dr com.apple.quarantine "$APP" || true
-open "$APP"
-SH
+          #!/bin/bash
+          set -euo pipefail
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          APP="$DIR/SidourAvoda.app"
+          if [ ! -d "$APP" ]; then
+            echo "App introuvable: $APP"; exit 1
+          fi
+          echo "Suppression de la quarantaine (peut demander votre mot de passe/autorisation)"
+          xattr -dr com.apple.quarantine "$APP" || true
+          open "$APP"
+          SH
           chmod +x "$STAGE/Remove Quarantine and Open.command"
           hdiutil create -volname "SidourAvoda" -srcfolder "$STAGE" -ov -format UDZO "$DMG_NAME"
           echo "DMG created: $DMG_NAME"
