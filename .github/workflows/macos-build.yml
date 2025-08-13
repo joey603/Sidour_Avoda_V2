@@ -100,7 +100,7 @@ Options pour ouvrir:
 Le script (option 2) supprime l'attribut de quarantaine et lance l'app.
 TXT
           # Add a helper script to remove quarantine and open the app
-          cat > "$STAGE/Remove Quarantine and Open.command" << 'SH'
+          cat > "$STAGE/Remove Quarantine and Open.command" <<'SH'
 #!/bin/bash
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
