@@ -846,7 +846,18 @@ class InterfacePlanning:
             # Ne pas appeler messagebox ici (thread worker). Signaler via valeur spéciale
             return None
         
-        # Générer un planning initial
+        # Recréer un objet Planning basé sur le site courant et les réglages sauvegardés
+        try:
+            jours = self.reglages_site.get('jours') if hasattr(self, 'reglages_site') else list(Horaire.JOURS)
+            shifts = self.reglages_site.get('shifts') if hasattr(self, 'reglages_site') else list(Horaire.SHIFTS.values())
+        except Exception:
+            jours = list(Horaire.JOURS)
+            shifts = list(Horaire.SHIFTS.values())
+        new_planning = Planning(site_id=self.site_actuel_id, jours=jours, shifts=shifts)
+        new_planning.travailleurs = self.planning.travailleurs
+        self.planning = new_planning
+
+        # Générer un planning initial (capacité/limites rechargées depuis la DB par Planning)
         self.planning.generer_planning(mode_12h=False)
         
         # Essayer plusieurs générations et garder la meilleure
@@ -857,7 +868,7 @@ class InterfacePlanning:
         
         # Essayer 15 générations supplémentaires pour trouver un meilleur planning
         for _ in range(15):
-            planning_test = Planning()
+            planning_test = Planning(site_id=self.site_actuel_id, jours=jours, shifts=shifts)
             planning_test.travailleurs = self.planning.travailleurs.copy()
             planning_test.generer_planning(mode_12h=False)
             
@@ -871,7 +882,9 @@ class InterfacePlanning:
             if (evaluation < meilleure_evaluation or 
                 (evaluation == meilleure_evaluation and repartition_nuit < meilleure_repartition_nuit) or
                 (evaluation == meilleure_evaluation and repartition_nuit == meilleure_repartition_nuit and proximite < meilleure_proximite)):
-                meilleur_planning = {j: {s: planning_test.planning[j][s] for s in Horaire.SHIFTS.values()} for j in Horaire.JOURS}
+                jours_dyn2 = list(planning_test.planning.keys())
+                shifts_dyn2 = list(next(iter(planning_test.planning.values())).keys()) if planning_test.planning else []
+                meilleur_planning = {j: {s: planning_test.planning[j][s] for s in shifts_dyn2} for j in jours_dyn2}
                 meilleure_evaluation = evaluation
                 meilleure_repartition_nuit = repartition_nuit
                 meilleure_proximite = proximite
@@ -2577,7 +2590,7 @@ class InterfacePlanning:
             cont = ttk.Frame(parent)
             cont.grid(row=0, column=col, padx=10, sticky="ew")
             ttk.Label(cont, text=label).grid(row=0, column=0, padx=(0, 6))
-            sb = tk.Spinbox(cont, from_=0, to=10, width=3, textvariable=var)
+            sb = tk.Spinbox(cont, from_=0, to=7, width=3, textvariable=var)
             sb.grid(row=0, column=1)
             def _upd_state(*_):
                 try:
@@ -3477,7 +3490,7 @@ class InterfacePlanning:
             cont = ttk.Frame(parent)
             cont.grid(row=0, column=col, padx=10, sticky="w")
             ttk.Label(cont, text=label).grid(row=0, column=0, padx=(0, 6))
-            sb = tk.Spinbox(cont, from_=0, to=10, width=3, textvariable=var)
+            sb = tk.Spinbox(cont, from_=0, to=7, width=3, textvariable=var)
             sb.grid(row=0, column=1)
             def _upd_state(*_):
                 try:

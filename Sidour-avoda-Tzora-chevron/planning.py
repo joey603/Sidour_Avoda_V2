@@ -456,6 +456,10 @@ class Planning:
                         # Interdire dépassement de capacité et double garde le même jour
                         if len(noms_s2) >= cap_s2 or nom in noms_s2:
                             continue
+                        # Respecter les disponibilités du travailleur pour le shift cible
+                        t_obj = self._get_travailleur_par_nom(nom)
+                        if not t_obj or not t_obj.est_disponible(jour, s2):
+                            continue
                         cand = copy.deepcopy(planning_base)
                         self._write_names_in_cell(cand, jour, s1, [n for n in noms_s1 if n != nom])
                         self._write_names_in_cell(cand, jour, s2, noms_s2 + [nom])
