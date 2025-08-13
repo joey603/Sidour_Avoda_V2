@@ -352,7 +352,14 @@ class Planning:
                             return (ratio, deficit, t.shifts_assignes)
                         travailleurs_disponibles.sort(key=_fairness_key)
                         # Éviter deux gardes d'affilée en priorité
-                        choisi = next((t for t in travailleurs_disponibles if not self.travailleur_a_shift_adjacent(t.nom, jour, shift, planning_test) and not self.travailleur_travaille_jour(t.nom, jour, planning_test)), travailleurs_disponibles[0])
+                        def _pick(cs):
+                            for t in cs:
+                                if (t.est_disponible(jour, shift)
+                                    and not self.travailleur_a_shift_adjacent(t.nom, jour, shift, planning_test)
+                                    and not self.travailleur_travaille_jour(t.nom, jour, planning_test)):
+                                    return t
+                            return cs[0]
+                        choisi = _pick(travailleurs_disponibles)
                         assigned_names.append(choisi.nom)
                         choisi.shifts_assignes += 1
                         planning_test[jour][shift] = " / ".join(assigned_names)
@@ -550,30 +557,29 @@ class Planning:
                 if not travailleur:
                     continue
 
-                # Conditions pour déplacer ce shift vers le jour à trous:
-                # - travailleur disponible ce jour et ce shift
-                # - pas de shift adjacent créé
-                # - pas dépasser limites (nuit, jours consécutifs)
-                if (travailleur.est_disponible(jour_trop_trous, shift) and
-                    # interdire deux gardes le même jour, même non adjacentes
-                    not self.travailleur_travaille_jour(travailleur.nom, jour_trop_trous, planning) and
-                    # interdire adjacence
-                    not self.travailleur_a_shift_adjacent(travailleur.nom, jour_trop_trous, shift, planning) and
-                    # respecter la limite par personne pour ce label
-                    not self.atteint_limite(travailleur.nom, shift, planning) and
-                    # borne sur jours consécutifs
-                    self.compter_jours_consecutifs(travailleur.nom, jour_trop_trous, planning) < 6):
+                # Conditions de base pour envisager un déplacement (seront revalidées par case cible)
+                if (
+                    # ne pas déjà travailler ce jour
+                    not self.travailleur_travaille_jour(travailleur.nom, jour_trop_trous, planning)
+                    and self.compter_jours_consecutifs(travailleur.nom, jour_trop_trous, planning) < 6
+                ):
 
                     # Trouver une case vide dans le jour surchargé
                     for shift_cible in shifts:
                         if planning[jour_trop_trous][shift_cible] is None:
-                            # Déplacer
-                            planning[jour_trop_trous][shift_cible] = nom_travailleur
-                            planning[jour_sans_trou][shift] = None
-                            trous_par_jour[jour_trop_trous] -= 1
-                            trous_par_jour[jour_sans_trou] += 1
-                            deplace = True
-                            break
+                            # Vérifier la disponibilité et les contraintes pour la case cible réelle
+                            if (
+                                travailleur.est_disponible(jour_trop_trous, shift_cible)
+                                and not self.travailleur_a_shift_adjacent(travailleur.nom, jour_trop_trous, shift_cible, planning)
+                                and not self.atteint_limite(travailleur.nom, shift_cible, planning)
+                            ):
+                                # Déplacer
+                                planning[jour_trop_trous][shift_cible] = nom_travailleur
+                                planning[jour_sans_trou][shift] = None
+                                trous_par_jour[jour_trop_trous] -= 1
+                                trous_par_jour[jour_sans_trou] += 1
+                                deplace = True
+                                break
                 if deplace:
                     break
 
@@ -744,13 +750,13 @@ class Planning:
                     return (deficit, ratio, t.shifts_assignes)
 
                 # Priorité supplémentaire: placer d'abord ceux en dessous de leur souhait
-                sous_objectif = [t for t in travailleurs_disponibles if t.shifts_assignes < t.nb_shifts_souhaites]
+                sous_objectif = [t for t in travailleurs_disponibles if t.shifts_assignes < t.nb_shifts_souhaites and t.est_disponible(jour, shift)]
                 if sous_objectif:
                     sous_objectif.sort(key=_fairness_key_fill)
-                    travailleur = next((t for t in sous_objectif if not self.travailleur_a_shift_adjacent(t.nom, jour, shift)), sous_objectif[0])
+                    travailleur = next((t for t in sous_objectif if t.est_disponible(jour, shift) and not self.travailleur_a_shift_adjacent(t.nom, jour, shift)), sous_objectif[0])
                 else:
                     travailleurs_disponibles.sort(key=_fairness_key_fill)
-                    travailleur = next((t for t in travailleurs_disponibles if not self.travailleur_a_shift_adjacent(t.nom, jour, shift)), travailleurs_disponibles[0])
+                    travailleur = next((t for t in travailleurs_disponibles if t.est_disponible(jour, shift) and not self.travailleur_a_shift_adjacent(t.nom, jour, shift)), travailleurs_disponibles[0])
                 print(f"  Assignation à {travailleur.nom} (shifts assignés: {travailleur.shifts_assignes})")
                 
                 # Ne pas affecter si cela crée deux gardes d'affilée
