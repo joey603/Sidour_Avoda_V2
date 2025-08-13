@@ -60,6 +60,7 @@ class Database:
             shifts TEXT,           -- liste séparée par des virgules, ex: "06-14,14-22,22-06"
             active_days TEXT,      -- liste séparée par des virgules, ex: "lundi,mardi,mercredi"
             required_counts TEXT,  -- JSON des capacités par jour/shift
+            max_per_person TEXT,   -- JSON des limites par personne et par shift (label -> int, 0 = illimité)
             FOREIGN KEY (site_id) REFERENCES sites (id)
         )
         ''')
@@ -199,8 +200,8 @@ class Database:
                          ("Site principal", "Site par défaut"))
             # Réglages par défaut: 3 shifts et tous les jours actifs
             cursor.execute(
-                "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days, required_counts) VALUES (1, ?, ?, ?)",
-                ("06-14,14-22,22-06", "dimanche,lundi,mardi,mercredi,jeudi,vendredi,samedi", json.dumps({}))
+                "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days, required_counts, max_per_person) VALUES (1, ?, ?, ?, ?)",
+                ("06-14,14-22,22-06", "dimanche,lundi,mardi,mercredi,jeudi,vendredi,samedi", json.dumps({}), json.dumps({"06-14": 6, "14-22": 6, "22-06": 6}))
             )
         else:
             # S'assurer que la colonne required_counts existe
@@ -209,6 +210,14 @@ class Database:
             if 'required_counts' not in cols:
                 try:
                     cursor.execute("ALTER TABLE site_settings ADD COLUMN required_counts TEXT")
+                except sqlite3.OperationalError:
+                    pass
+            # S'assurer que la colonne max_per_person existe
+            cursor.execute("PRAGMA table_info(site_settings)")
+            cols = [c[1] for c in cursor.fetchall()]
+            if 'max_per_person' not in cols:
+                try:
+                    cursor.execute("ALTER TABLE site_settings ADD COLUMN max_per_person TEXT")
                 except sqlite3.OperationalError:
                     pass
         
@@ -474,21 +483,34 @@ class Database:
         return plannings
 
     # Réglages de site: sauvegarde/chargement
-    def sauvegarder_reglages_site(self, site_id, shifts_list, active_days_list, required_counts: dict | None = None):
-        """Sauvegarde les réglages de shifts et jours actifs d'un site. Optionnellement, enregistre les capacités par jour/shift."""
+    def sauvegarder_reglages_site(self, site_id, shifts_list, active_days_list, required_counts: dict | None = None, max_per_person: dict | None = None):
+        """Sauvegarde les réglages de shifts et jours actifs d'un site.
+        Optionnellement, enregistre les capacités par jour/shift et les limites par personne (par label de shift)."""
         conn = self.connect()
         cursor = conn.cursor()
         shifts_text = ",".join(shifts_list)
         days_text = ",".join(active_days_list)
-        if required_counts is not None:
+        if required_counts is not None or max_per_person is not None:
             try:
                 rc_text = json.dumps(required_counts)
             except Exception:
                 rc_text = json.dumps({})
-            cursor.execute(
-                "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days, required_counts) VALUES (?, ?, ?, ?)",
-                (site_id, shifts_text, days_text, rc_text)
-            )
+            try:
+                mp_text = json.dumps(max_per_person) if max_per_person is not None else None
+            except Exception:
+                mp_text = None
+            # Choisir la requête en fonction de la présence de la colonne max_per_person
+            try:
+                cursor.execute(
+                    "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days, required_counts, max_per_person) VALUES (?, ?, ?, ?, ?)",
+                    (site_id, shifts_text, days_text, rc_text, mp_text)
+                )
+            except Exception:
+                # Fallback si colonne absente
+                cursor.execute(
+                    "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days, required_counts) VALUES (?, ?, ?, ?)",
+                    (site_id, shifts_text, days_text, rc_text)
+                )
         else:
             cursor.execute(
                 "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days) VALUES (?, ?, ?)",
@@ -539,6 +561,43 @@ class Database:
                     v = 1
                 fixed[j][s] = max(1, v)
         return fixed
+
+    def charger_limites_par_personne(self, site_id):
+        """Retourne un dict {shift_label: int} où 0 signifie illimité. Par défaut {'22-06': 3}."""
+        conn = self.connect()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT max_per_person, shifts FROM site_settings WHERE site_id = ?", (site_id,))
+            row = cursor.fetchone()
+        except Exception:
+            row = None
+        self.close()
+        limites = {}
+        if row:
+            try:
+                raw = row[0] if isinstance(row, (list, tuple)) else row['max_per_person'] if row and 'max_per_person' in row.keys() else None
+            except Exception:
+                raw = None
+            if raw:
+                try:
+                    limites = json.loads(raw) or {}
+                except Exception:
+                    limites = {}
+        # Valeur par défaut pour la nuit si présente dans les shifts standards
+        if not limites:
+            try:
+                shifts_text = row[1] if isinstance(row, (list, tuple)) else row['shifts']
+                shifts = [s.strip() for s in shifts_text.split(',') if s.strip()] if shifts_text else []
+            except Exception:
+                shifts = []
+            # Défauts raisonnables
+            if '06-14' in shifts:
+                limites['06-14'] = 7
+            if '14-22' in shifts:
+                limites['14-22'] = 7
+            if '22-06' in shifts or not shifts:
+                limites['22-06'] = 3
+        return limites
     
     def lister_plannings_par_site(self, site_id=None):
         """Liste tous les plannings d'un site spécifique ou tous si site_id est None"""

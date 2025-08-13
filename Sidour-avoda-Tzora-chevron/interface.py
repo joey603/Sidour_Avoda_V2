@@ -70,6 +70,7 @@ class InterfacePlanning:
         # NOUVEAU: Charger les sites et créer l'interface
         self.charger_sites()
         # Construire les structures de disponibilités selon réglages
+        # initial availabilities structure
         self._rebuild_disponibilites_from_settings()
         self.creer_interface()
         
@@ -2449,11 +2450,25 @@ class InterfacePlanning:
             for _, key_fr in day_order:
                 day_vars[key_fr].set(key_fr in jours)
             # Rebuild capacities grid to reflect times
-            if 'rebuild_capacities_grid' in locals():
-                try:
-                    rebuild_capacities_grid()
-                except Exception:
-                    pass
+            try:
+                rebuild_capacities_grid()
+            except Exception:
+                pass
+            # Appliquer les limites par personne sauvegardées
+            try:
+                apply_limits_from_db()
+            except Exception:
+                pass
+            # Rebuilder la section disponibilités en alignant l'ordre des colonnes (préservation par index)
+            try:
+                old_dispos = getattr(self, 'disponibilites', {})
+                old_shifts_order = list(self.reglages_site.get("shifts", [])) if hasattr(self, 'reglages_site') else list(Horaire.SHIFTS.values())
+                # Mettre à jour self.reglages_site avec les nouvelles heures
+                self.reglages_site = {"shifts": shifts, "jours": jours}
+                self._rebuild_disponibilites_from_settings(preserve_by_index=True, old_dispos=old_dispos, old_shifts_order=old_shifts_order)
+                self._build_availabilities_section()
+            except Exception:
+                pass
 
         # Capacités par jour/shift
         lf_caps = ttk.LabelFrame(settings_frame, text="Required staff (per day/shift)", padding=8)
@@ -2546,6 +2561,57 @@ class InterfacePlanning:
                 day_vars[key_fr].trace_add('write', lambda *args: rebuild_capacities_grid())
         except Exception:
             pass
+        
+        # Limites par personne et par shift (hebdomadaires)
+        lf_limits = ttk.LabelFrame(settings_frame, text="Max shifts per person (per shift type, week)", padding=8)
+        lf_limits.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 10))
+        limits_frame = ttk.Frame(lf_limits)
+        limits_frame.pack(anchor="center")
+        # 0 = illimité; valeurs par défaut: 3 pour la nuit, 7 pour matin/après-midi
+        limits_vars = {
+            "morning": tk.StringVar(value="6"),
+            "afternoon": tk.StringVar(value="6"),
+            "night": tk.StringVar(value="6"),
+        }
+        def _make_limit_widget(parent, col, label, var, enabled_var):
+            cont = ttk.Frame(parent)
+            cont.grid(row=0, column=col, padx=10, sticky="ew")
+            ttk.Label(cont, text=label).grid(row=0, column=0, padx=(0, 6))
+            sb = tk.Spinbox(cont, from_=0, to=10, width=3, textvariable=var)
+            sb.grid(row=0, column=1)
+            def _upd_state(*_):
+                try:
+                    sb.config(state=("normal" if enabled_var.get() else "disabled"))
+                except Exception:
+                    pass
+            _upd_state()
+            try:
+                enabled_var.trace_add('write', lambda *args: _upd_state())
+            except Exception:
+                pass
+            return sb
+        _ = _make_limit_widget(limits_frame, 0, "Morning", limits_vars["morning"], morning_var)
+        _ = _make_limit_widget(limits_frame, 1, "Afternoon", limits_vars["afternoon"], afternoon_var)
+        _ = _make_limit_widget(limits_frame, 2, "Night", limits_vars["night"], night_var)
+
+        def apply_limits_from_db():
+            try:
+                dbs_local = Database()
+                limites_saved = dbs_local.charger_limites_par_personne(self.site_actuel_id)
+            except Exception:
+                limites_saved = {}
+            try:
+                lbl_m = label_for_type("morning")
+                lbl_a = label_for_type("afternoon")
+                lbl_n = label_for_type("night")
+                limits_vars["morning"].set(str(int(limites_saved.get(lbl_m, 7))))
+                limits_vars["afternoon"].set(str(int(limites_saved.get(lbl_a, 7))))
+                # défaut 3 pour la nuit si aucune valeur explicite
+                limits_vars["night"].set(str(int(limites_saved.get(lbl_n, limites_saved.get("22-06", 3)))))
+            except Exception:
+                limits_vars["morning"].set("7")
+                limits_vars["afternoon"].set("7")
+                limits_vars["night"].set("3")
 
         def sauvegarder_reglages_site_courant():
             if not self.site_actuel_id:
@@ -2639,8 +2705,16 @@ class InterfacePlanning:
                         required_counts[j][s_lbl] = int(v.get()) if v else 1
                     except Exception:
                         required_counts[j][s_lbl] = 1
+            # Limites par personne (par label de shift courant)
+            max_per_person = {}
+            for t in t_order:
+                try:
+                    val = int(limits_vars.get(t).get()) if limits_vars.get(t) else 0
+                except Exception:
+                    val = 0
+                max_per_person[label_for_type(t)] = max(0, val)
             dbs = Database()
-            dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts)
+            dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts, max_per_person)
             messagebox.showinfo("Success", "Site settings saved")
             # Rafraîchir immédiatement la popup avec les valeurs persistées
             try:
@@ -2654,8 +2728,13 @@ class InterfacePlanning:
                 new_planning.travailleurs = self.planning.travailleurs
                 self.planning = new_planning
                 self.creer_planning_visuel()
-                # Refresh availabilities as well
-                self._rebuild_disponibilites_from_settings()
+                # Refresh availabilities with preserved checkboxes by column index
+                old_dispos = getattr(self, 'disponibilites', {})
+                old_shifts_order = list(self.reglages_site.get("shifts", [])) if hasattr(self, 'reglages_site') else list(Horaire.SHIFTS.values())
+                try:
+                    self._rebuild_disponibilites_from_settings(preserve_by_index=True, old_dispos=old_dispos, old_shifts_order=old_shifts_order)
+                except Exception:
+                    self._rebuild_disponibilites_from_settings()
                 self._build_availabilities_section()
                 # Réinitialiser les infos d'alternatives/score après changement de réglages
                 if hasattr(self, 'alt_info_var'):
@@ -2860,12 +2939,27 @@ class InterfacePlanning:
         shifts, jours = db.charger_reglages_site(self.site_actuel_id)
         self.reglages_site = {"shifts": shifts, "jours": jours}
 
-    def _rebuild_disponibilites_from_settings(self):
+    def _rebuild_disponibilites_from_settings(self, preserve_by_index: bool = False, old_dispos: dict | None = None, old_shifts_order: list | None = None):
         jours = self.reglages_site.get("jours") if hasattr(self, 'reglages_site') else None
         shifts = self.reglages_site.get("shifts") if hasattr(self, 'reglages_site') else None
         jours = jours if jours else list(Horaire.JOURS)
         shifts = shifts if shifts else list(Horaire.SHIFTS.values())
-        self.disponibilites = {jour: {shift: tk.BooleanVar() for shift in shifts} for jour in jours}
+        # Créer structure vide
+        new_dispos = {jour: {shift: tk.BooleanVar() for shift in shifts} for jour in jours}
+        if preserve_by_index and old_dispos and old_shifts_order:
+            # Mapper par index de colonne pour préserver les cases cochées
+            for jour in jours:
+                try:
+                    for idx, old_shift in enumerate(old_shifts_order):
+                        if idx >= len(shifts):
+                            break
+                        new_shift = shifts[idx]
+                        old_var = old_dispos.get(jour, {}).get(old_shift)
+                        if old_var and bool(old_var.get()):
+                            new_dispos[jour][new_shift].set(True)
+                except Exception:
+                    pass
+        self.disponibilites = new_dispos
         # 12h removed
 
     def _build_availabilities_section(self):
@@ -3192,18 +3286,18 @@ class InterfacePlanning:
         add_window = tk.Toplevel(self.root)
         add_window.title("Add Site")
         # Agrandir la fenêtre pour afficher tous les éléments confortablement
-        add_window.geometry("1000x720")
+        add_window.geometry("1200x850")
         add_window.configure(bg="#f0f0f0")
         add_window.transient(self.root)
         add_window.grab_set()
         # Taille minimale et centrage
         try:
             add_window.update_idletasks()
-            add_window.minsize(900, 650)
+            add_window.minsize(1100, 800)
             # Centrer par rapport à la fenêtre principale
             rw = self.root.winfo_width(); rh = self.root.winfo_height()
             rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
-            width, height = 1000, 720
+            width, height = 1200, 850
             if rw and rh and rw > 1 and rh > 1:
                 x = rx + max(0, (rw - width) // 2)
                 y = ry + max(0, (rh - height) // 2)
@@ -3368,6 +3462,53 @@ class InterfacePlanning:
         # Première construction
         rebuild_caps_grid()
 
+        # Max shifts per person (hebdo) comme dans Manage Site
+        limits_group = ttk.LabelFrame(main, text="Max shifts per person (per shift type, week)", padding=10)
+        limits_group.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(6, 12))
+        limits_inner = ttk.Frame(limits_group)
+        limits_inner.pack(anchor="center")
+        # 0 = illimité; valeurs par défaut alignées avec Manage Site (l'utilisateur peut les changer ensuite)
+        limits_vars = {
+            "morning": tk.StringVar(value="6"),
+            "afternoon": tk.StringVar(value="6"),
+            "night": tk.StringVar(value="6"),
+        }
+        def _make_limit_widget(parent, col, label, var, enabled_var):
+            cont = ttk.Frame(parent)
+            cont.grid(row=0, column=col, padx=10, sticky="w")
+            ttk.Label(cont, text=label).grid(row=0, column=0, padx=(0, 6))
+            sb = tk.Spinbox(cont, from_=0, to=10, width=3, textvariable=var)
+            sb.grid(row=0, column=1)
+            def _upd_state(*_):
+                try:
+                    sb.config(state=("normal" if enabled_var.get() else "disabled"))
+                except Exception:
+                    pass
+            _upd_state()
+            try:
+                enabled_var.trace_add('write', lambda *args: _upd_state())
+            except Exception:
+                pass
+            return sb
+        _make_limit_widget(limits_inner, 0, "Morning", limits_vars["morning"], morning_var)
+        _make_limit_widget(limits_inner, 1, "Afternoon", limits_vars["afternoon"], afternoon_var)
+        _make_limit_widget(limits_inner, 2, "Night", limits_vars["night"], night_var)
+
+        def label_for_type_add(t: str) -> str:
+            if t == "morning":
+                return f"{int(m_start.get()):02d}-{int(m_end.get()):02d}"
+            if t == "afternoon":
+                return f"{int(a_start.get()):02d}-{int(a_end.get()):02d}"
+            if t == "night":
+                return f"{int(n_start.get()):02d}-{int(n_end.get()):02d}"
+            return t
+        def enabled_types_order_add():
+            types = []
+            if morning_var.get(): types.append("morning")
+            if afternoon_var.get(): types.append("afternoon")
+            if night_var.get(): types.append("night")
+            return types
+
         def save_site():
             nom = nom_var.get().strip()
             if not nom:
@@ -3391,12 +3532,20 @@ class InterfacePlanning:
                         required_counts[j][s] = int(caps_vars.get(j, {}).get(s, tk.StringVar(value="1")).get())
                     except Exception:
                         required_counts[j][s] = 1
+            # Construire max_per_person depuis les limites et les labels courants
+            max_per_person = {}
+            for t in enabled_types_order_add():
+                try:
+                    val = int(limits_vars.get(t).get()) if limits_vars.get(t) else 0
+                except Exception:
+                    val = 0
+                max_per_person[label_for_type_add(t)] = max(0, val)
             db = Database()
             site_id = db.sauvegarder_site(nom, description)
             if not site_id:
                 messagebox.showerror("Erreur", "Un site avec ce nom existe déjà")
                 return
-            db.sauvegarder_reglages_site(site_id, shifts_list, days_list, required_counts)
+            db.sauvegarder_reglages_site(site_id, shifts_list, days_list, required_counts, max_per_person)
             messagebox.showinfo("Succès", f"Site '{nom}' créé")
             # Rafraîchir la liste en haut
             self.charger_sites()
@@ -3404,7 +3553,7 @@ class InterfacePlanning:
             add_window.destroy()
 
         btns = ttk.Frame(main)
-        btns.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        btns.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(12, 0))
         # Utiliser le même style que dans "Manage Site"
         btn_create_site = self.create_styled_button(btns, "✅ Create", save_site, "save", width=180, height=44)
         btn_create_site.pack(side="right", padx=(6, 0))

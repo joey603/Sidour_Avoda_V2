@@ -24,6 +24,12 @@ class Planning:
             self.capacites = db.charger_capacites_site(site_id)
         except Exception:
             self.capacites = {j: {s: 1 for s in shifts_effectifs} for j in jours_effectifs}
+        # Limites par personne et par shift (label -> int, 0 illimité)
+        try:
+            db2 = Database()
+            self.limites_par_personne = db2.charger_limites_par_personne(site_id)
+        except Exception:
+            self.limites_par_personne = {"22-06": 3}
         # Pondération de pénalité pour places non pourvues (réduite pour favoriser des variantes)
         self.penalite_manquant = 30
 
@@ -123,6 +129,35 @@ class Planning:
                     shifts_nuit += 1
         return shifts_nuit
 
+    def compter_shifts_label(self, travailleur_nom, shift_label, planning=None):
+        """Compte le nombre d'occurrences d'un label de shift pour un travailleur (dans un planning donné ou courant)."""
+        planning_a_verifier = planning if planning is not None else self.planning
+        total = 0
+        if not planning_a_verifier:
+            return 0
+        for jour, shifts_map in planning_a_verifier.items():
+            if shift_label not in shifts_map:
+                continue
+            val = shifts_map.get(shift_label)
+            if val and travailleur_nom.strip() in [n.strip() for n in str(val).split(" / ") if n.strip()]:
+                total += 1
+        return total
+
+    def limite_pour_label(self, shift_label):
+        """Retourne la limite hebdomadaire par personne pour ce label (0 = illimité)."""
+        try:
+            v = int(self.limites_par_personne.get(shift_label, 0))
+            return max(0, v)
+        except Exception:
+            return 0
+
+    def atteint_limite(self, travailleur_nom, shift_label, planning=None):
+        """True si la limite pour ce label est définie (>0) et déjà atteinte dans le planning donné."""
+        limite = self.limite_pour_label(shift_label)
+        if limite <= 0:
+            return False
+        return self.compter_shifts_label(travailleur_nom, shift_label, planning) >= limite
+
     def travailleur_travaille_jour(self, travailleur_nom, jour, planning=None):
         """Vérifie si un travailleur travaille un jour donné"""
         planning_a_verifier = planning if planning is not None else self.planning
@@ -180,9 +215,12 @@ class Planning:
         shifts_consecutifs = 0
         for jour in jours_dyn:
             for shift in shifts_dyn:
-                travailleur = planning_a_verifier[jour][shift]
-                if travailleur:
-                    if self.travailleur_a_shift_adjacent(travailleur, jour, shift, planning_a_verifier):
+                val = planning_a_verifier[jour][shift]
+                if not val:
+                    continue
+                noms = [n.strip() for n in str(val).split(" / ") if n.strip()]
+                for nom in noms:
+                    if self.travailleur_a_shift_adjacent(nom, jour, shift, planning_a_verifier):
                         shifts_consecutifs += 1
         
         # Pénalité pour les travailleurs qui n'ont pas leur nombre de shifts souhaités
@@ -206,12 +244,17 @@ class Planning:
             ratio = shifts_assignes / denom
             ratios_satisfaction.append(ratio)
         
-        # Pénalité pour les travailleurs qui font plus de 3 shifts de nuit
-        exces_nuit = 0
+        # Pénalité pour les travailleurs qui dépassent les limites par label
+        exces_total = 0
+        # Considérer uniquement les labels présents dans ce planning
+        labels = list(next(iter(planning_a_verifier.values())).keys()) if planning_a_verifier else []
         for travailleur in self.travailleurs:
-            shifts_nuit = self.compter_shifts_nuit(travailleur.nom, planning_a_verifier)
-            if shifts_nuit > 3:
-                exces_nuit += (shifts_nuit - 3)
+            for label in labels:
+                limite = self.limite_pour_label(label)
+                if limite > 0:
+                    cnt = self.compter_shifts_label(travailleur.nom, label, planning_a_verifier)
+                    if cnt > limite:
+                        exces_total += (cnt - limite)
         
         # Pénalité pour les travailleurs qui travaillent 7 jours consécutifs
         jours_consecutifs_excessifs = 0
@@ -233,7 +276,7 @@ class Planning:
         # Pénalité pour les trous concentrés le même jour (seulement les trous au-delà du premier)
         penalite_trous_concentres = sum(max(0, n - 1) for n in trous_par_jour.values()) * 50
         score = -(shifts_non_assignes * self.penalite_manquant + shifts_consecutifs * penalite_consecutif + 
-                 ecart_shifts_souhaites * 5 + exces_nuit * 50 + jours_consecutifs_excessifs * 2000 + 
+                 ecart_shifts_souhaites * 5 + exces_total * 50 + jours_consecutifs_excessifs * 2000 + 
                  inequite * 30 + penalite_trous_concentres)
         
         return score
@@ -290,7 +333,8 @@ class Planning:
                             # Interdire deux gardes le même jour (même si non adjacentes)
                             if self.travailleur_travaille_jour(travailleur.nom, jour, planning_test):
                                 continue
-                            if shift == "22-06" and self.compter_shifts_nuit(travailleur.nom, planning_test) >= 3:
+                            # Respecter la limite par personne pour ce label
+                            if self.atteint_limite(travailleur.nom, shift, planning_test):
                                 continue
                             if travailleur.shifts_assignes < travailleur.nb_shifts_souhaites:
                                 jours_consecutifs = self.compter_jours_consecutifs(travailleur.nom, jour, planning_test)
@@ -409,12 +453,16 @@ class Planning:
                             continue
                         cap_s2 = int(self.capacites.get(jour, {}).get(s2, 1))
                         noms_s2 = self._names_in_cell(planning_base, jour, s2)
+                        # Interdire dépassement de capacité et double garde le même jour
                         if len(noms_s2) >= cap_s2 or nom in noms_s2:
                             continue
                         cand = copy.deepcopy(planning_base)
                         self._write_names_in_cell(cand, jour, s1, [n for n in noms_s1 if n != nom])
                         self._write_names_in_cell(cand, jour, s2, noms_s2 + [nom])
-                        if self.travailleur_a_shift_adjacent(nom, jour, s2, cand):
+                        # Interdire adjacence, double garde même jour et respect de la limite par label
+                        if (self.travailleur_a_shift_adjacent(nom, jour, s2, cand)
+                            or self.travailleur_travaille_jour(nom, jour, cand)
+                            or self.atteint_limite(nom, s2, cand)):
                             continue
                         candidats.append(cand)
         return candidats
@@ -484,8 +532,13 @@ class Planning:
                 # - pas de shift adjacent créé
                 # - pas dépasser limites (nuit, jours consécutifs)
                 if (travailleur.est_disponible(jour_trop_trous, shift) and
+                    # interdire deux gardes le même jour, même non adjacentes
+                    not self.travailleur_travaille_jour(travailleur.nom, jour_trop_trous, planning) and
+                    # interdire adjacence
                     not self.travailleur_a_shift_adjacent(travailleur.nom, jour_trop_trous, shift, planning) and
-                    not (shift == "22-06" and self.compter_shifts_nuit(travailleur.nom, planning) >= 3) and
+                    # respecter la limite par personne pour ce label
+                    not self.atteint_limite(travailleur.nom, shift, planning) and
+                    # borne sur jours consécutifs
                     self.compter_jours_consecutifs(travailleur.nom, jour_trop_trous, planning) < 6):
 
                     # Trouver une case vide dans le jour surchargé
@@ -612,8 +665,8 @@ class Planning:
             travailleurs_disponibles = []
             for travailleur in self.travailleurs:
                 if travailleur.est_disponible(jour, shift):
-                    # Toujours éviter deux gardes d'affilée, même en mode 12h
-                    if self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift):
+                    # Interdire deux gardes le même jour et gardes adjacentes
+                    if self.travailleur_travaille_jour(travailleur.nom, jour) or self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift):
                         print(f"  {travailleur.nom} a un shift adjacent, ignoré")
                         continue
                     # Interdire deux gardes le même jour (complément de sécurité)
@@ -621,9 +674,9 @@ class Planning:
                         print(f"  {travailleur.nom} déjà affecté le {jour}, ignoré")
                         continue
                     
-                    # Vérifier la limite de shifts de nuit
-                    if shift == "22-06" and self.compter_shifts_nuit(travailleur.nom) >= 3:
-                        print(f"  {travailleur.nom} a déjà 3 shifts de nuit, ignoré")
+                    # Vérifier la limite par personne pour ce label
+                    if self.atteint_limite(travailleur.nom, shift):
+                        print(f"  {travailleur.nom} atteint la limite pour {shift}, ignoré")
                         continue
                     
                     # Vérifier si le travailleur ne travaille pas déjà 6 jours consécutifs
@@ -641,8 +694,10 @@ class Planning:
                 print("  Assouplissement des contraintes...")
                 for travailleur in self.travailleurs:
                     if travailleur.est_disponible(jour, shift):
-                        # Même en assouplissement, interdire les gardes consécutives
-                        if self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift):
+                        # Même en assouplissement, interdire gardes consécutives/deux le même jour et respecter la limite
+                        if (self.travailleur_travaille_jour(travailleur.nom, jour)
+                            or self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift)
+                            or self.atteint_limite(travailleur.nom, shift)):
                             continue
                         # Et interdire deux gardes le même jour
                         if travailleur.nom in deja_affectes_ce_jour:
