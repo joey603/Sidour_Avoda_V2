@@ -86,7 +86,7 @@ jobs:
           # Add Applications symlink for drag-and-drop install
           ln -s /Applications "$STAGE/Applications" || true
           # Add a README with manual open instructions (Gatekeeper)
-          cat > "$STAGE/README-FIRST.txt" << 'TXT'
+          cat > "$STAGE/README-FIRST.txt" <<'TXT'
 Sidour Avoda - macOS
 ====================
 
@@ -97,7 +97,7 @@ Options pour ouvrir:
 1) Finder > clic droit sur "SidourAvoda.app" > Ouvrir > Ouvrir
 2) Ou exécuter le script "Remove Quarantine and Open.command"
 
-Script (option 2) supprime l'attribut de quarantaine et lance l'app.
+Le script (option 2) supprime l'attribut de quarantaine et lance l'app.
 TXT
           # Add a helper script to remove quarantine and open the app
           cat > "$STAGE/Remove Quarantine and Open.command" << 'SH'
