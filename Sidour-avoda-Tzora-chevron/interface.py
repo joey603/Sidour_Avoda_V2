@@ -659,8 +659,12 @@ class InterfacePlanning:
         
         # Réinitialiser le formulaire après l'ajout ou la modification
         self.reinitialiser_formulaire()
-        # Invalider le planning généré (les données ont changé)
-        self._invalidate_generated_planning()
+        # Invalider le planning généré UNIQUEMENT si on était en vraie modification (mode_edition) ou création
+        # Ici, on invalide après sauvegarde effective (ajout ou edit), mais pas sur Close
+        try:
+            self._invalidate_generated_planning()
+        except Exception:
+            pass
         return True
 
     def reinitialiser_formulaire(self):
@@ -796,8 +800,7 @@ class InterfacePlanning:
                     pass
                 
                 break
-        # Une sélection pour modification invalide le planning courant jusqu'à re-génération
-        self._invalidate_generated_planning()
+        # Ne pas invalider le planning sur simple sélection ou ouverture de popup.
 
     def annuler_edition(self):
         """Annule l'édition en cours et réinitialise le formulaire"""
@@ -805,6 +808,7 @@ class InterfacePlanning:
         # Désélectionner dans la table
         for item in self.table_travailleurs.selection():
             self.table_travailleurs.selection_remove(item)
+        # Ne pas invalider le planning si l'utilisateur ferme sans sauver
 
     def verifier_repos_entre_gardes(self, planning, travailleur):
         """Vérifie qu'il y a assez de repos entre les gardes d'un travailleur (jours/shifts dynamiques)."""
