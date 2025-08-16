@@ -69,7 +69,7 @@ jobs:
           pyinstaller ${EXTRA_ARGS[@]} "$MAIN"
           echo "Built app at dist/$APP_NAME.app"
 
-      - name: Create DMG
+      - name: Create DMG with improved Gatekeeper handling
         shell: bash
         run: |
           set -euo pipefail
@@ -79,40 +79,90 @@ jobs:
           [ -d "$APP_PATH" ] || { echo "App not found: $APP_PATH"; exit 1; }
           ARCH=$(uname -m)
           DMG_NAME="SidourAvoda-${ARCH}.dmg"
+          
           # Stage folder
           STAGE="dmg_staging"
           rm -rf "$STAGE"; mkdir -p "$STAGE"
           cp -R "$APP_PATH" "$STAGE/"
+          
           # Add Applications symlink for drag-and-drop install
           ln -s /Applications "$STAGE/Applications" || true
-          # Add a README with manual open instructions (Gatekeeper)
-          cat > "$STAGE/README-FIRST.txt" <<'TXT'
+          
+          # Create comprehensive README with multiple solutions
+          cat > "$STAGE/📋 LIRE-AVANT-TOUT.txt" <<'TXT'
           Sidour Avoda - macOS
           ====================
           
-          Cette app n'est pas signée/notarisée par Apple.
-          Au premier lancement, macOS peut afficher un avertissement Gatekeeper.
+          🚨 ATTENTION : macOS peut afficher un avertissement de sécurité
           
-          Options pour ouvrir:
-          1) Finder > clic droit sur "SidourAvoda.app" > Ouvrir > Ouvrir
-          2) Ou exécuter le script "Remove Quarantine and Open.command"
+          Solutions GRATUITES pour ouvrir l'application :
           
-          Le script (option 2) supprime l'attribut de quarantaine et lance l'app.
+          🟢 SOLUTION 1 (Recommandée) :
+          - Clic droit sur "SidourAvoda.app" 
+          - Sélectionner "Ouvrir"
+          - Cliquer "Ouvrir" dans la popup
+          
+          🟢 SOLUTION 2 (Automatique) :
+          - Double-cliquer sur "🔓 Ouvrir-SidourAvoda.command"
+          - Entrer votre mot de passe si demandé
+          
+          🟢 SOLUTION 3 (Manuelle) :
+          - Ouvrir Terminal (Applications > Utilitaires)
+          - Taper : xattr -dr com.apple.quarantine /Applications/SidourAvoda.app
+          - Puis double-cliquer sur l'app
+          
+          🟢 SOLUTION 4 (Préférences Système) :
+          - Préférences Système > Sécurité et confidentialité
+          - Cliquer "Autoriser" à côté de SidourAvoda
+          
+          ✅ Après la première ouverture, l'app fonctionnera normalement.
+          
+          Note : Cette app est développée en Python et n'est pas signée par Apple,
+          mais elle est 100% sûre et open source.
           TXT
-          # Add a helper script to remove quarantine and open the app
-          cat > "$STAGE/Remove Quarantine and Open.command" <<'SH'
+          
+          # Create automatic opener script
+          cat > "$STAGE/🔓 Ouvrir-SidourAvoda.command" <<'SH'
           #!/bin/bash
           set -euo pipefail
-          DIR="$(cd "$(dirname "$0")" && pwd)"
-          APP="$DIR/SidourAvoda.app"
-          if [ ! -d "$APP" ]; then
-            echo "App introuvable: $APP"; exit 1
+          
+          echo "🔓 Ouverture automatique de Sidour Avoda..."
+          echo "Cette action peut demander votre mot de passe."
+          echo ""
+          
+          # Get script directory
+          SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+          APP_PATH="$SCRIPT_DIR/SidourAvoda.app"
+          
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ Erreur : SidourAvoda.app introuvable dans $SCRIPT_DIR"
+            echo "Assurez-vous que l'app est dans le même dossier que ce script."
+            read -p "Appuyez sur Entrée pour fermer..."
+            exit 1
           fi
-          echo "Suppression de la quarantaine (peut demander votre mot de passe/autorisation)"
-          xattr -dr com.apple.quarantine "$APP" || true
-          open "$APP"
+          
+          echo "📱 Suppression de l'attribut de quarantaine..."
+          xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || {
+            echo "⚠️  Impossible de supprimer la quarantaine automatiquement."
+            echo "Essayez la Solution 1 (clic droit > Ouvrir) ou la Solution 3 (Terminal)."
+            read -p "Appuyez sur Entrée pour fermer..."
+            exit 1
+          }
+          
+          echo "✅ Quarantaine supprimée avec succès !"
+          echo "🚀 Lancement de Sidour Avoda..."
+          
+          # Open the app
+          open "$APP_PATH"
+          
+          echo "✅ Sidour Avoda devrait maintenant s'ouvrir !"
+          echo "Fermez cette fenêtre."
+          sleep 2
           SH
-          chmod +x "$STAGE/Remove Quarantine and Open.command"
+          
+          chmod +x "$STAGE/🔓 Ouvrir-SidourAvoda.command"
+          
+          # Create DMG
           hdiutil create -volname "SidourAvoda" -srcfolder "$STAGE" -ov -format UDZO "$DMG_NAME"
           echo "DMG created: $DMG_NAME"
 
@@ -124,5 +174,31 @@ jobs:
             SidourAvoda-*.dmg
             dist/**
             Sidour-avoda-Tzora-chevron/dist/**
+
+  # Optional: Notarization job (requires Apple Developer account)
+  notarize:
+    name: Notarize App (Optional)
+    runs-on: macos-14
+    needs: build
+    if: ${{ false }}  # Set to true if you have Apple Developer credentials
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sidour-avoda-macos-macos-14
+          path: ./artifacts
+      
+      - name: Setup notarization
+        run: |
+          # This would require Apple Developer credentials
+          # For free notarization, you need:
+          # 1. Apple Developer account (free)
+          # 2. App-specific password
+          # 3. Team ID
+          echo "Notarization requires Apple Developer credentials"
+          echo "To enable:"
+          echo "1. Create free Apple Developer account"
+          echo "2. Add secrets: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, TEAM_ID"
+          echo "3. Set if: \${{ false }} to if: \${{ true }}"
 
 
