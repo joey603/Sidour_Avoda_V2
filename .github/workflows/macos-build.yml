@@ -239,6 +239,10 @@ jobs:
           
           chmod +x "$STAGE/🔓 Ouvrir-SidourAvoda.command"
           
+          # Remove quarantine attributes from scripts
+          echo "🔧 Suppression des attributs de quarantaine des scripts..."
+          xattr -dr com.apple.quarantine "$STAGE/🔓 Ouvrir-SidourAvoda.command" 2>/dev/null || true
+          
           # Create DMG
           hdiutil create -volname "SidourAvoda" -srcfolder "$STAGE" -ov -format UDZO "$DMG_NAME"
           echo "DMG created: $DMG_NAME"
