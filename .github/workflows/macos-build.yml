@@ -221,11 +221,29 @@ jobs:
           hdiutil detach "$VOLUME_NAME"
           echo "✅ App extracted: ./SidourAvoda.app"
       
+      - name: Get Team ID
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          echo "🔍 Getting Team ID..."
+          # Try to get team ID from Apple Developer account
+          TEAM_ID=$(xcrun notarytool info --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" 2>/dev/null | grep "Team ID" | awk '{print $3}' || echo "")
+          if [ -z "$TEAM_ID" ]; then
+            echo "⚠️  Could not get Team ID automatically, using personal team"
+            echo "PERSONAL_TEAM=true" >> $GITHUB_ENV
+          else
+            echo "✅ Found Team ID: $TEAM_ID"
+            echo "TEAM_ID=$TEAM_ID" >> $GITHUB_ENV
+            echo "PERSONAL_TEAM=false" >> $GITHUB_ENV
+          fi
+
       - name: Notarize app
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          TEAM_ID: ${{ secrets.TEAM_ID }}
+          TEAM_ID: ${{ env.TEAM_ID }}
+          PERSONAL_TEAM: ${{ env.PERSONAL_TEAM }}
         run: |
           if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
             echo "❌ Apple credentials not configured"
@@ -245,16 +263,19 @@ jobs:
           # Submit for notarization
           echo "📤 Submitting for notarization..."
           
-          if [ -n "$TEAM_ID" ]; then
+          # Submit for notarization based on team type
+          if [ "$PERSONAL_TEAM" = "true" ]; then
+            echo "🔍 Using personal team (no Team ID required)..."
+            xcrun notarytool submit SidourAvoda.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --wait
+          else
+            echo "🔍 Using Team ID: $TEAM_ID"
             xcrun notarytool submit SidourAvoda.zip \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_APP_SPECIFIC_PASSWORD" \
               --team-id "$TEAM_ID" \
-              --wait
-          else
-            xcrun notarytool submit SidourAvoda.zip \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
               --wait
           fi
           
