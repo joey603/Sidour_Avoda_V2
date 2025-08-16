@@ -230,6 +230,10 @@ jobs:
           if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
             echo "❌ Apple credentials not configured"
             echo "Please add APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD secrets"
+            echo "Go to: https://github.com/joey603/Sidour_Avoda_V2/settings/secrets/actions"
+            echo "Add secrets:"
+            echo "  - APPLE_ID: your Apple ID email"
+            echo "  - APPLE_APP_SPECIFIC_PASSWORD: gcwm-vrjv-wcuf-rern"
             exit 1
           fi
           
