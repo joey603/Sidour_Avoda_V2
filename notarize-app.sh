@@ -50,19 +50,21 @@ ARCHIVE_PATH="$TEMP_DIR/SidourAvoda.zip"
 cd "$(dirname "$APP_PATH")"
 ditto -c -k --keepParent "$(basename "$APP_PATH")" "$ARCHIVE_PATH"
 
-echo "📤 Envoi pour notarisation..."
-NOTARIZATION_ARGS=(
-    --apple-id "$APPLE_ID"
-    --password "$APPLE_APP_SPECIFIC_PASSWORD"
-    --file "$ARCHIVE_PATH"
-)
+        echo "📤 Envoi pour notarisation..."
 
-if [ -n "${TEAM_ID:-}" ]; then
-    NOTARIZATION_ARGS+=(--team-id "$TEAM_ID")
-fi
-
-# Soumettre pour notarisation
-REQUEST_ID=$(xcrun notarytool submit "${NOTARIZATION_ARGS[@]}" --wait)
+        # Soumettre pour notarisation
+        if [ -n "${TEAM_ID:-}" ]; then
+            REQUEST_ID=$(xcrun notarytool submit "$ARCHIVE_PATH" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+                --team-id "$TEAM_ID" \
+                --wait)
+        else
+            REQUEST_ID=$(xcrun notarytool submit "$ARCHIVE_PATH" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+                --wait)
+        fi
 
 if [ $? -eq 0 ]; then
     echo "✅ Notarisation réussie!"

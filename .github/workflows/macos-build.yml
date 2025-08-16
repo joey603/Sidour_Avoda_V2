@@ -243,18 +243,20 @@ jobs:
           ditto -c -k --keepParent SidourAvoda.app SidourAvoda.zip
           
           # Submit for notarization
-          NOTARIZATION_ARGS=(
-            --apple-id "$APPLE_ID"
-            --password "$APPLE_APP_SPECIFIC_PASSWORD"
-            --file "SidourAvoda.zip"
-          )
+          echo "📤 Submitting for notarization..."
           
           if [ -n "$TEAM_ID" ]; then
-            NOTARIZATION_ARGS+=(--team-id "$TEAM_ID")
+            xcrun notarytool submit SidourAvoda.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$TEAM_ID" \
+              --wait
+          else
+            xcrun notarytool submit SidourAvoda.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --wait
           fi
-          
-          echo "📤 Submitting for notarization..."
-          xcrun notarytool submit "${NOTARIZATION_ARGS[@]}" --wait
           
           if [ $? -eq 0 ]; then
             echo "✅ Notarization successful!"
