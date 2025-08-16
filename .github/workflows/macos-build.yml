@@ -271,11 +271,10 @@ jobs:
             exit 1
           fi
           
+          # Try without Team ID first for personal accounts
           if [ -z "$TEAM_ID" ]; then
-            echo "❌ Team ID not found"
-            echo "Please add TEAM_ID secret manually"
-            echo "You can find it in your Apple Developer account"
-            exit 1
+            echo "⚠️  No Team ID found, trying without Team ID..."
+            echo "This works for personal Apple Developer accounts"
           fi
           
           echo "🔐 Starting notarization..."
@@ -286,13 +285,21 @@ jobs:
           # Submit for notarization
           echo "📤 Submitting for notarization..."
           
-          # Submit for notarization with Team ID
-          echo "🔍 Using Team ID: $TEAM_ID"
-          xcrun notarytool submit SidourAvoda.zip \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$TEAM_ID" \
-            --wait
+          # Submit for notarization
+          if [ -n "$TEAM_ID" ]; then
+            echo "🔍 Using Team ID: $TEAM_ID"
+            xcrun notarytool submit SidourAvoda.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$TEAM_ID" \
+              --wait
+          else
+            echo "🔍 Trying without Team ID (personal account)..."
+            xcrun notarytool submit SidourAvoda.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --wait
+          fi
           
           if [ $? -eq 0 ]; then
             echo "✅ Notarization successful!"
