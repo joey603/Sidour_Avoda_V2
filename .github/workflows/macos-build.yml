@@ -258,7 +258,7 @@ jobs:
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          TEAM_ID: ${{ env.TEAM_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
           if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
             echo "❌ Apple credentials not configured"
@@ -270,10 +270,11 @@ jobs:
             exit 1
           fi
           
-          # Try without Team ID first for personal accounts
+          # Verify Team ID is available
           if [ -z "$TEAM_ID" ]; then
-            echo "⚠️  No Team ID found, trying without Team ID..."
-            echo "This works for personal Apple Developer accounts"
+            echo "❌ Team ID not found in secrets"
+            echo "Please add TEAM_ID secret: yoelibarthel603"
+            exit 1
           fi
           
           echo "🔐 Starting notarization..."
@@ -284,21 +285,13 @@ jobs:
           # Submit for notarization
           echo "📤 Submitting for notarization..."
           
-          # Submit for notarization
-          if [ -n "$TEAM_ID" ]; then
-            echo "🔍 Using Team ID: $TEAM_ID"
-            xcrun notarytool submit SidourAvoda.zip \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --team-id "$TEAM_ID" \
-              --wait
-          else
-            echo "🔍 Trying without Team ID (personal account)..."
-            xcrun notarytool submit SidourAvoda.zip \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --wait
-          fi
+          # Submit for notarization with Team ID
+          echo "🔍 Using Team ID: $TEAM_ID"
+          xcrun notarytool submit SidourAvoda.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
           
           if [ $? -eq 0 ]; then
             echo "✅ Notarization successful!"
