@@ -247,9 +247,8 @@ jobs:
           
           if [ -z "$TEAM_ID" ]; then
             echo "⚠️  Could not get Team ID automatically"
-            echo "Please add TEAM_ID secret manually"
-            echo "You can find it in your Apple Developer account"
-            exit 1
+            echo "Will try notarization without Team ID (personal account)"
+            echo "TEAM_ID=" >> $GITHUB_ENV
           else
             echo "✅ Found Team ID: $TEAM_ID"
             echo "TEAM_ID=$TEAM_ID" >> $GITHUB_ENV
