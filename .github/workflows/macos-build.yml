@@ -180,7 +180,7 @@ jobs:
     name: Notarize App (Optional)
     runs-on: macos-14
     needs: build
-    if: ${{ false }}  # Set to true if you have Apple Developer credentials
+    if: ${{ true }}  # Set to true if you have Apple Developer credentials
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -200,5 +200,112 @@ jobs:
           echo "1. Create free Apple Developer account"
           echo "2. Add secrets: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, TEAM_ID"
           echo "3. Set if: \${{ false }} to if: \${{ true }}"
+      
+      - name: Extract app from DMG
+        run: |
+          # Find the DMG file
+          DMG_FILE=$(find . -name "*.dmg" | head -1)
+          if [ -z "$DMG_FILE" ]; then
+            echo "❌ No DMG file found"
+            exit 1
+          fi
+          echo "📦 Found DMG: $DMG_FILE"
+          
+          # Mount and extract the app
+          hdiutil attach "$DMG_FILE" -readonly
+          VOLUME_NAME=$(hdiutil info | grep "/Volumes/" | tail -1 | awk '{print $3}')
+          echo "📁 Mounted at: $VOLUME_NAME"
+          
+          # Copy app to artifacts directory
+          cp -R "$VOLUME_NAME/SidourAvoda.app" ./SidourAvoda.app
+          hdiutil detach "$VOLUME_NAME"
+          echo "✅ App extracted: ./SidourAvoda.app"
+      
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+            echo "❌ Apple credentials not configured"
+            echo "Please add APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD secrets"
+            exit 1
+          fi
+          
+          echo "🔐 Starting notarization..."
+          
+          # Create archive
+          ditto -c -k --keepParent SidourAvoda.app SidourAvoda.zip
+          
+          # Submit for notarization
+          NOTARIZATION_ARGS=(
+            --apple-id "$APPLE_ID"
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+            --file "SidourAvoda.zip"
+          )
+          
+          if [ -n "$TEAM_ID" ]; then
+            NOTARIZATION_ARGS+=(--team-id "$TEAM_ID")
+          fi
+          
+          echo "📤 Submitting for notarization..."
+          xcrun notarytool submit "${NOTARIZATION_ARGS[@]}" --wait
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Notarization successful!"
+            
+            # Staple the ticket
+            echo "🔗 Stapling notarization ticket..."
+            xcrun stapler staple SidourAvoda.app
+            
+            echo "✅ App notarized successfully!"
+          else
+            echo "❌ Notarization failed"
+            exit 1
+          fi
+      
+      - name: Create notarized DMG
+        run: |
+          echo "📦 Creating notarized DMG..."
+          
+          # Create staging directory
+          STAGE="notarized_dmg_staging"
+          rm -rf "$STAGE"; mkdir -p "$STAGE"
+          
+          # Copy notarized app
+          cp -R SidourAvoda.app "$STAGE/"
+          
+          # Add Applications symlink
+          ln -s /Applications "$STAGE/Applications" || true
+          
+          # Add success message
+          cat > "$STAGE/✅ APP NOTARISÉE.txt" <<'TXT'
+          Sidour Avoda - macOS
+          ====================
+          
+          ✅ Cette app est NOTARISÉE par Apple
+          ✅ Aucun avertissement de sécurité
+          ✅ Ouverture directe possible
+          
+          Installation :
+          1. Glisser SidourAvoda.app vers Applications
+          2. Double-cliquer pour lancer
+          
+          Cette version a été vérifiée et approuvée par Apple.
+          TXT
+          
+          # Create DMG
+          ARCH=$(uname -m)
+          DMG_NAME="SidourAvoda-Notarized-${ARCH}.dmg"
+          hdiutil create -volname "SidourAvoda" -srcfolder "$STAGE" -ov -format UDZO "$DMG_NAME"
+          
+          echo "✅ Notarized DMG created: $DMG_NAME"
+      
+      - name: Upload notarized DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidour-avoda-notarized-macos
+          path: SidourAvoda-Notarized-*.dmg
 
 
