@@ -185,9 +185,9 @@ jobs:
           echo "✅ Application trouvée : $APP_PATH"
           echo ""
           
-          # Supprimer l'attribut de quarantaine
-          echo "🔧 Suppression de l'attribut de quarantaine..."
-          xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || echo "⚠️  Aucun attribut de quarantaine trouvé"
+          # Supprimer l'attribut de quarantaine du DMG
+          echo "🔧 Suppression de l'attribut de quarantaine du DMG..."
+          xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || echo "⚠️  Aucun attribut de quarantaine trouvé sur le DMG"
           
           # Copier vers Applications
           echo ""
@@ -209,9 +209,18 @@ jobs:
           cp -R "$APP_PATH" "/Applications/"
           echo "✅ Application installée dans /Applications/"
           
-          # Supprimer la quarantaine de la version installée
+          # Supprimer la quarantaine de la version installée (IMPORTANT)
           echo "🔧 Suppression de la quarantaine de la version installée..."
           xattr -dr com.apple.quarantine "/Applications/SidourAvoda.app" 2>/dev/null || true
+          
+          # Vérifier que la quarantaine a été supprimée
+          echo "🔍 Vérification de la suppression de la quarantaine..."
+          if xattr -l "/Applications/SidourAvoda.app" 2>/dev/null | grep -q "com.apple.quarantine"; then
+            echo "⚠️  La quarantaine est toujours présente, tentative de suppression forcée..."
+            sudo xattr -dr com.apple.quarantine "/Applications/SidourAvoda.app" 2>/dev/null || true
+          else
+            echo "✅ Quarantaine supprimée avec succès !"
+          fi
           
           echo ""
           echo "🎉 Installation terminée avec succès !"
