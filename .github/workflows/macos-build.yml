@@ -227,15 +227,32 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: |
           echo "🔍 Getting Team ID..."
-          # Try to get team ID from Apple Developer account
-          TEAM_ID=$(xcrun notarytool info --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" 2>/dev/null | grep "Team ID" | awk '{print $3}' || echo "")
+          # Try to get team ID using different methods
+          
+          # Method 1: Try notarytool info
+          TEAM_ID=$(xcrun notarytool info --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" 2>/dev/null | grep -i "team id" | awk '{print $NF}' || echo "")
+          
+          # Method 2: Try to get from developer account
           if [ -z "$TEAM_ID" ]; then
-            echo "⚠️  Could not get Team ID automatically, using personal team"
-            echo "PERSONAL_TEAM=true" >> $GITHUB_ENV
+            echo "🔍 Trying alternative method to get Team ID..."
+            # Use xcrun to get developer account info
+            TEAM_ID=$(xcrun altool --list-providers -u "$APPLE_ID" -p "$APPLE_APP_SPECIFIC_PASSWORD" 2>/dev/null | grep "Team ID" | awk '{print $3}' || echo "")
+          fi
+          
+          # Method 3: Try to get from keychain (if available)
+          if [ -z "$TEAM_ID" ]; then
+            echo "🔍 Trying keychain method..."
+            TEAM_ID=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | awk '{print $2}' | cut -d'(' -f2 | cut -d')' -f1 || echo "")
+          fi
+          
+          if [ -z "$TEAM_ID" ]; then
+            echo "⚠️  Could not get Team ID automatically"
+            echo "Please add TEAM_ID secret manually"
+            echo "You can find it in your Apple Developer account"
+            exit 1
           else
             echo "✅ Found Team ID: $TEAM_ID"
             echo "TEAM_ID=$TEAM_ID" >> $GITHUB_ENV
-            echo "PERSONAL_TEAM=false" >> $GITHUB_ENV
           fi
 
       - name: Notarize app
@@ -243,7 +260,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           TEAM_ID: ${{ env.TEAM_ID }}
-          PERSONAL_TEAM: ${{ env.PERSONAL_TEAM }}
         run: |
           if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
             echo "❌ Apple credentials not configured"
@@ -255,6 +271,13 @@ jobs:
             exit 1
           fi
           
+          if [ -z "$TEAM_ID" ]; then
+            echo "❌ Team ID not found"
+            echo "Please add TEAM_ID secret manually"
+            echo "You can find it in your Apple Developer account"
+            exit 1
+          fi
+          
           echo "🔐 Starting notarization..."
           
           # Create archive
@@ -263,21 +286,13 @@ jobs:
           # Submit for notarization
           echo "📤 Submitting for notarization..."
           
-          # Submit for notarization based on team type
-          if [ "$PERSONAL_TEAM" = "true" ]; then
-            echo "🔍 Using personal team (no Team ID required)..."
-            xcrun notarytool submit SidourAvoda.zip \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --wait
-          else
-            echo "🔍 Using Team ID: $TEAM_ID"
-            xcrun notarytool submit SidourAvoda.zip \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --team-id "$TEAM_ID" \
-              --wait
-          fi
+          # Submit for notarization with Team ID
+          echo "🔍 Using Team ID: $TEAM_ID"
+          xcrun notarytool submit SidourAvoda.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
           
           if [ $? -eq 0 ]; then
             echo "✅ Notarization successful!"
