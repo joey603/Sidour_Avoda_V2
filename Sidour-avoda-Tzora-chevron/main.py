@@ -6,7 +6,7 @@ import threading
 
 # Application metadata for auto-update
 APP_NAME = "Sidour Avoda"
-APP_VERSION = "2.0.0"
+APP_VERSION = "1.0.0"
 GITHUB_OWNER = "joey603"
 GITHUB_REPO = "Sidour_Avoda_V2"
 
@@ -42,25 +42,17 @@ def _get_latest_release_info():
         import json
         from urllib.request import Request, urlopen
         url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
-        print(f"Checking GitHub releases at: {url}")
         req = Request(url, headers={"User-Agent": "SidourAvodaUpdater"})
         with urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-        
         tag = str(data.get("tag_name") or "").strip()
-        print(f"Found tag: {tag}")
-        
         assets = data.get("assets") or []
-        print(f"Found {len(assets)} assets")
-        
         asset_url = None
         # Prefer the installer asset
         for a in assets:
             name = (a.get("name") or "").lower()
-            print(f"Checking asset: {name}")
             if "setup" in name and name.endswith(".exe"):
                 asset_url = a.get("browser_download_url")
-                print(f"Found setup installer: {asset_url}")
                 break
         if not asset_url:
             # Fallback to any .exe
@@ -68,16 +60,11 @@ def _get_latest_release_info():
                 name = (a.get("name") or "").lower()
                 if name.endswith(".exe"):
                     asset_url = a.get("browser_download_url")
-                    print(f"Found fallback .exe: {asset_url}")
                     break
         if tag and asset_url:
             return tag.lstrip("v"), asset_url
-        else:
-            print(f"No valid tag or asset URL found. Tag: {tag}, Asset: {asset_url}")
-    except Exception as e:
-        print(f"Error getting latest release info: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        pass
     return None, None
 
 
@@ -151,30 +138,13 @@ def check_for_updates_in_background(tk_root=None):
     try:
         # Only relevant on Windows packaged app
         if sys.platform != "win32":
-            print(f"Update check skipped: not on Windows (platform: {sys.platform})")
             return
-        
         current = get_current_version()
-        print(f"Current version: {current}")
-        
         latest, asset_url = _get_latest_release_info()
-        print(f"Latest version from GitHub: {latest}")
-        print(f"Asset URL: {asset_url}")
-        
         if not latest or not asset_url:
-            print("No latest version or asset URL found")
             return
-            
-        current_parsed = _parse_version(current)
-        latest_parsed = _parse_version(latest)
-        print(f"Current parsed: {current_parsed}")
-        print(f"Latest parsed: {latest_parsed}")
-        
-        if latest_parsed <= current_parsed:
-            print("No update needed - current version is up to date")
+        if _parse_version(latest) <= _parse_version(current):
             return
-            
-        print(f"Update available: {current} -> {latest}")
         # Define prompt function
         def _prompt():
             try:
