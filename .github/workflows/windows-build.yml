@@ -5,6 +5,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'ci/windows-build'
 
 jobs:
   build:
