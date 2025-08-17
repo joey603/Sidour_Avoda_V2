@@ -1,12 +1,12 @@
 import sys
 import os
 import traceback
-from interface import InterfacePlanning
+from interface_2 import InterfacePlanning
 import threading
 
 # Application metadata for auto-update
 APP_NAME = "Sidour Avoda"
-APP_VERSION = "1.0.0"
+APP_VERSION = "2.0.0"
 GITHUB_OWNER = "joey603"
 GITHUB_REPO = "Sidour_Avoda_V2"
 
