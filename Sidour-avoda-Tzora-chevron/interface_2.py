@@ -2436,7 +2436,7 @@ class InterfacePlanning:
                 x = max(0, (sw - width) // 2)
                 y = max(0, (sh - height) // 2)
             sites_window.geometry(f"{width}x{height}+{x}+{y}")
-        sites_window.minsize(1100, 720)
+            sites_window.minsize(1100, 720)
         except Exception:
             pass
         
@@ -3532,7 +3532,7 @@ class InterfacePlanning:
                 x = max(0, (sw - width) // 2)
                 y = max(0, (sh - height) // 2)
             add_window.geometry(f"{width}x{height}+{x}+{y}")
-        add_window.minsize(1100, 800)
+            add_window.minsize(1100, 800)
         except Exception:
             pass
 
