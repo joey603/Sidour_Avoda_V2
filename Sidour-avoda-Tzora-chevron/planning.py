@@ -22,8 +22,10 @@ class Planning:
         try:
             db = Database()
             self.capacites = db.charger_capacites_site(site_id)
+            self.limites_par_personne = db.charger_limites_par_personne(site_id)
         except Exception:
             self.capacites = {j: {s: 1 for s in shifts_effectifs} for j in jours_effectifs}
+            self.limites_par_personne = {"06-14": 6, "14-22": 6, "22-06": 6}
         # Pondération de pénalité pour places non pourvues (réduite pour favoriser des variantes)
         self.penalite_manquant = 30
 
@@ -123,6 +125,30 @@ class Planning:
                     shifts_nuit += 1
         return shifts_nuit
 
+    def compter_shifts_par_type(self, travailleur_nom, planning=None):
+        """Compte le nombre de shifts par type pour un travailleur"""
+        planning_a_verifier = planning if planning is not None else self.planning
+        counts = {}
+        for jour in planning_a_verifier:
+            for shift in planning_a_verifier[jour]:
+                val = planning_a_verifier[jour][shift]
+                if val and travailleur_nom.strip() in [n.strip() for n in str(val).split(" / ") if n.strip()]:
+                    counts[shift] = counts.get(shift, 0) + 1
+        return counts
+
+    def respecte_limites_par_personne(self, travailleur_nom, jour, shift, planning=None):
+        """Vérifie si l'assignation respecte les limites par personne"""
+        planning_a_verifier = planning if planning is not None else self.planning
+        
+        # Compter les shifts actuels par type
+        counts = self.compter_shifts_par_type(travailleur_nom, planning_a_verifier)
+        
+        # Vérifier si l'assignation dépasserait la limite pour ce type de shift
+        limite = self.limites_par_personne.get(shift, 6)  # 6 par défaut
+        count_actuel = counts.get(shift, 0)
+        
+        return count_actuel < limite
+
     def travailleur_travaille_jour(self, travailleur_nom, jour, planning=None):
         """Vérifie si un travailleur travaille un jour donné"""
         planning_a_verifier = planning if planning is not None else self.planning
@@ -206,12 +232,14 @@ class Planning:
             ratio = shifts_assignes / denom
             ratios_satisfaction.append(ratio)
         
-        # Pénalité pour les travailleurs qui font plus de 3 shifts de nuit
-        exces_nuit = 0
+        # Pénalité pour les dépassements de limites par personne
+        exces_limites = 0
         for travailleur in self.travailleurs:
-            shifts_nuit = self.compter_shifts_nuit(travailleur.nom, planning_a_verifier)
-            if shifts_nuit > 3:
-                exces_nuit += (shifts_nuit - 3)
+            counts = self.compter_shifts_par_type(travailleur.nom, planning_a_verifier)
+            for shift, count in counts.items():
+                limite = self.limites_par_personne.get(shift, 6)
+                if count > limite:
+                    exces_limites += (count - limite)
         
         # Pénalité pour les travailleurs qui travaillent 7 jours consécutifs
         jours_consecutifs_excessifs = 0
@@ -233,7 +261,7 @@ class Planning:
         # Pénalité pour les trous concentrés le même jour (seulement les trous au-delà du premier)
         penalite_trous_concentres = sum(max(0, n - 1) for n in trous_par_jour.values()) * 50
         score = -(shifts_non_assignes * self.penalite_manquant + shifts_consecutifs * penalite_consecutif + 
-                 ecart_shifts_souhaites * 5 + exces_nuit * 50 + jours_consecutifs_excessifs * 2000 + 
+                 ecart_shifts_souhaites * 5 + exces_limites * 50 + jours_consecutifs_excessifs * 2000 + 
                  inequite * 30 + penalite_trous_concentres)
         
         return score
@@ -290,7 +318,7 @@ class Planning:
                             # Interdire deux gardes le même jour (même si non adjacentes)
                             if self.travailleur_travaille_jour(travailleur.nom, jour, planning_test):
                                 continue
-                            if shift == "22-06" and self.compter_shifts_nuit(travailleur.nom, planning_test) >= 3:
+                            if not self.respecte_limites_par_personne(travailleur.nom, jour, shift, planning_test):
                                 continue
                             if travailleur.shifts_assignes < travailleur.nb_shifts_souhaites:
                                 jours_consecutifs = self.compter_jours_consecutifs(travailleur.nom, jour, planning_test)

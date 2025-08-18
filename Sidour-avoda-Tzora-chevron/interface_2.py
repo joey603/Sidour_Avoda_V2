@@ -642,7 +642,7 @@ class InterfacePlanning:
                 if (travailleur.nom.lower() == nom.lower() and 
                     travailleur.nom != self.travailleur_en_edition.nom):  # Comparaison insensible à la casse
                     messagebox.showerror("Error", f"A worker with the name '{nom}' already exists.\nPlease choose a different name.")
-            return False
+                    return False
         
         try:
             nb_shifts = int(nb_shifts_str)
@@ -2644,11 +2644,20 @@ class InterfacePlanning:
                 return list(Horaire.JOURS)
         # Bâtir une grille dynamique des jours vs shifts avec Spinbox de 1..10
         def rebuild_capacities_grid():
-            for child in capacities_frame.winfo_children():
-                child.destroy()
-            shifts = build_shifts_ms()
-            jours = get_active_days_ms()
-            if not shifts or not jours:
+            try:
+                # Vérifier si le frame existe encore
+                if not capacities_frame.winfo_exists():
+                    return
+                for child in capacities_frame.winfo_children():
+                    child.destroy()
+            except Exception:
+                return
+            try:
+                shifts = build_shifts_ms()
+                jours = get_active_days_ms()
+                if not shifts or not jours:
+                    return
+            except Exception:
                 return
             # Charger les valeurs sauvegardées depuis la DB à chaque rebuild
             try:
@@ -2866,7 +2875,7 @@ class InterfacePlanning:
                         return
             
             dbs = Database()
-            dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts)
+            dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts, max_per_person)
             messagebox.showinfo("Success", "Site settings saved")
             # Fermer la popup après sauvegarde réussie
             sites_window.destroy()
