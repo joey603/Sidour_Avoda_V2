@@ -648,6 +648,10 @@ class Planning:
                     if travailleur.nom in deja_affectes_ce_jour:
                         print(f"  {travailleur.nom} déjà affecté le {jour}, ignoré")
                         continue
+                    # Respecter la limite max par personne pour ce type de shift
+                    if not self.respecte_limites_par_personne(travailleur.nom, jour, shift):
+                        print(f"  {travailleur.nom} atteindrait la limite max pour {shift}, ignoré")
+                        continue
                     
                     # Vérifier la limite de shifts de nuit
                     if shift == "22-06" and self.compter_shifts_nuit(travailleur.nom) >= 3:
@@ -675,6 +679,9 @@ class Planning:
                         # Et interdire deux gardes le même jour
                         if travailleur.nom in deja_affectes_ce_jour:
                             continue
+                        # Même en assouplissement, ne pas dépasser la limite max par personne
+                        if not self.respecte_limites_par_personne(travailleur.nom, jour, shift):
+                            continue
                         travailleurs_disponibles.append(travailleur)
                 print(f"  Travailleurs disponibles (deuxième passe): {[t.nom for t in travailleurs_disponibles]}")
             
@@ -701,6 +708,10 @@ class Planning:
                 # Ne pas affecter si cela crée deux gardes d'affilée
                 if self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift):
                     print(f"  {travailleur.nom} aurait deux gardes d'affilée, ignoré")
+                    continue
+                # Sécurité finale: ne pas dépasser la limite au moment d'écrire
+                if not self.respecte_limites_par_personne(travailleur.nom, jour, shift):
+                    print(f"  {travailleur.nom} dépasserait la limite max pour {shift}, ignoré")
                     continue
                 val = self.planning[jour][shift]
                 if val:
