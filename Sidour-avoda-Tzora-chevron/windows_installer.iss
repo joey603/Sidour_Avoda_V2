@@ -8,7 +8,11 @@
 #ifexist "..\\dist\\SidourAvoda\\SidourAvoda.exe"
 #define DistDir "..\\dist\\SidourAvoda"
 #else
-#error "No PyInstaller dist found (expected dist\\SidourAvoda or ..\\dist\\SidourAvoda). Build step must run before packaging."
+#ifexist "Sidour-avoda-Tzora-chevron\\dist\\SidourAvoda\\SidourAvoda.exe"
+#define DistDir "Sidour-avoda-Tzora-chevron\\dist\\SidourAvoda"
+#else
+#error "No PyInstaller dist found (expected dist\\SidourAvoda, ..\\dist\\SidourAvoda, or Sidour-avoda-Tzora-chevron\\dist\\SidourAvoda). Build step must run before packaging."
+#endif
 #endif
 #endif
 
