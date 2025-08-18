@@ -2231,15 +2231,42 @@ class InterfacePlanning:
             pass
         win = tk.Toplevel(self.root)
         win.title("Please wait")
+        try:
+            win.attributes('-topmost', True)
+            win.attributes('-alpha', 0.97)
+        except Exception:
+            pass
         win.configure(bg="#f0f0f0")
         win.transient(self.root)
         win.grab_set()
         self._loader_win = win
         frame = ttk.Frame(win, padding=16)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=message, font=self.normal_font).pack(pady=(0, 10))
-        # Progressbar indéterminée
-        pb = ttk.Progressbar(frame, mode="indeterminate")
+        # Entête avec icône si disponible
+        try:
+            from PIL import Image, ImageTk
+            import os
+            logo_paths = [
+                "assets/calender-2389150_960_720.png",
+                "Sidour-avoda-Tzora-chevron/assets/calender-2389150_960_720.png",
+                os.path.join(os.path.dirname(__file__), "assets", "calender-2389150_960_720.png")
+            ]
+            logo_path = next((p for p in logo_paths if os.path.exists(p)), None)
+            if logo_path:
+                img = Image.open(logo_path).resize((22, 22), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                top_row = ttk.Frame(frame)
+                top_row.pack(fill="x", pady=(0, 8))
+                icon_lbl = ttk.Label(top_row, image=photo)
+                icon_lbl.image = photo
+                icon_lbl.pack(side="left", padx=(0, 8))
+                ttk.Label(top_row, text=message, font=self.normal_font, bootstyle="secondary").pack(side="left")
+            else:
+                ttk.Label(frame, text=message, font=self.normal_font, bootstyle="secondary").pack(pady=(0, 10))
+        except Exception:
+            ttk.Label(frame, text=message, font=self.normal_font).pack(pady=(0, 10))
+        # Progressbar indéterminée stylée
+        pb = ttk.Progressbar(frame, mode="indeterminate", bootstyle="info-striped")
         pb.pack(fill="x")
         pb.start(10)
         self._loader_pb = pb

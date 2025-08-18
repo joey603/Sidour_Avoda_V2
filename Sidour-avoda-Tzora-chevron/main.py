@@ -79,6 +79,11 @@ def _download_and_launch_installer(installer_url: str, tk_root=None):
             try:
                 modal = tk.Toplevel(tk_root)
                 modal.title("Updating...")
+                try:
+                    modal.attributes('-topmost', True)
+                    modal.attributes('-alpha', 0.97)
+                except Exception:
+                    pass
                 modal.resizable(False, False)
                 modal.transient(tk_root)
                 modal.grab_set()
@@ -86,10 +91,25 @@ def _download_and_launch_installer(installer_url: str, tk_root=None):
                 import tkinter.ttk as ttk
                 frame = ttk.Frame(modal, padding=20)
                 frame.pack(fill="both", expand=True)
-                label = ttk.Label(frame, text="Downloading and installing update...\nPlease wait.")
-                label.pack(pady=(0,10))
+                # Icon + text row
+                try:
+                    from PIL import Image, ImageTk
+                    icon_path = resource_path("assets/calender-2389150_960_720.png")
+                    if os.path.exists(icon_path):
+                        img = Image.open(icon_path).resize((22,22))
+                        photo = ImageTk.PhotoImage(img)
+                        top = ttk.Frame(frame)
+                        top.pack(fill='x', pady=(0,8))
+                        icon = ttk.Label(top, image=photo)
+                        icon.image = photo
+                        icon.pack(side='left', padx=(0,8))
+                        ttk.Label(top, text="Downloading and installing update...", foreground="#2c3e50").pack(side='left')
+                    else:
+                        ttk.Label(frame, text="Downloading and installing update...", foreground="#2c3e50").pack(pady=(0,8))
+                except Exception:
+                    ttk.Label(frame, text="Downloading and installing update...").pack(pady=(0,8))
                 bar = ttk.Progressbar(frame, mode='indeterminate', length=260)
-                bar.pack()
+                bar.pack(fill='x')
                 bar.start(12)
                 tk_root.update_idletasks()
                 w = modal.winfo_reqwidth() or 320
