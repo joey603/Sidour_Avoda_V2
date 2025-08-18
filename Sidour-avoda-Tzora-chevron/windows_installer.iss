@@ -2,6 +2,16 @@
 #define MyVersion "v0.0.0"
 #endif
 
+#ifexist "dist\\SidourAvoda\\SidourAvoda.exe"
+#define DistDir "dist\\SidourAvoda"
+#else
+#ifexist "..\\dist\\SidourAvoda\\SidourAvoda.exe"
+#define DistDir "..\\dist\\SidourAvoda"
+#else
+#error "No PyInstaller dist found (expected dist\\SidourAvoda or ..\\dist\\SidourAvoda). Build step must run before packaging."
+#endif
+#endif
+
 [Setup]
 AppName=Sidour Avoda
 AppVersion={#MyVersion}
@@ -32,9 +42,9 @@ SetupIconFile=..\\assets\\app.ico
 ; Sortie PyInstaller (nom sans espace): dist\SidourAvoda\*
 ; IMPORTANT: ne pas utiliser "Check" ici, sinon les fichiers ne seront pas copiés à l'installation
 ; Exclure l'exe de base pour le renommer en versionné
-Source: "dist\SidourAvoda\*"; DestDir: "{app}"; Excludes: "SidourAvoda.exe"; Flags: recursesubdirs createallsubdirs
+Source: "{#DistDir}\*"; DestDir: "{app}"; Excludes: "SidourAvoda.exe"; Flags: recursesubdirs createallsubdirs
 ; Copier l'exe et le renommer avec la version (incluant le v)
-Source: "dist\SidourAvoda\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda-{#MyVersion}.exe"; Flags: ignoreversion replacesameversion
+Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda-{#MyVersion}.exe"; Flags: ignoreversion replacesameversion
 
 [InstallDelete]
 ; Nettoyage d'anciens exécutables versionnés dans le dossier d'installation
