@@ -1452,7 +1452,7 @@ class InterfacePlanning:
         # Créer une nouvelle fenêtre
         agenda_window = tk.Toplevel(self.root)
         agenda_window.title(f"Planning Agenda - {self.site_actuel_nom.get()}")
-        agenda_window.geometry("1000x550")
+        agenda_window.geometry("1000x650")
         agenda_window.configure(bg="#f0f0f0")
         self.center_window(agenda_window)
         # Forcer un thème ttk compatible avec les couleurs de lignes sur macOS
@@ -1679,7 +1679,7 @@ class InterfacePlanning:
             # Créer une nouvelle fenêtre
             planning_window = tk.Toplevel(self.root)
             planning_window.title(f"Planning: {planning_info['nom']}")
-            planning_window.geometry("1200x700")
+            planning_window.geometry("1200x800")
             planning_window.configure(bg="#f0f0f0")
             self.center_window(planning_window)
             
@@ -2423,7 +2423,7 @@ class InterfacePlanning:
         sites_window.grab_set()
         try:
             sites_window.update_idletasks()
-            sites_window.minsize(1100, 620)
+            sites_window.minsize(1100, 720)
             # Centrer par rapport à la fenêtre principale
             rw = self.root.winfo_width(); rh = self.root.winfo_height()
             rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
@@ -2436,6 +2436,7 @@ class InterfacePlanning:
                 x = max(0, (sw - width) // 2)
                 y = max(0, (sh - height) // 2)
             sites_window.geometry(f"{width}x{height}+{x}+{y}")
+        sites_window.minsize(1100, 720)
         except Exception:
             pass
         
@@ -3451,7 +3452,7 @@ class InterfacePlanning:
         self._close_worker_popup_if_open()
         popup = tk.Toplevel(self.root)
         popup.title("Modify worker" if modifier else "Add worker")
-        popup.geometry("760x500")
+        popup.geometry("760x600")
         popup.configure(bg="#f0f0f0")
         popup.transient(self.root)
         popup.grab_set()
@@ -3518,7 +3519,7 @@ class InterfacePlanning:
         # Taille minimale et centrage
         try:
             add_window.update_idletasks()
-            add_window.minsize(1100, 700)
+            add_window.minsize(1100, 800)
             # Centrer par rapport à la fenêtre principale
             rw = self.root.winfo_width(); rh = self.root.winfo_height()
             rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
@@ -3531,6 +3532,7 @@ class InterfacePlanning:
                 x = max(0, (sw - width) // 2)
                 y = max(0, (sh - height) // 2)
             add_window.geometry(f"{width}x{height}+{x}+{y}")
+        add_window.minsize(1100, 800)
         except Exception:
             pass
 
