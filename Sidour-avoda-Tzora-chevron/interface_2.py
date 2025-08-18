@@ -459,7 +459,7 @@ class InterfacePlanning:
         self.table_travailleurs.heading("shifts", text="Desired shifts", command=lambda: _sort_table('shifts', False))
         
         self.table_travailleurs.column("nom", width=180, minwidth=160, anchor='w', stretch=True)
-        self.table_travailleurs.column("shifts", width=110, minwidth=90, anchor='center', stretch=False)
+        self.table_travailleurs.column("shifts", width=140, minwidth=120, anchor='center', stretch=False)
         
         # Scrollbar pour la table
         scrollbar = ttk.Scrollbar(frame_liste, orient="vertical", command=self.table_travailleurs.yview)
@@ -1456,6 +1456,7 @@ class InterfacePlanning:
         agenda_window.title(f"Planning Agenda - {self.site_actuel_nom.get()}")
         agenda_window.geometry("1000x750")
         agenda_window.configure(bg="#f0f0f0")
+        agenda_window.minsize(1000, 750)  # Empêcher la réduction en dessous de la taille minimale
         self.center_window(agenda_window)
         # Forcer un thème ttk compatible avec les couleurs de lignes sur macOS
         try:
@@ -1489,7 +1490,7 @@ class InterfacePlanning:
         
         # Créer un Treeview pour afficher les plannings
         columns = ("id", "nom", "date_creation")
-        agenda_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=15)
+        agenda_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=20)
         
         # Configurer les en-têtes
         agenda_tree.heading("id", text="ID")
@@ -1681,8 +1682,9 @@ class InterfacePlanning:
             # Créer une nouvelle fenêtre
             planning_window = tk.Toplevel(self.root)
             planning_window.title(f"Planning: {planning_info['nom']}")
-            planning_window.geometry("1200x900")
+            planning_window.geometry("1200x700")
             planning_window.configure(bg="#f0f0f0")
+            planning_window.minsize(1200, 700)  # Empêcher la réduction en dessous de la taille minimale
             self.center_window(planning_window)
             
             # Stocker l'ID du planning pour la sauvegarde ultérieure
@@ -2084,7 +2086,7 @@ class InterfacePlanning:
                 self.telecharger_planning_csv(planning_window.planning)
             
             # Frame pour les boutons en bas
-            button_frame = ttk.Frame(planning_window, padding=10)
+            button_frame = ttk.Frame(planning_window, padding=5)
             button_frame.pack(fill="x", side="bottom")
             
             # Boutons
