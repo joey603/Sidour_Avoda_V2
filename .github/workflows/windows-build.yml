@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller pillow
+          pip install pyinstaller pillow ttkbootstrap
           if (Test-Path "requirements.txt") {
             pip install -r requirements.txt
           } elseif (Test-Path "Sidour-avoda-Tzora-chevron/requirements.txt") {
@@ -80,45 +80,54 @@ jobs:
         run: |
           $proj = if (Test-Path "Sidour-avoda-Tzora-chevron/main.py") { "Sidour-avoda-Tzora-chevron" } elseif (Test-Path "main.py") { "." } else { "." }
           Set-Location $proj
-          $main = "main.py"
-          $icon = if (Test-Path "assets/app.ico") { "assets/app.ico" } else { $null }
-          $pngIcon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
-          $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
+          
           # Injecter la version dans version.txt pour l'app updater
           $versionTxt = Join-Path "." "version.txt"
           $gitTag = "${{ github.ref_name }}"
           if (-not $gitTag) { $gitTag = "v0.0.0" }
           Set-Content -Path $versionTxt -Value $gitTag -Encoding utf8
 
-          $piArgs = @("--noconsole", "--name", "SidourAvoda", "--clean")
-          # Assurer que le répertoire des modules locaux est dans l'analyse
-          $piArgs += @('--paths', '.')
-          # Forcer l'inclusion de modules locaux si l'analyse statique les rate
-          $hidden = @('interface','planning','database','horaire','travailleur','tkinter','tkinter.ttk')
-          foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
-          if ($icon) {
-            try {
-              $iconFull = (Resolve-Path $icon).Path
-            } catch {
-              $iconFull = $icon
-            }
-            $piArgs += @("--icon", $iconFull)
-          }
-          if ($db) {
-            $piArgs += @("--add-data", "$db;.")
-          }
-          # Toujours embarquer le PNG utilisé par Tkinter
-          if ($pngIcon) { $piArgs += @("--add-data", "$pngIcon;assets") }
-          # Embarquer version.txt
-          if (Test-Path $versionTxt) { $piArgs += @("--add-data", "version.txt;.") }
-          # Ajouter interface.py comme data pour fallback de chargement runtime
-          if (Test-Path "interface.py") {
-            $piArgs += @("--add-data", "interface.py;.")
-          }
-          $piArgs += @($main)
+          # Utiliser le fichier .spec pour une configuration plus robuste
+          if (Test-Path "SidourAvoda.spec") {
+            Write-Host "Using SidourAvoda.spec file for build"
+            pyinstaller --clean SidourAvoda.spec
+          } else {
+            Write-Host "SidourAvoda.spec not found, using fallback configuration"
+            $main = "main.py"
+            $icon = if (Test-Path "assets/app.ico") { "assets/app.ico" } else { $null }
+            $pngIcon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
+            $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
 
-          Write-Host ("PyInstaller arg list: " + ($piArgs -join ' '))
-          pyinstaller @piArgs
+            $piArgs = @("--noconsole", "--name", "SidourAvoda", "--clean")
+            # Assurer que le répertoire des modules locaux est dans l'analyse
+            $piArgs += @('--paths', '.')
+            # Forcer l'inclusion de modules locaux si l'analyse statique les rate
+            $hidden = @('interface','planning','database','horaire','travailleur','tkinter','tkinter.ttk','ttkbootstrap','PIL')
+            foreach ($m in $hidden) { $piArgs += @('--hidden-import', $m) }
+            if ($icon) {
+              try {
+                $iconFull = (Resolve-Path $icon).Path
+              } catch {
+                $iconFull = $icon
+              }
+              $piArgs += @("--icon", $iconFull)
+            }
+            if ($db) {
+              $piArgs += @("--add-data", "$db;.")
+            }
+            # Toujours embarquer le PNG utilisé par Tkinter
+            if ($pngIcon) { $piArgs += @("--add-data", "$pngIcon;assets") }
+            # Embarquer version.txt
+            if (Test-Path $versionTxt) { $piArgs += @("--add-data", "version.txt;.") }
+            # Ajouter interface.py comme data pour fallback de chargement runtime
+            if (Test-Path "interface.py") {
+              $piArgs += @("--add-data", "interface.py;.")
+            }
+            $piArgs += @($main)
+
+            Write-Host ("PyInstaller arg list: " + ($piArgs -join ' '))
+            pyinstaller @piArgs
+          }
 
       - name: Create versioned copy of portable exe
         shell: pwsh

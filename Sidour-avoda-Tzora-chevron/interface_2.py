@@ -13,7 +13,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.48"
+    VERSION = "1.0.59"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -99,7 +99,7 @@ class InterfacePlanning:
         
         # Définir les marges (50px en haut et en bas)
         top_margin = 50
-        bottom_margin = 50
+        bottom_margin = 80  # Augmenter pour éviter la barre de navigation
         
         # Calculer la zone disponible pour centrer
         available_height = screen_height - top_margin - bottom_margin
@@ -139,14 +139,16 @@ class InterfacePlanning:
         y = (screen_height // 2) - (height // 2)
         
         # Ajuster la position pour éviter la barre de navigation (généralement en haut)
-        # Réserver environ 50 pixels en haut pour la barre de navigation
-        navbar_height = 50
+        # Réserver environ 30 pixels en haut pour la barre de navigation
+        navbar_height = 30
         if y < navbar_height:
             y = navbar_height
         
         # S'assurer que la fenêtre ne dépasse pas en bas de l'écran
-        if y + height > screen_height - 50:  # Réserver 50 pixels en bas
-            y = screen_height - height - 50
+        # Réserver plus d'espace pour la barre de navigation (Mac/Windows)
+        bottom_margin = 80  # Augmenter la marge pour éviter la barre de navigation
+        if y + height > screen_height - bottom_margin:
+            y = screen_height - height - bottom_margin
         
         # S'assurer que la fenêtre ne dépasse pas sur les côtés
         if x < 0:
@@ -457,7 +459,7 @@ class InterfacePlanning:
         self.table_travailleurs.heading("shifts", text="Desired shifts", command=lambda: _sort_table('shifts', False))
         
         self.table_travailleurs.column("nom", width=180, minwidth=160, anchor='w', stretch=True)
-        self.table_travailleurs.column("shifts", width=110, minwidth=90, anchor='center', stretch=False)
+        self.table_travailleurs.column("shifts", width=140, minwidth=120, anchor='center', stretch=False)
         
         # Scrollbar pour la table
         scrollbar = ttk.Scrollbar(frame_liste, orient="vertical", command=self.table_travailleurs.yview)
@@ -642,7 +644,7 @@ class InterfacePlanning:
                 if (travailleur.nom.lower() == nom.lower() and 
                     travailleur.nom != self.travailleur_en_edition.nom):  # Comparaison insensible à la casse
                     messagebox.showerror("Error", f"A worker with the name '{nom}' already exists.\nPlease choose a different name.")
-            return False
+                    return False
         
         try:
             nb_shifts = int(nb_shifts_str)
@@ -1452,8 +1454,9 @@ class InterfacePlanning:
         # Créer une nouvelle fenêtre
         agenda_window = tk.Toplevel(self.root)
         agenda_window.title(f"Planning Agenda - {self.site_actuel_nom.get()}")
-        agenda_window.geometry("1000x550")
+        agenda_window.geometry("1000x750")
         agenda_window.configure(bg="#f0f0f0")
+        agenda_window.minsize(1000, 750)  # Empêcher la réduction en dessous de la taille minimale
         self.center_window(agenda_window)
         # Forcer un thème ttk compatible avec les couleurs de lignes sur macOS
         try:
@@ -1681,6 +1684,7 @@ class InterfacePlanning:
             planning_window.title(f"Planning: {planning_info['nom']}")
             planning_window.geometry("1200x700")
             planning_window.configure(bg="#f0f0f0")
+            planning_window.minsize(1200, 700)  # Empêcher la réduction en dessous de la taille minimale
             self.center_window(planning_window)
             
             # Stocker l'ID du planning pour la sauvegarde ultérieure
@@ -2082,7 +2086,7 @@ class InterfacePlanning:
                 self.telecharger_planning_csv(planning_window.planning)
             
             # Frame pour les boutons en bas
-            button_frame = ttk.Frame(planning_window, padding=10)
+            button_frame = ttk.Frame(planning_window, padding=5)
             button_frame.pack(fill="x", side="bottom")
             
             # Boutons
@@ -2417,17 +2421,17 @@ class InterfacePlanning:
         sites_window = tk.Toplevel(self.root)
         sites_window.title("Manage Site")
         # Agrandir la fenêtre pour afficher confortablement tous les composants
-        sites_window.geometry("1200x700")
+        sites_window.geometry("1200x750")
         sites_window.configure(bg="#f0f0f0")
         sites_window.transient(self.root)
         sites_window.grab_set()
         try:
             sites_window.update_idletasks()
-            sites_window.minsize(1100, 620)
+            sites_window.minsize(1100, 750)
             # Centrer par rapport à la fenêtre principale
             rw = self.root.winfo_width(); rh = self.root.winfo_height()
             rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
-            width, height = 1200, 700
+            width, height = 1200, 750
             if rw and rh and rw > 1 and rh > 1:
                 x = rx + max(0, (rw - width) // 2)
                 y = ry + max(0, (rh - height) // 2)
@@ -2436,6 +2440,7 @@ class InterfacePlanning:
                 x = max(0, (sw - width) // 2)
                 y = max(0, (sh - height) // 2)
             sites_window.geometry(f"{width}x{height}+{x}+{y}")
+            sites_window.minsize(1100, 750)
         except Exception:
             pass
         
@@ -2644,11 +2649,20 @@ class InterfacePlanning:
                 return list(Horaire.JOURS)
         # Bâtir une grille dynamique des jours vs shifts avec Spinbox de 1..10
         def rebuild_capacities_grid():
-            for child in capacities_frame.winfo_children():
-                child.destroy()
-            shifts = build_shifts_ms()
-            jours = get_active_days_ms()
-            if not shifts or not jours:
+            try:
+                # Vérifier si le frame existe encore
+                if not capacities_frame.winfo_exists():
+                    return
+                for child in capacities_frame.winfo_children():
+                    child.destroy()
+            except Exception:
+                return
+            try:
+                shifts = build_shifts_ms()
+                jours = get_active_days_ms()
+                if not shifts or not jours:
+                    return
+            except Exception:
                 return
             # Charger les valeurs sauvegardées depuis la DB à chaque rebuild
             try:
@@ -3442,7 +3456,7 @@ class InterfacePlanning:
         self._close_worker_popup_if_open()
         popup = tk.Toplevel(self.root)
         popup.title("Modify worker" if modifier else "Add worker")
-        popup.geometry("760x500")
+        popup.geometry("760x600")
         popup.configure(bg="#f0f0f0")
         popup.transient(self.root)
         popup.grab_set()
@@ -3509,7 +3523,7 @@ class InterfacePlanning:
         # Taille minimale et centrage
         try:
             add_window.update_idletasks()
-            add_window.minsize(1100, 700)
+            add_window.minsize(1100, 800)
             # Centrer par rapport à la fenêtre principale
             rw = self.root.winfo_width(); rh = self.root.winfo_height()
             rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
@@ -3522,6 +3536,7 @@ class InterfacePlanning:
                 x = max(0, (sw - width) // 2)
                 y = max(0, (sh - height) // 2)
             add_window.geometry(f"{width}x{height}+{x}+{y}")
+            add_window.minsize(1100, 800)
         except Exception:
             pass
 

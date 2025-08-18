@@ -60,9 +60,19 @@ class Database:
             shifts TEXT,           -- liste séparée par des virgules, ex: "06-14,14-22,22-06"
             active_days TEXT,      -- liste séparée par des virgules, ex: "lundi,mardi,mercredi"
             required_counts TEXT,  -- JSON des capacités par jour/shift
+            max_per_person TEXT,   -- JSON des limites par personne par type de shift
             FOREIGN KEY (site_id) REFERENCES sites (id)
         )
         ''')
+        
+        # Ajouter la colonne max_per_person si elle n'existe pas
+        cursor.execute("PRAGMA table_info(site_settings)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'max_per_person' not in columns:
+            try:
+                cursor.execute("ALTER TABLE site_settings ADD COLUMN max_per_person TEXT")
+            except sqlite3.OperationalError:
+                pass
         
         # Table des travailleurs
         cursor.execute('''
@@ -474,17 +484,35 @@ class Database:
         return plannings
 
     # Réglages de site: sauvegarde/chargement
-    def sauvegarder_reglages_site(self, site_id, shifts_list, active_days_list, required_counts: dict | None = None):
-        """Sauvegarde les réglages de shifts et jours actifs d'un site. Optionnellement, enregistre les capacités par jour/shift."""
+    def sauvegarder_reglages_site(self, site_id, shifts_list, active_days_list, required_counts: dict | None = None, max_per_person: dict | None = None):
+        """Sauvegarde les réglages de shifts et jours actifs d'un site. Optionnellement, enregistre les capacités par jour/shift et les limites par personne."""
         conn = self.connect()
         cursor = conn.cursor()
         shifts_text = ",".join(shifts_list)
         days_text = ",".join(active_days_list)
+        
+        # Préparer les données JSON
+        rc_text = None
         if required_counts is not None:
             try:
                 rc_text = json.dumps(required_counts)
             except Exception:
                 rc_text = json.dumps({})
+        
+        mp_text = None
+        if max_per_person is not None:
+            try:
+                mp_text = json.dumps(max_per_person)
+            except Exception:
+                mp_text = json.dumps({})
+        
+        # Insérer ou mettre à jour avec tous les paramètres
+        if rc_text is not None and mp_text is not None:
+            cursor.execute(
+                "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days, required_counts, max_per_person) VALUES (?, ?, ?, ?, ?)",
+                (site_id, shifts_text, days_text, rc_text, mp_text)
+            )
+        elif rc_text is not None:
             cursor.execute(
                 "INSERT OR REPLACE INTO site_settings (site_id, shifts, active_days, required_counts) VALUES (?, ?, ?, ?)",
                 (site_id, shifts_text, days_text, rc_text)
@@ -539,6 +567,24 @@ class Database:
                     v = 1
                 fixed[j][s] = max(1, v)
         return fixed
+
+    def charger_limites_par_personne(self, site_id):
+        """Retourne un dict {shift_type: int} des limites par personne par type de shift (6 par défaut)."""
+        conn = self.connect()
+        cursor = conn.cursor()
+        cursor.execute("SELECT max_per_person FROM site_settings WHERE site_id = ?", (site_id,))
+        row = cursor.fetchone()
+        self.close()
+        limites = {}
+        if row and row[0]:
+            try:
+                limites = json.loads(row[0])
+            except Exception:
+                limites = {}
+        # Valeurs par défaut si pas de données
+        if not limites:
+            limites = {"06-14": 6, "14-22": 6, "22-06": 6}
+        return limites
     
     def lister_plannings_par_site(self, site_id=None):
         """Liste tous les plannings d'un site spécifique ou tous si site_id est None"""
