@@ -22,6 +22,12 @@ version_path = 'version.txt'
 if os.path.exists(version_path):
     datas.append((version_path, '.'))
 
+# Ajouter les fichiers Python locaux
+python_files = ['interface_2.py', 'planning.py', 'database.py', 'travailleur.py', 'horaire.py']
+for py_file in python_files:
+    if os.path.exists(py_file):
+        datas.append((py_file, '.'))
+
 # Configuration de l'exécutable
 a = Analysis(
     ['main.py'],
@@ -51,6 +57,11 @@ a = Analysis(
         'sys',
         'os',
         'pathlib',
+        'interface_2',
+        'planning',
+        'database',
+        'travailleur',
+        'horaire',
     ],
     hookspath=[],
     hooksconfig={},
