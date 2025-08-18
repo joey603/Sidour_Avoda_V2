@@ -20,7 +20,7 @@ if os.path.exists(assets_path):
 # Configuration de l'exécutable
 a = Analysis(
     ['main.py'],
-    pathex=[os.path.dirname(__file__)],
+    pathex=['.'],
     binaries=[],
     datas=datas,
     hiddenimports=[
@@ -60,41 +60,48 @@ a = Analysis(
 # Configuration pour inclure les DLLs Python
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# Configuration de l'exécutable
+icon_path = 'assets/app.ico' if os.path.exists('assets/app.ico') else ( 'assets/calender-2389150_960_720.png' if os.path.exists('assets/calender-2389150_960_720.png') else None )
+
+# Configuration de l'exécutable (structure standard PyInstaller)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='SidourAvoda',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,  # Application GUI sans console
     disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon='assets/calender-2389150_960_720.png' if os.path.exists('assets/calender-2389150_960_720.png') else None,
+    icon=icon_path,
 )
 
-# Configuration pour macOS (optionnel)
-app = BUNDLE(
+# Regrouper tous les éléments dans le dossier dist/SidourAvoda
+coll = COLLECT(
     exe,
-    name='SidourAvoda.app',
-    icon='assets/calender-2389150_960_720.png' if os.path.exists('assets/calender-2389150_960_720.png') else None,
-    bundle_identifier='com.sidouravoda.app',
-    info_plist={
-        'CFBundleName': 'Sidour Avoda Pro',
-        'CFBundleDisplayName': 'Sidour Avoda Pro',
-        'CFBundleVersion': '1.0.48',
-        'CFBundleShortVersionString': '1.0.48',
-        'NSHighResolutionCapable': True,
-    },
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='SidourAvoda',
 )
+
+# Configuration pour macOS (optionnel, uniquement sur macOS)
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        exe,
+        name='SidourAvoda.app',
+        icon=icon_path,
+        bundle_identifier='com.sidouravoda.app',
+        info_plist={
+            'CFBundleName': 'Sidour Avoda Pro',
+            'CFBundleDisplayName': 'Sidour Avoda Pro',
+            'CFBundleVersion': '1.0.48',
+            'CFBundleShortVersionString': '1.0.48',
+            'NSHighResolutionCapable': True,
+        },
+    )
