@@ -459,7 +459,7 @@ class InterfacePlanning:
         self.table_travailleurs.heading("shifts", text="Desired shifts", command=lambda: _sort_table('shifts', False))
         
         self.table_travailleurs.column("nom", width=180, minwidth=160, anchor='w', stretch=True)
-        self.table_travailleurs.column("shifts", width=140, minwidth=120, anchor='center', stretch=False)
+        self.table_travailleurs.column("shifts", width=160, minwidth=140, anchor='center', stretch=False)
         
         # Scrollbar pour la table
         scrollbar = ttk.Scrollbar(frame_liste, orient="vertical", command=self.table_travailleurs.yview)
