@@ -2866,7 +2866,7 @@ class InterfacePlanning:
                         return
             
             dbs = Database()
-            dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts, max_per_person)
+            dbs.sauvegarder_reglages_site(self.site_actuel_id, shifts_list, days_list, required_counts)
             messagebox.showinfo("Success", "Site settings saved")
             # Fermer la popup après sauvegarde réussie
             sites_window.destroy()
