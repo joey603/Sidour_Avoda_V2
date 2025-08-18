@@ -13,7 +13,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.62"
+    VERSION = "1.0.63"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -57,6 +57,7 @@ class InterfacePlanning:
         self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
         self.header_font = tkfont.Font(family="Helvetica", size=12, weight="bold")
         self.normal_font = tkfont.Font(family="Helvetica", size=10)
+        self.bold_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
         
         self.planning = Planning()
         # Etat UI: planning généré ou non
@@ -155,15 +156,15 @@ class InterfacePlanning:
         
         for i, worker_name in enumerate(all_workers):
             if worker_name not in self.travailleur_colors:
-                # Utiliser l'espace HSV pour des couleurs distinctes
+                # Utiliser l'espace HSV pour des couleurs distinctes mais plus douces
                 # Hue: répartir uniformément sur 360°
                 hue = (i * 360.0) / num_workers
                 
-                # Saturation: alterner entre 70% et 90% pour plus de variété
-                saturation = 0.7 + (i % 2) * 0.2
+                # Saturation: légèrement plus élevée pour des couleurs moins pâles (40% à 60%)
+                saturation = 0.4 + (i % 3) * 0.1
                 
-                # Value: alterner entre 80% et 95% pour éviter les couleurs trop sombres
-                value = 0.8 + (i % 3) * 0.05
+                # Value: plus élevée pour des couleurs plus claires (85% à 95%)
+                value = 0.85 + (i % 2) * 0.05
                 
                 # Convertir HSV vers RGB
                 rgb = colorsys.hsv_to_rgb(hue / 360.0, saturation, value)
@@ -257,7 +258,7 @@ class InterfacePlanning:
                 logo_label.image = logo_photo  # Garder une référence
                 logo_label.pack(side="left", padx=(0, 10))
                 
-                app_title = ttk.Label(header_frame, text="Sidour Avoda Pro", 
+                app_title = ttk.Label(header_frame, text="Sidour Avoda", 
                                     font=tkfont.Font(family="Helvetica", size=16, weight="bold"),
                                     bootstyle="primary")
                 app_title.pack(side="left")
@@ -271,7 +272,7 @@ class InterfacePlanning:
             
         except Exception as e:
             # Fallback si le logo ne peut pas être chargé
-            app_title = ttk.Label(header_frame, text="Sidour Avoda Pro", 
+            app_title = ttk.Label(header_frame, text="Sidour Avoda", 
                                 font=tkfont.Font(family="Helvetica", size=16, weight="bold"),
                                 bootstyle="primary")
             app_title.pack(side="left")
@@ -283,7 +284,7 @@ class InterfacePlanning:
             
         except Exception as e:
             # Fallback si le logo ne peut pas être chargé
-            app_title = ttk.Label(header_frame, text="Sidour Avoda Pro", 
+            app_title = ttk.Label(header_frame, text="Sidour Avoda", 
                                 font=tkfont.Font(family="Helvetica", size=16, weight="bold"),
                                 bootstyle="primary")
             app_title.pack(side="left")
@@ -637,8 +638,8 @@ class InterfacePlanning:
                             b = int(color[5:7], 16)
                             # Calculer la luminosité
                             luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-                            # Choisir noir ou blanc selon la luminosité
-                            text_color = "black" if luminance > 0.5 else "white"
+                            # Favoriser le noir pour une meilleure lisibilité avec les couleurs pâles
+                            text_color = "black" if luminance > 0.4 else "white"
                         except:
                             text_color = "black"
                         
@@ -647,7 +648,7 @@ class InterfacePlanning:
                             text=nom,
                             bg=color,
                             fg=text_color,
-                            font=self.normal_font,
+                            font=self.bold_font,
                             relief="raised",
                             borderwidth=2,
                             padx=5,
@@ -661,8 +662,8 @@ class InterfacePlanning:
                             inner,
                             text="Unassigned",
                             bg="#F0F0F0",
-                            fg="#666666",
-                            font=self.normal_font,
+                            fg="#333333",
+                            font=self.bold_font,
                             relief="sunken",
                             borderwidth=1,
                             padx=5,
