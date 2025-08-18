@@ -13,7 +13,7 @@ datas += collect_data_files('ttkbootstrap')
 datas += collect_data_files('PIL')
 
 # Ajouter le dossier assets
-assets_path = os.path.join(os.path.dirname(__file__), 'assets')
+assets_path = 'assets'
 if os.path.exists(assets_path):
     datas.append((assets_path, 'assets'))
 
