@@ -13,7 +13,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.64"
+    VERSION = "1.0.65"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -436,12 +436,7 @@ class InterfacePlanning:
         
         # Title
         titre_planning = ttk.Label(right_frame, text="Week Planning", font=self.title_font, bootstyle="primary")
-        titre_planning.pack(pady=(0, 20), fill="x")
-        try:
-            # Centrer le texte dans le label et occuper toute la largeur
-            titre_planning.configure(anchor="center", justify="center")
-        except Exception:
-            pass
+        titre_planning.pack(pady=(0, 20))
         
         # Creation of the canvas for the visual planning
         self.canvas_frame = ttk.Frame(right_frame, padding=5)
@@ -506,11 +501,6 @@ class InterfacePlanning:
         # Liste des travailleurs
         frame_liste = ttk.LabelFrame(frame, text="Workers registered", padding=10, bootstyle="primary")
         frame_liste.grid(row=0, column=0, sticky="nsew")
-        try:
-            # Centrer le titre du LabelFrame si le thème le permet
-            frame_liste.configure(labelanchor="n")
-        except Exception:
-            pass
         frame_liste.columnconfigure(0, weight=1)
         frame_liste.columnconfigure(1, weight=0)
         frame_liste.rowconfigure(0, weight=1)  # Table
