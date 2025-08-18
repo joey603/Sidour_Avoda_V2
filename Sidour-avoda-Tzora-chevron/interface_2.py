@@ -55,7 +55,7 @@ class InterfacePlanning:
         
         # Police personnalisée
         self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
-        self.header_font = tkfont.Font(family="Helvetica", size=12, weight="bold")
+        self.header_font = tkfont.Font(family="Helvetica", size=11, weight="bold")
         self.normal_font = tkfont.Font(family="Helvetica", size=11)
         self.bold_font = tkfont.Font(family="Helvetica", size=11, weight="bold")
         
@@ -435,7 +435,7 @@ class InterfacePlanning:
             pass
         
         # Title
-        titre_planning = ttk.Label(right_frame, text="Week Planning", font=self.title_font)
+        titre_planning = ttk.Label(right_frame, text="Week Planning", font=self.title_font, bootstyle="primary")
         titre_planning.pack(pady=(0, 20))
         
         # Creation of the canvas for the visual planning
@@ -603,7 +603,7 @@ class InterfacePlanning:
             caps = {}
         dynamic_days = list(self.planning.planning.keys()) if self.planning and self.planning.planning else list(Horaire.JOURS)
         for i, jour in enumerate(dynamic_days):
-            ttk.Label(planning_frame, text=self.traduire_jour(jour), font=self.bold_font).grid(row=i+1, column=0, padx=5, pady=(2,5), sticky="w")
+            ttk.Label(planning_frame, text=self.traduire_jour(jour), font=self.normal_font).grid(row=i+1, column=0, padx=5, pady=(2,5), sticky="w")
             
             for j, shift in enumerate(dynamic_shifts):
                 travailleur = self.planning.planning[jour][shift]
@@ -648,7 +648,7 @@ class InterfacePlanning:
                             text=nom,
                             bg=color,
                             fg=text_color,
-                            font=self.bold_font,
+                            font=self.normal_font,
                             relief="raised",
                             borderwidth=2,
                             padx=5,
@@ -663,7 +663,7 @@ class InterfacePlanning:
                             text="Unassigned",
                             bg="#F0F0F0",
                             fg="#333333",
-                            font=self.bold_font,
+                            font=self.normal_font,
                             relief="sunken",
                             borderwidth=1,
                             padx=5,
