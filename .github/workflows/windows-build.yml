@@ -35,7 +35,6 @@ jobs:
           } else {
             Write-Host "No requirements.txt found, continuing with PyInstaller only."
           }
-
       - name: Prepare icon (.ico from PNG if needed)
         shell: pwsh
         run: |
@@ -74,7 +73,6 @@ jobs:
               python $tmp
             }
           }
-
       - name: Build portable exe with PyInstaller
         shell: pwsh
         run: |
@@ -86,7 +84,6 @@ jobs:
           $gitTag = "${{ github.ref_name }}"
           if (-not $gitTag) { $gitTag = "v0.0.0" }
           Set-Content -Path $versionTxt -Value $gitTag -Encoding utf8
-
           # Utiliser le fichier .spec pour une configuration plus robuste
           if (Test-Path "SidourAvoda.spec") {
             Write-Host "Using SidourAvoda.spec file for build"
@@ -97,7 +94,6 @@ jobs:
             $icon = if (Test-Path "assets/app.ico") { "assets/app.ico" } else { $null }
             $pngIcon = if (Test-Path "assets/calender-2389150_960_720.png") { "assets/calender-2389150_960_720.png" } else { $null }
             $db = if (Test-Path "planning_data.db") { "planning_data.db" } elseif (Test-Path "../planning_data.db") { "../planning_data.db" } else { $null }
-
             $piArgs = @("--noconsole", "--name", "SidourAvoda", "--clean")
             # Assurer que le répertoire des modules locaux est dans l'analyse
             $piArgs += @('--paths', '.')
@@ -124,11 +120,9 @@ jobs:
               $piArgs += @("--add-data", "interface.py;.")
             }
             $piArgs += @($main)
-
             Write-Host ("PyInstaller arg list: " + ($piArgs -join ' '))
             pyinstaller @piArgs
           }
-
       - name: Create versioned copy of portable exe
         shell: pwsh
         run: |
@@ -143,7 +137,6 @@ jobs:
           } else {
             Write-Host 'Portable exe not found to version-copy.'
           }
-
       - name: Upload portable build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -151,7 +144,6 @@ jobs:
           path: |
             dist/**
             Sidour-avoda-Tzora-chevron/dist/**
-
       - name: Install Inno Setup
         run: choco install innosetup --yes
 
@@ -168,7 +160,6 @@ jobs:
           $ver = "${{ github.ref_name }}"
           if (-not $ver) { $ver = "v0.0.0" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyVersion=$ver" "Sidour-avoda-Tzora-chevron\windows_installer.iss"
-
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
@@ -183,5 +174,3 @@ jobs:
             Sidour-avoda-Tzora-chevron/dist_installer/Sidour-Avoda-Setup.exe
             Sidour-avoda-Tzora-chevron/dist/SidourAvoda/SidourAvoda.exe
             Sidour-avoda-Tzora-chevron/dist/SidourAvoda/SidourAvoda-${{ github.ref_name }}.exe
-
-
