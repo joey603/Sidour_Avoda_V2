@@ -13,7 +13,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.59"
+    VERSION = "1.0.60"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -522,10 +522,10 @@ class InterfacePlanning:
                 self.travailleur_colors[travailleur.nom] = color
         
         # Headers of the columns (dynamiques par site)
-        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=(5,2), sticky="w")
         dynamic_shifts = list(next(iter(self.planning.planning.values())).keys()) if self.planning and self.planning.planning else list(Horaire.SHIFTS.values())
         for i, shift in enumerate(dynamic_shifts):
-            ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=5)
+            ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=(5,2))
         
         # Remplir le planning
         # Charger les capacités (nombre de personnes requises par jour/shift) pour le site courant
@@ -535,7 +535,7 @@ class InterfacePlanning:
             caps = {}
         dynamic_days = list(self.planning.planning.keys()) if self.planning and self.planning.planning else list(Horaire.JOURS)
         for i, jour in enumerate(dynamic_days):
-            ttk.Label(planning_frame, text=self.traduire_jour(jour), font=self.normal_font).grid(row=i+1, column=0, padx=5, pady=5, sticky="w")
+            ttk.Label(planning_frame, text=self.traduire_jour(jour), font=self.normal_font).grid(row=i+1, column=0, padx=5, pady=(2,5), sticky="w")
             
             for j, shift in enumerate(dynamic_shifts):
                 travailleur = self.planning.planning[jour][shift]
