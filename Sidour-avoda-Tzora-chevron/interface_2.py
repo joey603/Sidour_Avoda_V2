@@ -19,7 +19,7 @@ class InterfacePlanning:
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
         # Utiliser ttkbootstrap pour une interface moderne
         self.root = ttk.Window(
-            title=f"Sidour Avoda Pro v{self.VERSION}",
+            title=f"Sidour Avoda  v{self.VERSION}",
             themename="cosmo",
             size=(1400, 750)
         )
@@ -123,6 +123,58 @@ class InterfacePlanning:
             y = screen_height - height - bottom_margin
         
         self.root.geometry(f"{width}x{height}+{x}+{y}")
+
+    def assign_unique_colors_to_workers(self):
+        """Génère des couleurs uniques et distinctes pour chaque travailleur en utilisant l'espace HSV"""
+        import colorsys
+        
+        # Obtenir tous les travailleurs uniques
+        all_workers = set()
+        
+        # Ajouter les travailleurs du planning
+        for travailleur in self.planning.travailleurs:
+            all_workers.add(travailleur.nom)
+        
+        # Ajouter les travailleurs de la base de données
+        try:
+            db = Database()
+            db_workers = db.charger_travailleurs_site(self.site_actuel_id)
+            for worker in db_workers:
+                all_workers.add(worker['nom'])
+        except Exception:
+            pass
+        
+        # Convertir en liste et trier pour la cohérence
+        all_workers = sorted(list(all_workers))
+        
+        if not all_workers:
+            return
+        
+        # Générer des couleurs HSV équidistantes
+        num_workers = len(all_workers)
+        
+        for i, worker_name in enumerate(all_workers):
+            if worker_name not in self.travailleur_colors:
+                # Utiliser l'espace HSV pour des couleurs distinctes
+                # Hue: répartir uniformément sur 360°
+                hue = (i * 360.0) / num_workers
+                
+                # Saturation: alterner entre 70% et 90% pour plus de variété
+                saturation = 0.7 + (i % 2) * 0.2
+                
+                # Value: alterner entre 80% et 95% pour éviter les couleurs trop sombres
+                value = 0.8 + (i % 3) * 0.05
+                
+                # Convertir HSV vers RGB
+                rgb = colorsys.hsv_to_rgb(hue / 360.0, saturation, value)
+                
+                # Convertir en hex
+                r = int(rgb[0] * 255)
+                g = int(rgb[1] * 255)
+                b = int(rgb[2] * 255)
+                
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                self.travailleur_colors[worker_name] = color
 
     def center_window(self, window):
         """Centre une fenêtre popup par rapport à la fenêtre principale en évitant la barre de navigation"""
@@ -533,22 +585,8 @@ class InterfacePlanning:
         planning_frame = ttk.Frame(self.canvas_frame)
         planning_frame.pack(fill="both", expand=True)
         
-        # Réinitialiser la liste des couleurs disponibles
-        self.colors = ["#FFD700", "#87CEFA", "#98FB98", "#FFA07A", "#DDA0DD", "#AFEEEE", "#D8BFD8"]
-        
-        # Assigner des couleurs aux travailleurs s'ils n'en ont pas déjà
-        for travailleur in self.planning.travailleurs:
-            if travailleur.nom not in self.travailleur_colors:
-                # Assigner une couleur aléatoire parmi celles disponibles
-                if self.colors:
-                    color = self.colors.pop(0)
-                else:
-                    # Si toutes les couleurs prédéfinies sont utilisées, générer une couleur aléatoire
-                    r = random.randint(100, 240)
-                    g = random.randint(100, 240)
-                    b = random.randint(100, 240)
-                    color = f"#{r:02x}{g:02x}{b:02x}"
-                self.travailleur_colors[travailleur.nom] = color
+        # Générer des couleurs uniques pour chaque travailleur
+        self.assign_unique_colors_to_workers()
         
         # Headers of the columns (dynamiques par site)
         ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=(5,2), sticky="w")
@@ -1742,34 +1780,8 @@ class InterfacePlanning:
                 shifts_dyn, jours_dyn = list(Horaire.SHIFTS.values()), list(Horaire.JOURS)
                 capacities = {j: {s: 1 for s in shifts_dyn} for j in jours_dyn}
 
-            # Réinitialiser la liste des couleurs disponibles
-            self.colors = ["#FFD700", "#87CEFA", "#98FB98", "#FFA07A", "#DDA0DD", "#AFEEEE", "#D8BFD8"]
-
-            # Assigner des couleurs pour tous les travailleurs déjà présents dans ce planning
-            def _assign_color_if_needed(worker_name: str):
-                if not worker_name or worker_name == "Not assigned":
-                    return
-                if worker_name not in self.travailleur_colors:
-                    if self.colors:
-                        color = self.colors.pop(0)
-                    else:
-                        import random
-                        r = random.randint(100, 240)
-                        g = random.randint(100, 240)
-                        b = random.randint(100, 240)
-                        color = f"#{r:02x}{g:02x}{b:02x}"
-                    self.travailleur_colors[worker_name] = color
-
-            try:
-                for j, smap in planning_charge.planning.items():
-                    for s, val in smap.items():
-                        if val:
-                            for n in [x.strip() for x in str(val).split(" / ") if x.strip()]:
-                                _assign_color_if_needed(n)
-                        else:
-                            _assign_color_if_needed(val)
-            except Exception:
-                pass
+            # Générer des couleurs uniques pour tous les travailleurs du planning
+            self.assign_unique_colors_to_workers()
             
             # Canvas pour le planning
             canvas_width = 1000
@@ -2066,12 +2078,8 @@ class InterfacePlanning:
                         else:
                             # garantir une couleur pour le travailleur
                             if choix not in self.travailleur_colors:
-                                # assigne une nouvelle couleur simple
-                                import random
-                                r = random.randint(100, 240)
-                                g = random.randint(100, 240)
-                                b = random.randint(100, 240)
-                                self.travailleur_colors[choix] = f"#{r:02x}{g:02x}{b:02x}"
+                                # Générer une couleur unique pour ce nouveau travailleur
+                                self.assign_unique_colors_to_workers()
                             if jour not in planning_window.planning.planning:
                                 # si le jour n'est pas dans la structure (devrait être rare), ignorer en sécurité
                                 selection_window.destroy()
