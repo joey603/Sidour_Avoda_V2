@@ -17,6 +17,11 @@ assets_path = 'assets'
 if os.path.exists(assets_path):
     datas.append((assets_path, 'assets'))
 
+# Ajouter le fichier version.txt
+version_path = 'version.txt'
+if os.path.exists(version_path):
+    datas.append((version_path, '.'))
+
 # Configuration de l'exécutable
 a = Analysis(
     ['main.py'],
