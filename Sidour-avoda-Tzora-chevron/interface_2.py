@@ -13,7 +13,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.63"
+    VERSION = "1.0.64"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -56,8 +56,8 @@ class InterfacePlanning:
         # Police personnalisée
         self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
         self.header_font = tkfont.Font(family="Helvetica", size=12, weight="bold")
-        self.normal_font = tkfont.Font(family="Helvetica", size=10)
-        self.bold_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
+        self.normal_font = tkfont.Font(family="Helvetica", size=11)
+        self.bold_font = tkfont.Font(family="Helvetica", size=11, weight="bold")
         
         self.planning = Planning()
         # Etat UI: planning généré ou non
@@ -160,11 +160,11 @@ class InterfacePlanning:
                 # Hue: répartir uniformément sur 360°
                 hue = (i * 360.0) / num_workers
                 
-                # Saturation: légèrement plus élevée pour des couleurs moins pâles (40% à 60%)
-                saturation = 0.4 + (i % 3) * 0.1
+                # Saturation: plus faible pour des couleurs plus claires (25% à 40%)
+                saturation = 0.25 + (i % 3) * 0.05
                 
-                # Value: plus élevée pour des couleurs plus claires (85% à 95%)
-                value = 0.85 + (i % 2) * 0.05
+                # Value: très élevée pour des couleurs très claires (90% à 98%)
+                value = 0.9 + (i % 2) * 0.04
                 
                 # Convertir HSV vers RGB
                 rgb = colorsys.hsv_to_rgb(hue / 360.0, saturation, value)
@@ -509,7 +509,7 @@ class InterfacePlanning:
         # Style amélioré pour le tableau
         tv_style = ttk.Style()
         try:
-            tv_style.configure('Workers.Treeview', font=self.normal_font, rowheight=26)
+            tv_style.configure('Workers.Treeview', font=self.normal_font, rowheight=28)
             tv_style.configure('Workers.Treeview.Heading', font=self.header_font, background="#e9ecef", foreground="#2c3e50")
             tv_style.map('Workers.Treeview', background=[('selected', '#cfe8ff')], foreground=[('selected', '#000000')])
         except Exception:
@@ -603,7 +603,7 @@ class InterfacePlanning:
             caps = {}
         dynamic_days = list(self.planning.planning.keys()) if self.planning and self.planning.planning else list(Horaire.JOURS)
         for i, jour in enumerate(dynamic_days):
-            ttk.Label(planning_frame, text=self.traduire_jour(jour), font=self.normal_font).grid(row=i+1, column=0, padx=5, pady=(2,5), sticky="w")
+            ttk.Label(planning_frame, text=self.traduire_jour(jour), font=self.bold_font).grid(row=i+1, column=0, padx=5, pady=(2,5), sticky="w")
             
             for j, shift in enumerate(dynamic_shifts):
                 travailleur = self.planning.planning[jour][shift]
@@ -638,8 +638,8 @@ class InterfacePlanning:
                             b = int(color[5:7], 16)
                             # Calculer la luminosité
                             luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-                            # Favoriser le noir pour une meilleure lisibilité avec les couleurs pâles
-                            text_color = "black" if luminance > 0.4 else "white"
+                            # Avec des couleurs claires, utiliser principalement du texte noir
+                            text_color = "black" if luminance > 0.35 else "white"
                         except:
                             text_color = "black"
                         
