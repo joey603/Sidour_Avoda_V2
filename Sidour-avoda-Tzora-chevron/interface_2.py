@@ -2440,9 +2440,29 @@ class InterfacePlanning:
         except Exception:
             pass
         
-        # Frame principal
-        main_frame = ttk.Frame(sites_window, padding=20)
-        main_frame.pack(fill="both", expand=True)
+        # Frame principal avec scrollbar pour le contenu
+        main_container = ttk.Frame(sites_window)
+        main_container.pack(fill="both", expand=True)
+        
+        # Canvas et scrollbar pour le contenu scrollable
+        canvas = tk.Canvas(main_container, bg="#f0f0f0")
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, padding=20)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas et scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Frame principal pour le contenu
+        main_frame = scrollable_frame
         
         # Cette fenêtre ne gère plus l'ajout; utiliser "Add Site" séparément
         
@@ -3035,9 +3055,9 @@ class InterfacePlanning:
 
             print("=== DEBUG: End site deletion ===")
         
-        # Boutons d'action (pour le site courant)
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(side="bottom", fill="x", pady=(10, 0))
+        # Boutons d'action (pour le site courant) - Frame fixe en bas
+        btn_frame = ttk.Frame(sites_window, padding=10)
+        btn_frame.pack(side="bottom", fill="x")
 
         btn_supprimer = ttk.Button(btn_frame, text="🗑️ Delete site", 
                                  bootstyle="danger-outline",
@@ -3536,8 +3556,29 @@ class InterfacePlanning:
         except Exception:
             pass
 
-        main = ttk.Frame(add_window, padding=20)
-        main.pack(fill="both", expand=True)
+        # Frame principal avec scrollbar pour le contenu
+        main_container = ttk.Frame(add_window)
+        main_container.pack(fill="both", expand=True)
+        
+        # Canvas et scrollbar pour le contenu scrollable
+        canvas = tk.Canvas(main_container, bg="#f0f0f0")
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, padding=20)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas et scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Frame principal pour le contenu
+        main = scrollable_frame
 
         # Nom & Description
         ttk.Label(main, text="Site name:").grid(row=0, column=0, sticky="w")
@@ -3779,8 +3820,9 @@ class InterfacePlanning:
             self.site_combobox.configure(values=[site['nom'] for site in self.sites_disponibles])
             add_window.destroy()
 
-        btns = ttk.Frame(main)
-        btns.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        # Boutons d'action - Frame fixe en bas
+        btns = ttk.Frame(add_window, padding=10)
+        btns.pack(side="bottom", fill="x")
         # Utiliser le même style que dans "Manage Site"
         btn_create_site = ttk.Button(btns, text="✅ Create", 
                                    bootstyle="success",
