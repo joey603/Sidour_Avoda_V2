@@ -13,7 +13,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.51"
+    VERSION = "1.0.57"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -99,7 +99,7 @@ class InterfacePlanning:
         
         # Définir les marges (50px en haut et en bas)
         top_margin = 50
-        bottom_margin = 50
+        bottom_margin = 80  # Augmenter pour éviter la barre de navigation
         
         # Calculer la zone disponible pour centrer
         available_height = screen_height - top_margin - bottom_margin
@@ -139,14 +139,16 @@ class InterfacePlanning:
         y = (screen_height // 2) - (height // 2)
         
         # Ajuster la position pour éviter la barre de navigation (généralement en haut)
-        # Réserver environ 50 pixels en haut pour la barre de navigation
-        navbar_height = 50
+        # Réserver environ 30 pixels en haut pour la barre de navigation
+        navbar_height = 30
         if y < navbar_height:
             y = navbar_height
         
         # S'assurer que la fenêtre ne dépasse pas en bas de l'écran
-        if y + height > screen_height - 50:  # Réserver 50 pixels en bas
-            y = screen_height - height - 50
+        # Réserver plus d'espace pour la barre de navigation (Mac/Windows)
+        bottom_margin = 80  # Augmenter la marge pour éviter la barre de navigation
+        if y + height > screen_height - bottom_margin:
+            y = screen_height - height - bottom_margin
         
         # S'assurer que la fenêtre ne dépasse pas sur les côtés
         if x < 0:
@@ -2417,17 +2419,17 @@ class InterfacePlanning:
         sites_window = tk.Toplevel(self.root)
         sites_window.title("Manage Site")
         # Agrandir la fenêtre pour afficher confortablement tous les composants
-        sites_window.geometry("1200x700")
+        sites_window.geometry("1200x750")
         sites_window.configure(bg="#f0f0f0")
         sites_window.transient(self.root)
         sites_window.grab_set()
         try:
             sites_window.update_idletasks()
-            sites_window.minsize(1100, 720)
+            sites_window.minsize(1100, 750)
             # Centrer par rapport à la fenêtre principale
             rw = self.root.winfo_width(); rh = self.root.winfo_height()
             rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
-            width, height = 1200, 700
+            width, height = 1200, 750
             if rw and rh and rw > 1 and rh > 1:
                 x = rx + max(0, (rw - width) // 2)
                 y = ry + max(0, (rh - height) // 2)
@@ -2436,33 +2438,13 @@ class InterfacePlanning:
                 x = max(0, (sw - width) // 2)
                 y = max(0, (sh - height) // 2)
             sites_window.geometry(f"{width}x{height}+{x}+{y}")
-            sites_window.minsize(1100, 720)
+            sites_window.minsize(1100, 750)
         except Exception:
             pass
         
-        # Frame principal avec scrollbar pour le contenu
-        main_container = ttk.Frame(sites_window)
-        main_container.pack(fill="both", expand=True)
-        
-        # Canvas et scrollbar pour le contenu scrollable
-        canvas = tk.Canvas(main_container, bg="#f0f0f0")
-        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas, padding=20)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Pack canvas et scrollbar
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Frame principal pour le contenu
-        main_frame = scrollable_frame
+        # Frame principal
+        main_frame = ttk.Frame(sites_window, padding=20)
+        main_frame.pack(fill="both", expand=True)
         
         # Cette fenêtre ne gère plus l'ajout; utiliser "Add Site" séparément
         
@@ -3055,9 +3037,9 @@ class InterfacePlanning:
 
             print("=== DEBUG: End site deletion ===")
         
-        # Boutons d'action (pour le site courant) - Frame fixe en bas
-        btn_frame = ttk.Frame(sites_window, padding=10)
-        btn_frame.pack(side="bottom", fill="x")
+        # Boutons d'action (pour le site courant)
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(side="bottom", fill="x", pady=(10, 0))
 
         btn_supprimer = ttk.Button(btn_frame, text="🗑️ Delete site", 
                                  bootstyle="danger-outline",
@@ -3556,29 +3538,8 @@ class InterfacePlanning:
         except Exception:
             pass
 
-        # Frame principal avec scrollbar pour le contenu
-        main_container = ttk.Frame(add_window)
-        main_container.pack(fill="both", expand=True)
-        
-        # Canvas et scrollbar pour le contenu scrollable
-        canvas = tk.Canvas(main_container, bg="#f0f0f0")
-        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas, padding=20)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Pack canvas et scrollbar
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Frame principal pour le contenu
-        main = scrollable_frame
+        main = ttk.Frame(add_window, padding=20)
+        main.pack(fill="both", expand=True)
 
         # Nom & Description
         ttk.Label(main, text="Site name:").grid(row=0, column=0, sticky="w")
@@ -3820,9 +3781,8 @@ class InterfacePlanning:
             self.site_combobox.configure(values=[site['nom'] for site in self.sites_disponibles])
             add_window.destroy()
 
-        # Boutons d'action - Frame fixe en bas
-        btns = ttk.Frame(add_window, padding=10)
-        btns.pack(side="bottom", fill="x")
+        btns = ttk.Frame(main)
+        btns.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(12, 0))
         # Utiliser le même style que dans "Manage Site"
         btn_create_site = ttk.Button(btns, text="✅ Create", 
                                    bootstyle="success",
