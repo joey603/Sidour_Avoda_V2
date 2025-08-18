@@ -100,8 +100,8 @@ if sys.platform == 'darwin':
         info_plist={
             'CFBundleName': 'Sidour Avoda Pro',
             'CFBundleDisplayName': 'Sidour Avoda Pro',
-            'CFBundleVersion': '1.0.48',
-            'CFBundleShortVersionString': '1.0.48',
+            'CFBundleVersion': '1.0.51',
+            'CFBundleShortVersionString': '1.0.51',
             'NSHighResolutionCapable': True,
         },
     )
