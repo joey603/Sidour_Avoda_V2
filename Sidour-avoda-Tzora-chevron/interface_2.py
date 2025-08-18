@@ -1454,7 +1454,7 @@ class InterfacePlanning:
         # Créer une nouvelle fenêtre
         agenda_window = tk.Toplevel(self.root)
         agenda_window.title(f"Planning Agenda - {self.site_actuel_nom.get()}")
-        agenda_window.geometry("1000x650")
+        agenda_window.geometry("1000x750")
         agenda_window.configure(bg="#f0f0f0")
         self.center_window(agenda_window)
         # Forcer un thème ttk compatible avec les couleurs de lignes sur macOS
@@ -1489,7 +1489,7 @@ class InterfacePlanning:
         
         # Créer un Treeview pour afficher les plannings
         columns = ("id", "nom", "date_creation")
-        agenda_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=20)
+        agenda_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=15)
         
         # Configurer les en-têtes
         agenda_tree.heading("id", text="ID")
@@ -1681,7 +1681,7 @@ class InterfacePlanning:
             # Créer une nouvelle fenêtre
             planning_window = tk.Toplevel(self.root)
             planning_window.title(f"Planning: {planning_info['nom']}")
-            planning_window.geometry("1200x800")
+            planning_window.geometry("1200x900")
             planning_window.configure(bg="#f0f0f0")
             self.center_window(planning_window)
             
