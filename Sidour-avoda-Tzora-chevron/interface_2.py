@@ -181,15 +181,44 @@ class InterfacePlanning:
         # Logo et titre de l'application
         try:
             from PIL import Image, ImageTk
-            logo_path = "assets/calender-2389150_960_720.png"
-            logo_image = Image.open(logo_path)
-            logo_image = logo_image.resize((32, 32), Image.Resampling.LANCZOS)
-            logo_photo = ImageTk.PhotoImage(logo_image)
+            import os
             
-            logo_label = ttk.Label(header_frame, image=logo_photo)
-            logo_label.image = logo_photo  # Garder une référence
-            logo_label.pack(side="left", padx=(0, 10))
+            # Essayer plusieurs chemins possibles pour le logo
+            logo_paths = [
+                "assets/calender-2389150_960_720.png",
+                "Sidour-avoda-Tzora-chevron/assets/calender-2389150_960_720.png",
+                os.path.join(os.path.dirname(__file__), "assets", "calender-2389150_960_720.png")
+            ]
             
+            logo_path = None
+            for path in logo_paths:
+                if os.path.exists(path):
+                    logo_path = path
+                    break
+            
+            if logo_path:
+                logo_image = Image.open(logo_path)
+                logo_image = logo_image.resize((32, 32), Image.Resampling.LANCZOS)
+                logo_photo = ImageTk.PhotoImage(logo_image)
+                
+                logo_label = ttk.Label(header_frame, image=logo_photo)
+                logo_label.image = logo_photo  # Garder une référence
+                logo_label.pack(side="left", padx=(0, 10))
+                
+                app_title = ttk.Label(header_frame, text="Sidour Avoda Pro", 
+                                    font=tkfont.Font(family="Helvetica", size=16, weight="bold"),
+                                    bootstyle="primary")
+                app_title.pack(side="left")
+                
+                version_label = ttk.Label(header_frame, text=f"v{self.VERSION}", 
+                                        font=tkfont.Font(family="Helvetica", size=10),
+                                        bootstyle="secondary")
+                version_label.pack(side="left", padx=(5, 0))
+            else:
+                raise FileNotFoundError("Logo not found")
+            
+        except Exception as e:
+            # Fallback si le logo ne peut pas être chargé
             app_title = ttk.Label(header_frame, text="Sidour Avoda Pro", 
                                 font=tkfont.Font(family="Helvetica", size=16, weight="bold"),
                                 bootstyle="primary")
