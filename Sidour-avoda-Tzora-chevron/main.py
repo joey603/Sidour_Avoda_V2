@@ -6,7 +6,7 @@ import threading
 
 # Application metadata for auto-update
 APP_NAME = "Sidour Avoda"
-APP_VERSION = "1.0.60"
+APP_VERSION = "1.0.61"
 GITHUB_OWNER = "joey603"
 GITHUB_REPO = "Sidour_Avoda_V2"
 
