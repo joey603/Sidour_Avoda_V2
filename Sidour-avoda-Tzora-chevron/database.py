@@ -175,6 +175,8 @@ class Database:
             date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             date_modification TIMESTAMP,
             site_id INTEGER DEFAULT 1,
+            week_start_date TEXT,
+            week_end_date TEXT,
             FOREIGN KEY (site_id) REFERENCES sites (id)
         )
         ''')
@@ -199,6 +201,20 @@ class Database:
         if 'site_id' not in columns:
             try:
                 cursor.execute("ALTER TABLE plannings ADD COLUMN site_id INTEGER DEFAULT 1")
+            except sqlite3.OperationalError:
+                pass
+
+        # Ajouter les colonnes de période de semaine si elles n'existent pas
+        cursor.execute("PRAGMA table_info(plannings)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'week_start_date' not in columns:
+            try:
+                cursor.execute("ALTER TABLE plannings ADD COLUMN week_start_date TEXT")
+            except sqlite3.OperationalError:
+                pass
+        if 'week_end_date' not in columns:
+            try:
+                cursor.execute("ALTER TABLE plannings ADD COLUMN week_end_date TEXT")
             except sqlite3.OperationalError:
                 pass
         
@@ -387,12 +403,20 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         
-        # Créer un nouveau planning avec site_id
+        # Créer un nouveau planning avec site_id et éventuelles dates de semaine
         date_creation = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(
-            "INSERT INTO plannings (date_creation, nom, site_id) VALUES (?, ?, ?)",
-            (date_creation, nom, site_id)
-        )
+        week_start = getattr(planning, 'week_start_date', None)
+        week_end = getattr(planning, 'week_end_date', None)
+        if week_start or week_end:
+            cursor.execute(
+                "INSERT INTO plannings (date_creation, nom, site_id, week_start_date, week_end_date) VALUES (?, ?, ?, ?, ?)",
+                (date_creation, nom, site_id, week_start, week_end)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO plannings (date_creation, nom, site_id) VALUES (?, ?, ?)",
+                (date_creation, nom, site_id)
+            )
         planning_id = cursor.lastrowid
         
         # Récupérer les IDs des travailleurs
@@ -429,17 +453,25 @@ class Database:
         cursor = conn.cursor()
         
         # Vérifier si le planning existe
-        cursor.execute("SELECT id, site_id FROM plannings WHERE id = ?", (planning_id,))
+        cursor.execute("SELECT id, site_id, week_start_date, week_end_date FROM plannings WHERE id = ?", (planning_id,))
         row = cursor.fetchone()
         if not row:
             self.close()
             return None
         site_id = row[1]
+        week_start_date = row[2]
+        week_end_date = row[3]
         
         # Charger les réglages (jours/shifts) du site associé pour construire une structure complète
         shifts_list, days_list = self.charger_reglages_site(site_id)
         # Créer un planning structuré selon ces réglages
         planning = Planning(site_id=site_id, jours=days_list, shifts=shifts_list)
+        # Reporter les dates sauvegardées si présentes
+        try:
+            planning.week_start_date = week_start_date
+            planning.week_end_date = week_end_date
+        except Exception:
+            pass
         
         # Charger les travailleurs
         try:

@@ -271,7 +271,21 @@ class Planning:
         import random
         
         # Nombre d'itérations pour trouver la meilleure solution
-        nb_iterations = 1200
+        # Dynamique: en fonction du nombre total de sous-slots requis (capacités)
+        try:
+            jours_iter = list(self.planning.keys()) if self.planning else list(Horaire.get_all_jours())
+            shifts_iter = list(next(iter(self.planning.values())).keys()) if self.planning else list(Horaire.get_all_shifts())
+            total_sous_slots = 0
+            for j in jours_iter:
+                for s in shifts_iter:
+                    try:
+                        cap = int(self.capacites.get(j, {}).get(s, 1))
+                    except Exception:
+                        cap = 1
+                    total_sous_slots += max(1, cap)
+            nb_iterations = min(3000, 200 + 20 * total_sous_slots)
+        except Exception:
+            nb_iterations = 1200
         
         # Garder trace du meilleur planning trouvé
         meilleur_score = float('-inf')

@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 from tkinter import font as tkfont
+import re
+import sys
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 import random
@@ -71,6 +73,10 @@ class InterfacePlanning:
         # Compteur pour la liste des travailleurs
         self.nb_workers_var = tk.StringVar(value="")
         
+        # Variables pour la gestion de la semaine
+        self.semaine_actuelle = datetime.date.today()
+        self.semaine_var = tk.StringVar()
+        
         # Création des disponibilités (sera reconstruit selon les réglages du site)
         self.disponibilites = {}
         self.disponibilites_12h = {}
@@ -88,6 +94,145 @@ class InterfacePlanning:
         # Centrer la fenêtre principale
         self.center_main_window()
 
+    def get_debut_semaine(self, date):
+        """Retourne le lundi de la semaine contenant la date donnée"""
+        # Trouver le lundi de la semaine (0 = lundi, 6 = dimanche)
+        jours_vers_lundi = date.weekday()
+        return date - datetime.timedelta(days=jours_vers_lundi)
+    
+    def get_fin_semaine(self, date):
+        """Retourne le dimanche de la semaine contenant la date donnée"""
+        debut = self.get_debut_semaine(date)
+        return debut + datetime.timedelta(days=6)
+    
+    def formater_periode_semaine(self, date):
+        """Formate la période de la semaine (dimanche-samedi)"""
+        debut = self.get_debut_semaine(date) - datetime.timedelta(days=1)  # Dimanche
+        fin = debut + datetime.timedelta(days=6)  # Samedi
+        return f"{debut.strftime('%d/%m/%Y')} - {fin.strftime('%d/%m/%Y')}"
+    
+    def semaine_suivante(self):
+        """Passe à la semaine suivante"""
+        self.semaine_actuelle += datetime.timedelta(days=7)
+        self.mettre_a_jour_affichage_semaine()
+    
+    def semaine_precedente(self):
+        """Passe à la semaine précédente"""
+        self.semaine_actuelle -= datetime.timedelta(days=7)
+        self.mettre_a_jour_affichage_semaine()
+    
+    def afficher_planning(self):
+        """Affiche le planning actuel"""
+        if self._has_generated_planning:
+            self.creer_planning_visuel()
+        else:
+            # Afficher un planning vide avec les dates
+            self.creer_planning_visuel_vide()
+        
+        # Forcer la mise à jour graphique
+        self.root.update_idletasks()
+        self.root.update()
+    
+    def creer_planning_visuel_vide(self):
+        """Crée un affichage vide du planning avec les dates et les capacités (Required staff)."""
+        # Delete old content in the scrollable inner frame
+        try:
+            for child in self.planning_inner.winfo_children():
+                child.destroy()
+        except Exception:
+            pass
+        
+        # Créer un nouveau frame pour le planning (dans la zone scrollable)
+        planning_frame = ttk.Frame(self.planning_inner)
+        planning_frame.pack(fill="both", expand=True)
+        
+        # Headers of the columns (dynamiques par site)
+        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=(5,2), sticky="w")
+        dynamic_shifts = self.reglages_site.get('shifts') if hasattr(self, 'reglages_site') and self.reglages_site else list(Horaire.SHIFTS.values())
+        for i, shift in enumerate(dynamic_shifts):
+            ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=(5,2))
+        
+        # Ligne des dates sous les en-têtes
+        ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=0, padx=5, pady=(0,2), sticky="w")
+        for i, shift in enumerate(dynamic_shifts):
+            ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=5, pady=(0,2))
+        
+        # Remplir le planning vide avec les jours et dates
+        dynamic_days = self.reglages_site.get('jours') if hasattr(self, 'reglages_site') and self.reglages_site else list(Horaire.JOURS)
+        # Charger les capacités (Required staff) pour le site courant
+        try:
+            caps = Database().charger_capacites_site(self.site_actuel_id)
+        except Exception:
+            caps = {}
+        for i, jour in enumerate(dynamic_days):
+            # Créer un frame pour le jour et sa date
+            jour_frame = ttk.Frame(planning_frame)
+            jour_frame.grid(row=i+2, column=0, padx=5, pady=(2,5), sticky="w")
+            
+            # Jour de la semaine
+            ttk.Label(jour_frame, text=self.traduire_jour(jour), font=self.bold_font).pack(anchor="w")
+            
+            # Date correspondante
+            date_jour = self.get_date_jour(i)
+            date_str = date_jour.strftime('%d/%m')
+            ttk.Label(jour_frame, text=date_str, font=self.normal_font, bootstyle="secondary").pack(anchor="w")
+            
+            for j, shift in enumerate(dynamic_shifts):
+                # Créer un frame pour la cellule vide
+                cell_frame = ttk.Frame(planning_frame, width=150, height=50)
+                cell_frame.grid(row=i+2, column=j+1, padx=2, pady=2, sticky="nsew")
+                cell_frame.grid_propagate(False)
+                
+                # Déterminer la capacité (Required staff) pour ce jour/shift
+                try:
+                    cap = int(caps.get(jour, {}).get(shift, 1))
+                except Exception:
+                    cap = 1
+                cap = max(1, cap)
+                
+                # Conteneur interne avec "cap" lignes
+                inner = ttk.Frame(cell_frame)
+                inner.pack(fill="both", expand=True)
+                for r in range(cap):
+                    inner.rowconfigure(r, weight=1)
+                inner.columnconfigure(0, weight=1)
+                
+                # Créer "cap" emplacements Unassigned
+                for r in range(cap):
+                    lbl = tk.Label(
+                        inner,
+                        text="Unassigned",
+                        bg="#F0F0F0",
+                        fg="#333333",
+                        font=self.normal_font,
+                        relief="sunken",
+                        borderwidth=1,
+                        padx=5,
+                        pady=2,
+                        highlightthickness=0,
+                    )
+                    lbl.configure(bg="#F0F0F0")
+                    lbl.grid(row=r, column=0, sticky="nsew", padx=1, pady=1)
+        
+        # Configurer les colonnes pour qu'elles s'étendent
+        for i in range(len(dynamic_shifts) + 1):
+            planning_frame.columnconfigure(i, weight=1)
+        
+        # Configurer les lignes pour qu'elles s'étendent
+        for i in range(len(dynamic_days) + 2):
+            planning_frame.rowconfigure(i, weight=1)
+    
+    def mettre_a_jour_affichage_semaine(self):
+        """Met à jour l'affichage de la semaine"""
+        self.semaine_var.set(self.formater_periode_semaine(self.semaine_actuelle))
+        # Mettre à jour les dates sous les jours (même si le planning est vide)
+        self.afficher_planning()
+    
+    def get_date_jour(self, jour_index):
+        """Retourne la date pour un jour donné (0=dimanche, 1=lundi, etc.)"""
+        debut = self.get_debut_semaine(self.semaine_actuelle) - datetime.timedelta(days=1)  # Dimanche
+        return debut + datetime.timedelta(days=jour_index)
+    
     def center_main_window(self):
         """Centre la fenêtre principale sur l'écran en tenant compte des marges"""
         self.root.update_idletasks()  # Mettre à jour la géométrie
@@ -436,19 +581,124 @@ class InterfacePlanning:
         
         # Title
         titre_planning = ttk.Label(right_frame, text="Week Planning", font=self.title_font, bootstyle="primary")
-        titre_planning.pack(pady=(0, 20))
+        titre_planning.pack(pady=(0, 10))
         
-        # Creation of the canvas for the visual planning
-        self.canvas_frame = ttk.Frame(right_frame, padding=5)
-        self.canvas_frame.pack(fill="both", expand=True)
-        # Donner plus d'espace horizontal au planning
+        # Sélecteur de semaine
+        semaine_frame = ttk.Frame(right_frame)
+        semaine_frame.pack(pady=(0, 20))
+        
+        # Style compact pour les flèches (réduction de la hauteur)
         try:
-            self.canvas_frame.columnconfigure(0, weight=1)
-            self.canvas_frame.rowconfigure(0, weight=1)
+            nav_style = ttk.Style()
+            nav_style.configure('WeekNav.Toolbutton', padding=(6, 0))  # (horiz, vert)
         except Exception:
             pass
         
-        # Initialisation du canvas vide
+        # Bouton semaine précédente
+        btn_semaine_prec = ttk.Button(
+            semaine_frame,
+            text="←",
+            bootstyle="secondary-outline-toolbutton",
+            style='WeekNav.Toolbutton',
+            width=2,
+            command=self.semaine_precedente,
+        )
+        btn_semaine_prec.pack(side="left", padx=(0, 10), pady=0)
+        
+        # Label de la période
+        self.semaine_var.set(self.formater_periode_semaine(self.semaine_actuelle))
+        label_semaine = ttk.Label(semaine_frame, textvariable=self.semaine_var, 
+                                 font=self.header_font, bootstyle="primary")
+        label_semaine.pack(side="left", padx=10)
+        
+        # Bouton semaine suivante
+        btn_semaine_suiv = ttk.Button(
+            semaine_frame,
+            text="→",
+            bootstyle="secondary-outline-toolbutton",
+            style='WeekNav.Toolbutton',
+            width=2,
+            command=self.semaine_suivante,
+        )
+        btn_semaine_suiv.pack(side="left", padx=(10, 0), pady=0)
+        
+        # Zone scrollable pour le planning (vertical)
+        self.planning_container = ttk.Frame(right_frame, padding=0)
+        self.planning_container.pack(fill="both", expand=True)
+        try:
+            self.planning_container.columnconfigure(0, weight=1)
+            self.planning_container.rowconfigure(0, weight=1)
+        except Exception:
+            pass
+        # Canvas + Scrollbar vertical
+        self.planning_canvas = tk.Canvas(self.planning_container, highlightthickness=0)
+        self.planning_vscroll = ttk.Scrollbar(self.planning_container, orient="vertical", command=self.planning_canvas.yview)
+        self.planning_canvas.configure(yscrollcommand=self.planning_vscroll.set)
+        self.planning_canvas.grid(row=0, column=0, sticky="nsew")
+        self.planning_vscroll.grid(row=0, column=1, sticky="ns")
+        # Frame interne scrollable
+        self.planning_inner = ttk.Frame(self.planning_canvas)
+        self._planning_window = self.planning_canvas.create_window((0, 0), window=self.planning_inner, anchor="nw")
+        # Ajuster la scrollregion et la largeur au redimensionnement
+        def _on_inner_configure(event):
+            try:
+                self.planning_canvas.configure(scrollregion=self.planning_canvas.bbox("all"))
+            except Exception:
+                pass
+        def _on_canvas_configure(event):
+            try:
+                self.planning_canvas.itemconfigure(self._planning_window, width=event.width)
+            except Exception:
+                pass
+        self.planning_inner.bind("<Configure>", _on_inner_configure)
+        self.planning_canvas.bind("<Configure>", _on_canvas_configure)
+        # Défilement à la molette (panel): activer quand la souris survole, gérer macOS/Win/Linux
+        def _on_mousewheel(event):
+            try:
+                if sys.platform == 'darwin':
+                    self.planning_canvas.yview_scroll(int(-1 * event.delta), 'units')
+                else:
+                    self.planning_canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+            except Exception:
+                pass
+        def _on_shift_mousewheel(event):
+            try:
+                if sys.platform == 'darwin':
+                    self.planning_canvas.xview_scroll(int(-1 * event.delta), 'units')
+                else:
+                    self.planning_canvas.xview_scroll(int(-1 * (event.delta / 120)), 'units')
+            except Exception:
+                pass
+        def _on_linux_scroll_up(event):
+            try:
+                self.planning_canvas.yview_scroll(-1, 'units')
+            except Exception:
+                pass
+        def _on_linux_scroll_down(event):
+            try:
+                self.planning_canvas.yview_scroll(1, 'units')
+            except Exception:
+                pass
+        def _enable_wheel(_=None):
+            try:
+                self.planning_canvas.bind_all('<MouseWheel>', _on_mousewheel)
+                self.planning_canvas.bind_all('<Shift-MouseWheel>', _on_shift_mousewheel)
+                self.planning_canvas.bind_all('<Button-4>', _on_linux_scroll_up)
+                self.planning_canvas.bind_all('<Button-5>', _on_linux_scroll_down)
+            except Exception:
+                pass
+        def _disable_wheel(_=None):
+            try:
+                self.planning_canvas.unbind_all('<MouseWheel>')
+                self.planning_canvas.unbind_all('<Shift-MouseWheel>')
+                self.planning_canvas.unbind_all('<Button-4>')
+                self.planning_canvas.unbind_all('<Button-5>')
+            except Exception:
+                pass
+        self.planning_inner.bind('<Enter>', _enable_wheel)
+        self.planning_inner.bind('<Leave>', _disable_wheel)
+        
+        # Initialisation du planning
         self.creer_planning_visuel()
 
     # Méthode create_styled_button supprimée car remplacée par ttkbootstrap
@@ -578,12 +828,26 @@ class InterfacePlanning:
 
     def creer_planning_visuel(self):
         """Create a visual representation of the planning"""
-        # Delete the old planning if it exists
-        for widget in self.canvas_frame.winfo_children():
-            widget.destroy()
+        print(f"DEBUG: creer_planning_visuel appelée - _has_generated_planning: {self._has_generated_planning}")
+        print(f"DEBUG: planning.planning existe: {hasattr(self.planning, 'planning')}")
+        if hasattr(self.planning, 'planning'):
+            print(f"DEBUG: planning.planning contenu: {self.planning.planning}")
         
-        # Créer un nouveau frame pour le planning
-        planning_frame = ttk.Frame(self.canvas_frame)
+        # Si pas de planning généré, afficher un planning vide avec les dates
+        if not self._has_generated_planning:
+            print("DEBUG: Affichage planning vide")
+            self.creer_planning_visuel_vide()
+            return
+            
+        # Delete old content in the scrollable inner frame
+        try:
+            for child in self.planning_inner.winfo_children():
+                child.destroy()
+        except Exception:
+            pass
+        
+        # Créer un nouveau frame pour le planning (dans la zone scrollable)
+        planning_frame = ttk.Frame(self.planning_inner)
         planning_frame.pack(fill="both", expand=True)
         
         # Générer des couleurs uniques pour chaque travailleur
@@ -592,8 +856,14 @@ class InterfacePlanning:
         # Headers of the columns (dynamiques par site)
         ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=(5,2), sticky="w")
         dynamic_shifts = list(next(iter(self.planning.planning.values())).keys()) if self.planning and self.planning.planning else list(Horaire.SHIFTS.values())
+        print(f"DEBUG: Shifts dynamiques: {dynamic_shifts}")
         for i, shift in enumerate(dynamic_shifts):
             ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=(5,2))
+        
+        # Ligne des dates sous les en-têtes
+        ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=0, padx=5, pady=(0,2), sticky="w")
+        for i, shift in enumerate(dynamic_shifts):
+            ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=5, pady=(0,2))
         
         # Remplir le planning
         # Charger les capacités (nombre de personnes requises par jour/shift) pour le site courant
@@ -602,15 +872,26 @@ class InterfacePlanning:
         except Exception:
             caps = {}
         dynamic_days = list(self.planning.planning.keys()) if self.planning and self.planning.planning else list(Horaire.JOURS)
+        print(f"DEBUG: Jours dynamiques: {dynamic_days}")
         for i, jour in enumerate(dynamic_days):
-            ttk.Label(planning_frame, text=self.traduire_jour(jour), font=self.normal_font).grid(row=i+1, column=0, padx=5, pady=(2,5), sticky="w")
+            # Créer un frame pour le jour et sa date
+            jour_frame = ttk.Frame(planning_frame)
+            jour_frame.grid(row=i+2, column=0, padx=5, pady=(2,5), sticky="w")
+            
+            # Jour de la semaine
+            ttk.Label(jour_frame, text=self.traduire_jour(jour), font=self.bold_font).pack(anchor="w")
+            
+            # Date correspondante
+            date_jour = self.get_date_jour(i)
+            date_str = date_jour.strftime('%d/%m')
+            ttk.Label(jour_frame, text=date_str, font=self.normal_font, bootstyle="secondary").pack(anchor="w")
             
             for j, shift in enumerate(dynamic_shifts):
                 travailleur = self.planning.planning[jour][shift]
                 
                 # Créer un frame pour la cellule
                 cell_frame = ttk.Frame(planning_frame, width=150, height=50)
-                cell_frame.grid(row=i+1, column=j+1, padx=2, pady=2, sticky="nsew")
+                cell_frame.grid(row=i+2, column=j+1, padx=2, pady=2, sticky="nsew")
                 cell_frame.grid_propagate(False)  # Empêcher le frame de s'adapter à son contenu
                 
                 # Déterminer capacité
@@ -679,7 +960,7 @@ class InterfacePlanning:
             planning_frame.columnconfigure(i, weight=1)
         
         # Configurer les lignes pour qu'elles s'étendent
-        for i in range(len(dynamic_days) + 1):  # 1 ligne pour les en-têtes + lignes dynamiques
+        for i in range(len(dynamic_days) + 2):  # 1 ligne pour les en-têtes + 1 ligne pour les dates + lignes dynamiques
             planning_frame.rowconfigure(i, weight=1)
 
     def ajouter_travailleur(self) -> bool:
@@ -1033,6 +1314,9 @@ class InterfacePlanning:
         if hasattr(self.planning, 'next_alternative') and self.planning.next_alternative():
             # Raffraîchir l'affichage
             self.creer_planning_visuel()
+            # Forcer la mise à jour graphique
+            self.root.update_idletasks()
+            self.root.update()
             total, index_1, best_score = self.planning.get_alternative_info()
             if total > 1:
                 self.alt_info_var.set(f"Alternatives: {index_1}/{total} (score={best_score:.0f})")
@@ -1054,6 +1338,9 @@ class InterfacePlanning:
     def prev_alternative_planning(self):
         if hasattr(self.planning, 'prev_alternative') and self.planning.prev_alternative():
             self.creer_planning_visuel()
+            # Forcer la mise à jour graphique
+            self.root.update_idletasks()
+            self.root.update()
             total, index_1, best_score = self.planning.get_alternative_info()
             if total > 1:
                 self.alt_info_var.set(f"Alternatives: {index_1}/{total} (score={best_score:.0f})")
@@ -1073,13 +1360,30 @@ class InterfacePlanning:
             messagebox.showinfo("Info", "No alternative available.")
 
     def compter_trous(self, planning):
-        """Count the number of holes in a planning"""
-        trous = 0
-        for jour, shifts_map in planning.items():
-            for shift, val in shifts_map.items():
-                if val is None:
-                    trous += 1
-        return trous
+        """Compte les trous en tenant compte des capacités: chaque sous-slot vide compte comme 1 trou."""
+        missing = 0
+        try:
+            # Parcourir tous les jours/shift présents dans le planning fourni
+            for jour, shifts_map in (planning.items() if planning else []):
+                for shift, val in shifts_map.items():
+                    # Capacité configurée
+                    try:
+                        cap = int(self.planning.capacites.get(jour, {}).get(shift, 1))
+                    except Exception:
+                        cap = 1
+                    cap = max(1, cap)
+                    # Noms déjà assignés
+                    names = []
+                    if val:
+                        names = [n.strip() for n in str(val).split(" / ") if n.strip()]
+                    missing += max(0, cap - len(names))
+        except Exception:
+            # Fallback: ancien comptage (par case None)
+            for jour, shifts_map in (planning.items() if planning else []):
+                for _shift, val in shifts_map.items():
+                    if val is None:
+                        missing += 1
+        return missing
 
     def evaluer_planning(self, planning):
         """Evaluate the quality of a planning based on several criteria"""
@@ -1272,6 +1576,9 @@ class InterfacePlanning:
         except Exception as e:
             print(f"ERROR Fill holes (core): {e}")
         self.creer_planning_visuel()
+        # Forcer la mise à jour graphique
+        self.root.update_idletasks()
+        self.root.update()
         after_missing = _count_unassigned_slots(self.planning)
         filled_effective = max(0, before_missing - after_missing)
         # Mettre à jour l'état du bouton Fill Holes
@@ -1359,40 +1666,66 @@ class InterfacePlanning:
         print(f"DEBUG: Fin chargement travailleurs - {len(self.planning.travailleurs)} travailleurs chargés")
 
     def sauvegarder_planning(self):
-        """Save the current planning in the database"""
-        # Get the date of the next Sunday
+        """Save the current planning in the database using the selected week's date range and show a capacity summary."""
         import datetime
-        
-        # Obtenir la date actuelle
-        aujourd_hui = datetime.date.today()
-        
-        # Calculer le nombre de jours jusqu'au prochain dimanche
-        jours_jusqu_a_dimanche = (6 - aujourd_hui.weekday()) % 7
-        
-        # Si aujourd'hui est dimanche, on prend le dimanche suivant
-        if jours_jusqu_a_dimanche == 0:
-            jours_jusqu_a_dimanche = 7
-        
-        # Obtenir la date du prochain dimanche
-        prochain_dimanche = aujourd_hui + datetime.timedelta(days=jours_jusqu_a_dimanche)
-        
-        # Formater la date pour le nom du planning avec le site
+        # Déterminer la plage (dimanche -> samedi) depuis le sélecteur de semaine
+        start_monday = self.get_debut_semaine(self.semaine_actuelle)
+        start_sunday = start_monday - datetime.timedelta(days=1)
+        end_saturday = start_sunday + datetime.timedelta(days=6)
+
         site_nom = self.site_actuel_nom.get()
-        nom_planning = f"Planning {site_nom} - week of {prochain_dimanche.strftime('%d/%m/%Y')}"
-        
-        # Demander confirmation à l'utilisateur
+        nom_planning = f"Planning {site_nom} - week {start_sunday.strftime('%d/%m/%Y')} - {end_saturday.strftime('%d/%m/%Y')}"
+
+        # Résumé des capacités (Required staff) vs assignations
+        try:
+            caps = Database().charger_capacites_site(self.site_actuel_id)
+        except Exception:
+            caps = {}
+        try:
+            jours = list(self.planning.planning.keys())
+            shifts = list(next(iter(self.planning.planning.values())).keys()) if self.planning.planning else []
+        except Exception:
+            jours, shifts = [], []
+        total_slots = 0
+        filled_slots = 0
+        for j in jours:
+            for s in shifts:
+                try:
+                    cap = int(caps.get(j, {}).get(s, 1))
+                except Exception:
+                    cap = 1
+                total_slots += max(1, cap)
+                val = self.planning.planning.get(j, {}).get(s)
+                names = []
+                if val:
+                    names = [n.strip() for n in str(val).split("/") if n.strip()]
+                filled_slots += min(len(names), max(1, cap))
+
         confirmation = messagebox.askyesno(
-            "Confirmation", 
-            f"Do you want to save this planning for site '{site_nom}'\n"
-            f"for the week of {prochain_dimanche.strftime('%d/%m/%Y')}?"
+            "Save planning",
+            (
+                f"Site: {site_nom}\n"
+                f"Week: {start_sunday.strftime('%d/%m/%Y')} - {end_saturday.strftime('%d/%m/%Y')}\n\n"
+                f"Capacity summary: {filled_slots}/{total_slots} slots filled.\n\n"
+                f"Do you want to save this planning?"
+            )
         )
-        
-        if confirmation:
-            # Sauvegarder le planning avec le site actuel
-            planning_id = self.planning.sauvegarder(nom_planning, self.site_actuel_id)
-            messagebox.showinfo("Success", f"Planning saved for {site_nom} - week of {prochain_dimanche.strftime('%d/%m/%Y')}")
-            return planning_id
-        return None
+
+        if not confirmation:
+            return None
+
+        # Propager les dates de semaine dans l'objet planning pour persistance
+        try:
+            self.planning.week_start_date = start_sunday.strftime('%Y-%m-%d')
+            self.planning.week_end_date = end_saturday.strftime('%Y-%m-%d')
+        except Exception:
+            pass
+        planning_id = self.planning.sauvegarder(nom_planning, self.site_actuel_id)
+        messagebox.showinfo(
+            "Success",
+            f"Planning saved for {site_nom}\nWeek {start_sunday.strftime('%d/%m/%Y')} - {end_saturday.strftime('%d/%m/%Y')}"
+        )
+        return planning_id
 
     def charger_planning(self):
         """Charge a planning from the database"""
@@ -1429,6 +1762,19 @@ class InterfacePlanning:
                 
                 # Mettre à jour l'interface
                 self.mettre_a_jour_liste_travailleurs()
+                # Appliquer la semaine depuis les champs persistés si présents
+                try:
+                    ws = getattr(self.planning, 'week_start_date', None)
+                    we = getattr(self.planning, 'week_end_date', None)
+                    if ws:
+                        d_start = datetime.datetime.strptime(ws, '%Y-%m-%d').date()
+                        # semaine_actuelle centrée au lundi
+                        self.semaine_actuelle = d_start + datetime.timedelta(days=1)
+                        self.mettre_a_jour_affichage_semaine()
+                except Exception:
+                    pass
+                # Marquer qu'un planning existe pour afficher les affectations
+                self._has_generated_planning = True
                 self.creer_planning_visuel()
                 
                 messagebox.showinfo("Success", "Planning loaded successfully")
@@ -1784,11 +2130,18 @@ class InterfacePlanning:
             # Générer des couleurs uniques pour tous les travailleurs du planning
             self.assign_unique_colors_to_workers()
             
-            # Canvas pour le planning
+            # Canvas pour le planning avec scrollbar verticale
             canvas_width = 1000
-            canvas_height = 550
-            canvas = tk.Canvas(canvas_frame, width=canvas_width, height=canvas_height, bg="white", highlightthickness=1, highlightbackground="#ddd")
-            canvas.pack(fill="both", expand=True)
+            canvas_height = 600
+            canvas_container = ttk.Frame(canvas_frame)
+            canvas_container.pack(fill="both", expand=True)
+            canvas = tk.Canvas(canvas_container, width=canvas_width, height=canvas_height, bg="white", highlightthickness=1, highlightbackground="#ddd")
+            vscroll = ttk.Scrollbar(canvas_container, orient="vertical", command=canvas.yview)
+            canvas.configure(yscrollcommand=vscroll.set)
+            canvas.grid(row=0, column=0, sticky="nsew")
+            vscroll.grid(row=0, column=1, sticky="ns")
+            canvas_container.columnconfigure(0, weight=1)
+            canvas_container.rowconfigure(0, weight=1)
             
             # Palette de couleurs pour les colonnes (dynamique selon les shifts du site)
             # On assigne cycliquement Morning/Afternoon/Night-like aux shifts triés par heure de début
@@ -1803,19 +2156,41 @@ class InterfacePlanning:
             for idx, s in enumerate(shifts_sorted):
                 shift_colors[s] = base_palette[idx % len(base_palette)]
             
-            # Dimensions des cellules selon les réglages du site du planning
+            # Dimensions dynamiques: largeur fixe par colonne; hauteur de ligne par jour selon capacité max
             cell_width = canvas_width / (len(shifts_dyn) + 1)
-            cell_height = canvas_height / (len(jours_dyn) + 1)
+            header_h = 36
+            min_slice_h = 24
+            # Calcul des hauteurs par jour
+            day_row_heights = {}
+            for jour in jours_dyn:
+                try:
+                    max_cap = max(int(capacities.get(jour, {}).get(s, 1)) for s in shifts_dyn)
+                except Exception:
+                    max_cap = 1
+                day_row_heights[jour] = max_cap * min_slice_h
+            # Positions Y cumulatives
+            y_positions = {}
+            y_cursor = header_h
+            for jour in jours_dyn:
+                y_positions[jour] = y_cursor
+                y_cursor += day_row_heights[jour]
+            # Définir la scrollregion totale
+            try:
+                total_height = header_h + sum(day_row_heights[j] for j in jours_dyn)
+                total_width = cell_width * (len(shifts_dyn) + 1)
+                canvas.configure(scrollregion=(0, 0, total_width, total_height))
+            except Exception:
+                pass
             
             # Dessiner les en-têtes de colonnes (shifts)
-            canvas.create_rectangle(0, 0, cell_width, cell_height, fill="#f0f0f0", outline="#ccc")
-            canvas.create_text(cell_width/2, cell_height/2, text="Day", font=("Arial", 10, "bold"))
+            canvas.create_rectangle(0, 0, cell_width, header_h, fill="#f0f0f0", outline="#ccc")
+            canvas.create_text(cell_width/2, header_h/2, text="Day", font=("Arial", 10, "bold"))
             
             for i, shift in enumerate(shifts_dyn):
                 x0 = cell_width * (i + 1)
                 y0 = 0
                 x1 = cell_width * (i + 2)
-                y1 = cell_height
+                y1 = header_h
                 fill_color = shift_colors.get(shift, "#e0e0e0")
                 canvas.create_rectangle(x0, y0, x1, y1, fill=fill_color, outline="#000000")
                 canvas.create_text((x0 + x1)/2, (y0 + y1)/2, text=shift, font=("Arial", 10, "bold"))
@@ -1824,14 +2199,32 @@ class InterfacePlanning:
             day_palette = ["#eef7ff", "#f7ffee", "#fff6ee", "#f2f0ff", "#eefaf7", "#fff0f0", "#f0fff7"]
             day_colors = {jour: day_palette[i % len(day_palette)] for i, jour in enumerate(jours_dyn)}
             
-            # Dessiner les en-têtes de lignes (jours)
+            # Déterminer la date de départ (dimanche) depuis le planning chargé
+            start_sunday = None
+            try:
+                ws = getattr(planning_charge, 'week_start_date', None)
+                if ws:
+                    start_sunday = datetime.datetime.strptime(ws, '%Y-%m-%d').date()
+            except Exception:
+                start_sunday = None
+
+            # Dessiner les en-têtes de lignes (jours) avec date sous le jour
             for i, jour in enumerate(jours_dyn):
                 x0 = 0
-                y0 = cell_height * (i + 1)
+                y0 = y_positions[jour]
                 x1 = cell_width
-                y1 = cell_height * (i + 2)
-                canvas.create_rectangle(x0, y0, x1, y1, fill=day_colors[jour], outline="#000000")
-                canvas.create_text((x0 + x1)/2, (y0 + y1)/2, text=self.traduire_jour(jour), font=("Arial", 10, "bold"))
+                y1 = y0 + day_row_heights[jour]
+                canvas.create_rectangle(x0, y0, x1, y1, fill=day_colors[jour], outline="#000000", width=2)
+                # Jour (en haut)
+                canvas.create_text((x0 + x1)/2, y0 + (y1 - y0) * 0.32, text=self.traduire_jour(jour), font=("Arial", 11, "bold"))
+                # Date (en bas)
+                try:
+                    if start_sunday is not None:
+                        d = start_sunday + datetime.timedelta(days=i)
+                        date_str = d.strftime('%d/%m')
+                        canvas.create_text((x0 + x1)/2, y0 + (y1 - y0) * 0.74, text=date_str, font=("Arial", 9), fill="#555555")
+                except Exception:
+                    pass
             
             # Dessiner les cellules avec les assignations
             cellules = {}  # Pour stocker les références aux cellules pour modification ultérieure
@@ -1845,9 +2238,9 @@ class InterfacePlanning:
                 i = day_index[jour]
                 j = shift_index[shift]
                 x0 = cell_width * (j + 1)
-                y0 = cell_height * (i + 1)
+                y0 = y_positions[jour]
                 x1 = cell_width * (j + 2)
-                y1 = cell_height * (i + 2)
+                y1 = y0 + day_row_heights[jour]
                 # Effacer tous les items de cette cellule via un tag dédié
                 tag = f"cell_{jour}_{shift}"
                 try:
@@ -1863,22 +2256,44 @@ class InterfacePlanning:
                     names = [n.strip() for n in str(val).split(" / ") if n.strip()]
                 while len(names) < cap:
                     names.append(None)
-                slice_h = (y1 - y0) / cap
+                slice_h = max(min_slice_h, (y1 - y0) / max(1, cap))
                 # Dessiner chaque sous-case
                 for idx_slice, nom_slice in enumerate(names):
                     sy0 = y0 + idx_slice * slice_h
                     sy1 = sy0 + slice_h
                     if nom_slice:
                         c = self.travailleur_colors.get(nom_slice, "#e0f7fa")
-                        rid = canvas.create_rectangle(x0, sy0, x1, sy1, fill=c, outline="#000000", tags=(tag,))
+                        rid = canvas.create_rectangle(x0, sy0, x1, sy1, fill=c, outline="#000000", width=2, tags=(tag,))
                         tid = canvas.create_text((x0 + x1)/2, (sy0 + sy1)/2, text=nom_slice, width=cell_width*0.9, font=("Arial", 9), tags=(tag,))
                     else:
-                        rid = canvas.create_rectangle(x0, sy0, x1, sy1, fill="#ffe5e5", outline="#000000", tags=(tag,))
+                        rid = canvas.create_rectangle(x0, sy0, x1, sy1, fill="#ffe5e5", outline="#000000", width=2, tags=(tag,))
                         tid = canvas.create_text((x0 + x1)/2, (sy0 + sy1)/2, text="Not assigned", fill="#cc0000", width=cell_width*0.9, font=("Arial", 9, "bold"), tags=(tag,))
                 # Mettre à jour l'état mémoire
                 cellules.setdefault(jour, {})[shift] = {"tag": tag, "travailleur": val}
                 # Bind clic sur toute la cellule
                 canvas.tag_bind(tag, "<Button-1>", lambda e, j=jour, s=shift: modifier_cellule(j, s))
+
+            # Défilement à la molette sur ce canvas
+            def _on_wheel(event):
+                try:
+                    if sys.platform == 'darwin':
+                        canvas.yview_scroll(int(-1 * event.delta), 'units')
+                    else:
+                        canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+                except Exception:
+                    pass
+            def _on_enter(_=None):
+                try:
+                    canvas.bind_all('<MouseWheel>', _on_wheel)
+                except Exception:
+                    pass
+            def _on_leave(_=None):
+                try:
+                    canvas.unbind_all('<MouseWheel>')
+                except Exception:
+                    pass
+            canvas.bind('<Enter>', _on_enter)
+            canvas.bind('<Leave>', _on_leave)
 
             # Panneau de statistiques: nombre de gardes par travailleur
             stats_frame = ttk.LabelFrame(planning_frame, text="Shifts per worker", padding=8)
@@ -1944,9 +2359,9 @@ class InterfacePlanning:
                 cellules[jour] = {}
                 for j, shift in enumerate(shifts_dyn):
                     x0 = cell_width * (j + 1)
-                    y0 = cell_height * (i + 1)
+                    y0 = y_positions[jour]
                     x1 = cell_width * (j + 2)
-                    y1 = cell_height * (i + 2)
+                    y1 = y0 + day_row_heights[jour]
                     
                     # Récupérer le travailleur assigné
                     travailleur = planning_charge.planning.get(jour, {}).get(shift)
@@ -1997,6 +2412,17 @@ class InterfacePlanning:
                     if 'rect2_id' in locals() and rect2_id:
                         canvas.tag_bind(rect2_id, "<Button-1>", lambda e, j=jour, s=shift: modifier_cellule(j, s))
                     canvas.tag_bind(text_id, "<Button-1>", lambda e, j=jour, s=shift: modifier_cellule(j, s))
+
+                # Après avoir dessiné toutes les cellules de la ligne, tracer une séparation horizontale claire
+                try:
+                    total_width_line = cell_width * (len(shifts_dyn) + 1)
+                    y_sep_top = y_positions[jour]
+                    y_sep_bottom = y_positions[jour] + day_row_heights[jour]
+                    # Ligne supérieure (fine) et ligne inférieure (épaisse)
+                    canvas.create_line(0, y_sep_top, total_width_line, y_sep_top, fill="#444444", width=2)
+                    canvas.create_line(0, y_sep_bottom, total_width_line, y_sep_bottom, fill="#222222", width=3)
+                except Exception:
+                    pass
             
             # Fonction pour modifier une cellule
             def modifier_cellule(jour, shift):
@@ -2070,28 +2496,46 @@ class InterfacePlanning:
                     selections = listbox.curselection()
                     if selections:
                         choix = listbox.get(selections[0])
+                        # Déterminer quel sous-slot a été cliqué via les coordonnées de la souris
+                        try:
+                            click_y = selection_window._origin_click_y if hasattr(selection_window, '_origin_click_y') else None
+                        except Exception:
+                            click_y = None
+                        # Recalculer les tranches
+                        i = day_index[jour]; jdx = shift_index[shift]
+                        x0 = cell_width * (jdx + 1); y0 = y_positions[jour]; y1 = y0 + day_row_heights[jour]
+                        try:
+                            cap_loc = max(1, int(capacities.get(jour, {}).get(shift, 1)))
+                        except Exception:
+                            cap_loc = 1
+                        slice_h_loc = max(min_slice_h, (y1 - y0) / max(1, cap_loc))
+                        # Construire le tableau de noms existants
+                        current_val = planning_window.planning.planning.get(jour, {}).get(shift)
+                        names = []
+                        if current_val:
+                            names = [n.strip() for n in str(current_val).split(" / ") if n.strip()]
+                        while len(names) < cap_loc:
+                            names.append(None)
+                        # Slot ciblé: si on ne sait pas, remplacer le premier vide sinon le premier
+                        try:
+                            slot_index = names.index(None)
+                        except ValueError:
+                            slot_index = 0
+                        # Appliquer le choix
                         if choix == "Not assigned":
-                            if jour in planning_window.planning.planning and shift in planning_window.planning.planning[jour]:
-                                planning_window.planning.planning[jour][shift] = None
-                            cellules[jour][shift]["travailleur"] = None
-                            # Redessiner pour prendre la couleur rouge Not assigned
-                            _draw_cell(jour, shift)
+                            names[slot_index] = None
                         else:
-                            # garantir une couleur pour le travailleur
                             if choix not in self.travailleur_colors:
-                                # Générer une couleur unique pour ce nouveau travailleur
                                 self.assign_unique_colors_to_workers()
-                            if jour not in planning_window.planning.planning:
-                                # si le jour n'est pas dans la structure (devrait être rare), ignorer en sécurité
-                                selection_window.destroy()
-                                return
-                            if shift not in planning_window.planning.planning[jour]:
-                                selection_window.destroy()
-                                return
-                            planning_window.planning.planning[jour][shift] = choix
-                            cellules[jour][shift]["travailleur"] = choix
-                            # Redessiner la cellule avec la couleur du travailleur
-                            _draw_cell(jour, shift)
+                            names[slot_index] = choix
+                        new_val = " / ".join([n for n in names if n]) if any(names) else None
+                        if jour not in planning_window.planning.planning:
+                            selection_window.destroy(); return
+                        if shift not in planning_window.planning.planning[jour]:
+                            selection_window.destroy(); return
+                        planning_window.planning.planning[jour][shift] = new_val
+                        cellules[jour][shift]["travailleur"] = new_val
+                        _draw_cell(jour, shift)
                         # Mettre à jour le panneau de stats
                         _render_stats()
                         selection_window.destroy()
@@ -2320,11 +2764,14 @@ class InterfacePlanning:
             self._loader_win = None
 
     def generer_planning_async(self):
+        print("DEBUG: generer_planning_async appelée")
         # Afficher loader et lancer la génération en thread
         self._show_loader("Generating planning... This may take a moment")
         def _task():
             try:
+                print("DEBUG: Début génération planning dans thread")
                 holes = self.generer_planning()
+                print(f"DEBUG: Génération terminée, trous: {holes}")
             finally:
                 # Revenir au thread Tk via after
                 try:
@@ -2333,7 +2780,16 @@ class InterfacePlanning:
                         self._hide_loader()
                         # Construire/rafraîchir visuel + info alternatives
                         try:
+                            print("DEBUG: Mise à jour interface après génération")
+                            # Marquer qu'un planning existe AVANT d'afficher
+                            self._has_generated_planning = True
+                            print(f"DEBUG: _has_generated_planning mis à True")
+                            
                             self.creer_planning_visuel()
+                            # Forcer la mise à jour graphique
+                            self.root.update_idletasks()
+                            self.root.update()
+                            print("DEBUG: Mise à jour graphique forcée")
                             total, index_1, best_score = self.planning.get_alternative_info() if hasattr(self.planning, 'get_alternative_info') else (0, 0, None)
                             if total > 1:
                                 self.alt_info_var.set(f"Alternatives: {index_1}/{total} (score={best_score:.0f})")
@@ -2369,8 +2825,6 @@ class InterfacePlanning:
                                     self.btn_next_alt.configure(state=tk.DISABLED)
                             except Exception:
                                 pass
-                            # Marquer qu'un planning existe
-                            self._has_generated_planning = True
                         except Exception:
                             pass
                         # Enfin, afficher la popup de confirmation si le calcul était valide
@@ -2957,10 +3411,21 @@ class InterfacePlanning:
             # Si l'on modifie le site courant, recharger structure et UI
             if self.site_actuel_id:
                 self._charger_reglages_site_actuel()
+                # Recréer une structure de planning vide conforme aux nouveaux réglages
                 new_planning = Planning(site_id=self.site_actuel_id, jours=days_list, shifts=shifts_list)
                 new_planning.travailleurs = self.planning.travailleurs
                 self.planning = new_planning
-                self.creer_planning_visuel()
+                # Marquer le planning comme obsolète et rafraîchir l'affichage principal immédiatement
+                try:
+                    self._invalidate_generated_planning()
+                except Exception:
+                    pass
+                self.afficher_planning()
+                try:
+                    self.root.update_idletasks()
+                    self.root.update()
+                except Exception:
+                    pass
                 # Refresh availabilities with preserved checkboxes by column index
                 old_dispos = getattr(self, 'disponibilites', {})
                 old_shifts_order = list(self.reglages_site.get("shifts", [])) if hasattr(self, 'reglages_site') else list(Horaire.SHIFTS.values())
