@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.70"
+    VERSION = "1.0.71"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -861,7 +861,7 @@ class InterfacePlanning:
             ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=(0,2), pady=(5,2))
         
         # Ligne des dates sous les en-têtes
-        ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=0, padx=5, pady=(0,2), sticky="w")
+        ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=0, padx=0, pady=(0,2), sticky="w")
         for i, shift in enumerate(dynamic_shifts):
             ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=(0,2), pady=(0,2))
         
@@ -876,7 +876,7 @@ class InterfacePlanning:
         for i, jour in enumerate(dynamic_days):
             # Créer un frame pour le jour et sa date
             jour_frame = ttk.Frame(planning_frame)
-            jour_frame.grid(row=i+2, column=0, padx=(0,2), pady=(2,5), sticky="w")
+            jour_frame.grid(row=i+2, column=0, padx=0, pady=(2,5), sticky="w")
             
             # Jour de la semaine
             ttk.Label(jour_frame, text=self.traduire_jour(jour), font=self.bold_font).pack(anchor="w")
@@ -891,7 +891,7 @@ class InterfacePlanning:
                 
                 # Créer un frame pour la cellule
                 cell_frame = ttk.Frame(planning_frame, width=self.cell_width_px, height=self.cell_height_px)
-                cell_frame.grid(row=i+2, column=j+1, padx=2, pady=2, sticky="nsew")
+                cell_frame.grid(row=i+2, column=j+1, padx=1, pady=2, sticky="nsew")
                 cell_frame.grid_propagate(False)  # Empêcher le frame de s'adapter à son contenu
                 
                 # Déterminer capacité
@@ -956,9 +956,9 @@ class InterfacePlanning:
                     lbl.grid(row=idx, column=0, sticky="nsew", padx=1, pady=1)
             
         
-        # Configurer les colonnes pour qu'elles s'étendent
+        # Configurer les colonnes (après création): ne pas étirer la colonne 0 (jours), étirer les autres
         for i in range(len(dynamic_shifts) + 1):  # 1 colonne pour les jours + colonnes dynamiques
-            planning_frame.columnconfigure(i, weight=1)
+            planning_frame.columnconfigure(i, weight=(0 if i == 0 else 1))
         
         # Configurer les lignes pour qu'elles s'étendent (comme avant la création)
         for i in range(len(dynamic_days) + 2):  # 1 ligne pour les en-têtes + 1 ligne pour les dates + lignes dynamiques
