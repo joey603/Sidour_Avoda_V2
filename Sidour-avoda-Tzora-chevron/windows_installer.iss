@@ -45,28 +45,29 @@ SetupIconFile=..\\assets\\app.ico
 [Files]
 ; Sortie PyInstaller (nom sans espace): dist\SidourAvoda\*
 ; IMPORTANT: ne pas utiliser "Check" ici, sinon les fichiers ne seront pas copiés à l'installation
-; Exclure l'exe de base pour le renommer en versionné
+; Exclure l'exe de base du bulk, on le copie explicitement juste après
 Source: "{#DistDir}\*"; DestDir: "{app}"; Excludes: "SidourAvoda.exe"; Flags: recursesubdirs createallsubdirs
-; Copier l'exe et le renommer avec la version (incluant le v)
+; Copier l'exe en deux variantes: stable (non versionné) et versionnée
+Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda.exe"; Flags: ignoreversion replacesameversion
 Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda-{#MyVersion}.exe"; Flags: ignoreversion replacesameversion
 
 [InstallDelete]
-; Nettoyage d'anciens exécutables versionnés dans le dossier d'installation
-Type: files; Name: "{app}\\SidourAvoda-v*.exe"
+; Ne plus supprimer les exécutables versionnés à l'installation pour éviter les raccourcis cassés
 
 [UninstallDelete]
 ; Nettoyage également à la désinstallation
 Type: files; Name: "{app}\\SidourAvoda-v*.exe"
 
 [Icons]
-Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda-{#MyVersion}.exe"; WorkingDir: "{app}"
-Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda-{#MyVersion}.exe"; Tasks: desktopicon; WorkingDir: "{app}"
+; Pointer les raccourcis vers l'exécutable stable non versionné pour rester valides après mise à jour
+Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; WorkingDir: "{app}"
+Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; Tasks: desktopicon; WorkingDir: "{app}"
 
 [Tasks]
 Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDescription: "Raccourcis:"
 
 [Run]
-; Lancer l'application versionnée même en mode silencieux et sous l'utilisateur original
-Filename: "{app}\\SidourAvoda-{#MyVersion}.exe"; Description: "Lancer Sidour Avoda"; Flags: nowait runasoriginaluser; WorkingDir: "{app}"
+; Lancer l'exécutable stable non versionné
+Filename: "{app}\\SidourAvoda.exe"; Description: "Lancer Sidour Avoda"; Flags: nowait runasoriginaluser; WorkingDir: "{app}"
 
 

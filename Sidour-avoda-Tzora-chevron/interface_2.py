@@ -243,7 +243,7 @@ class InterfacePlanning:
         """Retourne la date pour un jour donné (0=dimanche, 1=lundi, etc.)"""
         debut = self.get_debut_semaine(self.semaine_actuelle) - datetime.timedelta(days=1)  # Dimanche
         return debut + datetime.timedelta(days=jour_index)
-    
+
     def center_main_window(self):
         """Centre la fenêtre principale sur l'écran en tenant compte des marges"""
         self.root.update_idletasks()  # Mettre à jour la géométrie
@@ -403,7 +403,7 @@ class InterfacePlanning:
             for path in logo_paths:
                 if os.path.exists(path):
                     logo_path = path
-                    break
+                        break
             
             if logo_path:
                 logo_image = Image.open(logo_path)
@@ -1377,7 +1377,7 @@ class InterfacePlanning:
         try:
             # Parcourir tous les jours/shift présents dans le planning fourni
             for jour, shifts_map in (planning.items() if planning else []):
-                for shift, val in shifts_map.items():
+            for shift, val in shifts_map.items():
                     # Capacité configurée
                     try:
                         cap = int(self.planning.capacites.get(jour, {}).get(shift, 1))
@@ -1393,7 +1393,7 @@ class InterfacePlanning:
             # Fallback: ancien comptage (par case None)
             for jour, shifts_map in (planning.items() if planning else []):
                 for _shift, val in shifts_map.items():
-                    if val is None:
+                if val is None:
                         missing += 1
         return missing
 
@@ -1732,12 +1732,12 @@ class InterfacePlanning:
             self.planning.week_end_date = end_saturday.strftime('%Y-%m-%d')
         except Exception:
             pass
-        planning_id = self.planning.sauvegarder(nom_planning, self.site_actuel_id)
+            planning_id = self.planning.sauvegarder(nom_planning, self.site_actuel_id)
         messagebox.showinfo(
             "Success",
             f"Planning saved for {site_nom}\nWeek {start_sunday.strftime('%d/%m/%Y')} - {end_saturday.strftime('%d/%m/%Y')}"
         )
-        return planning_id
+            return planning_id
 
     def charger_planning(self):
         """Charge a planning from the database"""
@@ -2541,13 +2541,13 @@ class InterfacePlanning:
                                 self.assign_unique_colors_to_workers()
                             names[slot_index] = choix
                         new_val = " / ".join([n for n in names if n]) if any(names) else None
-                        if jour not in planning_window.planning.planning:
+                            if jour not in planning_window.planning.planning:
                             selection_window.destroy(); return
-                        if shift not in planning_window.planning.planning[jour]:
+                            if shift not in planning_window.planning.planning[jour]:
                             selection_window.destroy(); return
                         planning_window.planning.planning[jour][shift] = new_val
                         cellules[jour][shift]["travailleur"] = new_val
-                        _draw_cell(jour, shift)
+                            _draw_cell(jour, shift)
                         # Mettre à jour le panneau de stats
                         _render_stats()
                         selection_window.destroy()
@@ -2720,7 +2720,7 @@ class InterfacePlanning:
             else:
                 ttk.Label(frame, text=message, font=self.normal_font, bootstyle="secondary").pack(pady=(0, 10))
         except Exception:
-            ttk.Label(frame, text=message, font=self.normal_font).pack(pady=(0, 10))
+        ttk.Label(frame, text=message, font=self.normal_font).pack(pady=(0, 10))
         # Progressbar indéterminée stylée
         # Barre de progression + label de statut
         pb = ttk.Progressbar(frame, mode="determinate", bootstyle="info-striped")
