@@ -4,6 +4,7 @@ import random
 from database import Database
 import datetime
 import copy
+from typing import Callable
 
 class Planning:
     def __init__(self, site_id=1, jours=None, shifts=None):
@@ -266,7 +267,7 @@ class Planning:
         
         return score
 
-    def generer_planning_optimise(self):
+    def generer_planning_optimise(self, progress_cb: Callable | None = None):
         """Génère un planning optimisé en testant plusieurs solutions"""
         import random
         
@@ -283,7 +284,12 @@ class Planning:
                     except Exception:
                         cap = 1
                     total_sous_slots += max(1, cap)
-            nb_iterations = min(3000, 200 + 20 * total_sous_slots)
+            # Augmenter la couverture: facteur ×40 et plafond 5000
+            nb_iterations = min(5000, 200 + 60 * total_sous_slots)
+            try:
+                print(f"DEBUG: total_sous_slots={total_sous_slots}, nb_iterations={nb_iterations}")
+            except Exception:
+                pass
         except Exception:
             nb_iterations = 1200
         
@@ -296,12 +302,18 @@ class Planning:
         signatures_vues = set()
         
         # Générer plusieurs plannings et garder le meilleur
-        for _ in range(nb_iterations):
+        for iter_idx in range(nb_iterations):
             # Réinitialiser le planning pour cette itération
             jours_iter = list(self.planning.keys())
             shifts_iter = list(next(iter(self.planning.values())).keys()) if self.planning else list(Horaire.get_all_shifts())
             planning_test = {jour: {shift: None for shift in shifts_iter}
                             for jour in jours_iter}
+            # Progress callback
+            if progress_cb is not None:
+                try:
+                    progress_cb(iter_idx + 1, nb_iterations)
+                except Exception:
+                    pass
             
             # Réinitialiser les shifts assignés pour cette itération
             for travailleur in self.travailleurs:
@@ -549,7 +561,7 @@ class Planning:
 
         return planning
 
-    def generer_planning(self, mode_12h=False):
+    def generer_planning(self, mode_12h: bool = False, progress_cb: Callable | None = None):
         """Méthode principale pour générer le planning"""
         self.mode_12h = mode_12h
         
@@ -563,7 +575,7 @@ class Planning:
             travailleur.shifts_assignes = 0
         
         # Générer le planning optimisé sans combler les trous
-        self.generer_planning_optimise()
+        self.generer_planning_optimise(progress_cb=progress_cb)
         
         # Ne pas combler les trous automatiquement
         # La méthode combler_trous() sera appelée séparément si l'utilisateur le souhaite

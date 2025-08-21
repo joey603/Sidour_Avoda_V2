@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.67"
+    VERSION = "1.0.68"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -60,6 +60,10 @@ class InterfacePlanning:
         self.header_font = tkfont.Font(family="Helvetica", size=11, weight="bold")
         self.normal_font = tkfont.Font(family="Helvetica", size=11)
         self.bold_font = tkfont.Font(family="Helvetica", size=11, weight="bold")
+        # Tailles visuelles unifiées pour les cellules du planning
+        self.cell_width_px = 180
+        self.cell_height_px = 140
+        self.slot_min_height_px = 70
         
         self.planning = Planning()
         # Etat UI: planning généré ou non
@@ -167,7 +171,7 @@ class InterfacePlanning:
         for i, jour in enumerate(dynamic_days):
             # Créer un frame pour le jour et sa date
             jour_frame = ttk.Frame(planning_frame)
-            jour_frame.grid(row=i+2, column=0, padx=5, pady=(2,5), sticky="w")
+            jour_frame.grid(row=i+2, column=0, padx=5, pady=(0,0), sticky="w")
             
             # Jour de la semaine
             ttk.Label(jour_frame, text=self.traduire_jour(jour), font=self.bold_font).pack(anchor="w")
@@ -177,10 +181,17 @@ class InterfacePlanning:
             date_str = date_jour.strftime('%d/%m')
             ttk.Label(jour_frame, text=date_str, font=self.normal_font, bootstyle="secondary").pack(anchor="w")
             
+            # Capacité maximale du jour pour uniformiser la hauteur de la ligne
+            try:
+                cap_max_jour = max(1, max(int(caps.get(jour, {}).get(s, 1)) for s in dynamic_shifts))
+            except Exception:
+                cap_max_jour = 1
+            row_min_h = max(self.cell_height_px, cap_max_jour * self.slot_min_height_px)
+            
             for j, shift in enumerate(dynamic_shifts):
-                # Créer un frame pour la cellule vide
-                cell_frame = ttk.Frame(planning_frame, width=150, height=50)
-                cell_frame.grid(row=i+2, column=j+1, padx=2, pady=2, sticky="nsew")
+                # Créer un frame pour la cellule vide (hauteur unifiée sur la ligne)
+                cell_frame = ttk.Frame(planning_frame, width=self.cell_width_px, height=row_min_h)
+                cell_frame.grid(row=i+2, column=j+1, padx=2, pady=0, sticky="nsew")
                 cell_frame.grid_propagate(False)
                 
                 # Déterminer la capacité (Required staff) pour ce jour/shift
@@ -194,7 +205,7 @@ class InterfacePlanning:
                 inner = ttk.Frame(cell_frame)
                 inner.pack(fill="both", expand=True)
                 for r in range(cap):
-                    inner.rowconfigure(r, weight=1)
+                    inner.rowconfigure(r, minsize=self.slot_min_height_px, weight=1)
                 inner.columnconfigure(0, weight=1)
                 
                 # Créer "cap" emplacements Unassigned
@@ -890,7 +901,7 @@ class InterfacePlanning:
                 travailleur = self.planning.planning[jour][shift]
                 
                 # Créer un frame pour la cellule
-                cell_frame = ttk.Frame(planning_frame, width=150, height=50)
+                cell_frame = ttk.Frame(planning_frame, width=self.cell_width_px, height=self.cell_height_px)
                 cell_frame.grid(row=i+2, column=j+1, padx=2, pady=2, sticky="nsew")
                 cell_frame.grid_propagate(False)  # Empêcher le frame de s'adapter à son contenu
                 
@@ -906,7 +917,7 @@ class InterfacePlanning:
                 inner = ttk.Frame(cell_frame)
                 inner.pack(fill="both", expand=True)
                 for r in range(cap):
-                    inner.rowconfigure(r, weight=1)
+                    inner.rowconfigure(r, minsize=self.slot_min_height_px, weight=1)
                 inner.columnconfigure(0, weight=1)
                 for idx, nom in enumerate(noms[:cap]):
                     if nom:
@@ -954,12 +965,13 @@ class InterfacePlanning:
                         # Forcer la couleur de fond
                         lbl.configure(bg="#F0F0F0")
                     lbl.grid(row=idx, column=0, sticky="nsew", padx=1, pady=1)
+            
         
         # Configurer les colonnes pour qu'elles s'étendent
         for i in range(len(dynamic_shifts) + 1):  # 1 colonne pour les jours + colonnes dynamiques
             planning_frame.columnconfigure(i, weight=1)
         
-        # Configurer les lignes pour qu'elles s'étendent
+        # Configurer les lignes pour qu'elles s'étendent (comme avant la création)
         for i in range(len(dynamic_days) + 2):  # 1 ligne pour les en-têtes + 1 ligne pour les dates + lignes dynamiques
             planning_frame.rowconfigure(i, weight=1)
 
@@ -1254,7 +1266,7 @@ class InterfacePlanning:
                 return False
         return True
 
-    def generer_planning(self):
+    def generer_planning(self, progress_cb=None):
         """Calcule un nouveau planning optimisé et met à jour les données du modèle.
         Ne fait aucun appel UI; retourne le nombre de trous (int)."""
         if not self.planning.travailleurs:
@@ -1273,7 +1285,7 @@ class InterfacePlanning:
         self.planning = new_planning
 
         # Générer un planning initial (capacité/limites rechargées depuis la DB par Planning)
-        self.planning.generer_planning(mode_12h=False)
+        self.planning.generer_planning(mode_12h=False, progress_cb=progress_cb)
         
         # Essayer plusieurs générations et garder la meilleure
         meilleur_planning = self.evaluer_planning(self.planning.planning)
@@ -2159,7 +2171,7 @@ class InterfacePlanning:
             # Dimensions dynamiques: largeur fixe par colonne; hauteur de ligne par jour selon capacité max
             cell_width = canvas_width / (len(shifts_dyn) + 1)
             header_h = 36
-            min_slice_h = 24
+            min_slice_h = 60
             # Calcul des hauteurs par jour
             day_row_heights = {}
             for jour in jours_dyn:
@@ -2710,28 +2722,43 @@ class InterfacePlanning:
         except Exception:
             ttk.Label(frame, text=message, font=self.normal_font).pack(pady=(0, 10))
         # Progressbar indéterminée stylée
-        pb = ttk.Progressbar(frame, mode="indeterminate", bootstyle="info-striped")
+        # Barre de progression + label de statut
+        pb = ttk.Progressbar(frame, mode="determinate", bootstyle="info-striped")
         pb.pack(fill="x")
-        pb.start(10)
         self._loader_pb = pb
-        # Centrer la fenêtre du loader
+        self._loader_status = tk.StringVar(value="Preparing...")
+        ttk.Label(frame, textvariable=self._loader_status, font=self.normal_font).pack(pady=(6, 0))
+        # Centrer la fenêtre du loader (robuste Windows/mac)
         try:
+            # S'assurer que les dimensions sont à jour
+            self.root.update_idletasks()
             win.update_idletasks()
-            width, height = 320, 120
-            # Taille/position de la fenêtre parent si disponible
-            rw = self.root.winfo_width()
-            rh = self.root.winfo_height()
-            rx = self.root.winfo_rootx()
-            ry = self.root.winfo_rooty()
-            if rw and rh and rw > 1 and rh > 1:
-                x = rx + max(0, (rw - width) // 2)
-                y = ry + max(0, (rh - height) // 2)
+            # Demander la taille réelle requise par le contenu
+            req_w = max(320, (win.winfo_reqwidth() or 320))
+            req_h = max(120, (win.winfo_reqheight() or 120))
+            # Centrage relatif à la fenêtre principale si fiable et non Windows
+            rw = self.root.winfo_width(); rh = self.root.winfo_height()
+            rx = self.root.winfo_rootx(); ry = self.root.winfo_rooty()
+            use_parent = (rw and rh and rw > 1 and rh > 1 and sys.platform != 'win32')
+            if use_parent:
+                x = rx + max(0, (rw - req_w) // 2)
+                y = ry + max(0, (rh - req_h) // 2)
             else:
-                sw = win.winfo_screenwidth()
-                sh = win.winfo_screenheight()
-                x = max(0, (sw - width) // 2)
-                y = max(0, (sh - height) // 2)
-            win.geometry(f"{width}x{height}+{x}+{y}")
+                # Sur Windows (ou si parent non fiable), centrer sur l'écran
+                sw = win.winfo_screenwidth(); sh = win.winfo_screenheight()
+                x = max(0, (sw - req_w) // 2)
+                y = max(0, (sh - req_h) // 2)
+            # Appliquer proprement la géométrie
+            try:
+                win.withdraw()
+            except Exception:
+                pass
+            win.geometry(f"{int(req_w)}x{int(req_h)}+{int(x)}+{int(y)}")
+            try:
+                win.deiconify()
+            except Exception:
+                pass
+            win.update()
         except Exception:
             try:
                 win.geometry("320x120")
@@ -2768,9 +2795,20 @@ class InterfacePlanning:
         # Afficher loader et lancer la génération en thread
         self._show_loader("Generating planning... This may take a moment")
         def _task():
+            holes = None
             try:
                 print("DEBUG: Début génération planning dans thread")
-                holes = self.generer_planning()
+                # Callback de progression pour mettre à jour le loader
+                def _progress(it, total):
+                    try:
+                        pct = max(0, min(100, int(it * 100 / max(1, total))))
+                        self.root.after(0, lambda: (
+                            self._loader_pb.configure(maximum=100, value=pct),
+                            self._loader_status.set(f"Generated tables: {it}/{total}")
+                        ))
+                    except Exception:
+                        pass
+                holes = self.generer_planning(progress_cb=_progress)
                 print(f"DEBUG: Génération terminée, trous: {holes}")
             finally:
                 # Revenir au thread Tk via after
