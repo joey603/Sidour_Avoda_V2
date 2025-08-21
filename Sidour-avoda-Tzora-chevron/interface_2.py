@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.69"
+    VERSION = "1.0.70"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -151,15 +151,15 @@ class InterfacePlanning:
         planning_frame.pack(fill="both", expand=True)
         
         # Headers of the columns (dynamiques par site)
-        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=(5,2), sticky="w")
+        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=(0,2), pady=(5,2), sticky="w")
         dynamic_shifts = self.reglages_site.get('shifts') if hasattr(self, 'reglages_site') and self.reglages_site else list(Horaire.SHIFTS.values())
         for i, shift in enumerate(dynamic_shifts):
-            ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=(5,2))
+            ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=(0,2), pady=(5,2))
         
         # Ligne des dates sous les en-têtes
-        ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=0, padx=5, pady=(0,2), sticky="w")
+        ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=0, padx=0, pady=(0,2), sticky="w")
         for i, shift in enumerate(dynamic_shifts):
-            ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=5, pady=(0,2))
+            ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=(0,2), pady=(0,2))
         
         # Remplir le planning vide avec les jours et dates
         dynamic_days = self.reglages_site.get('jours') if hasattr(self, 'reglages_site') and self.reglages_site else list(Horaire.JOURS)
@@ -171,7 +171,7 @@ class InterfacePlanning:
         for i, jour in enumerate(dynamic_days):
             # Créer un frame pour le jour et sa date
             jour_frame = ttk.Frame(planning_frame)
-            jour_frame.grid(row=i+2, column=0, padx=5, pady=(0,0), sticky="w")
+            jour_frame.grid(row=i+2, column=0, padx=0, pady=(0,0), sticky="w")
             
             # Jour de la semaine
             ttk.Label(jour_frame, text=self.traduire_jour(jour), font=self.bold_font).pack(anchor="w")
@@ -191,7 +191,7 @@ class InterfacePlanning:
             for j, shift in enumerate(dynamic_shifts):
                 # Créer un frame pour la cellule vide (hauteur unifiée sur la ligne)
                 cell_frame = ttk.Frame(planning_frame, width=self.cell_width_px, height=row_min_h)
-                cell_frame.grid(row=i+2, column=j+1, padx=2, pady=0, sticky="nsew")
+                cell_frame.grid(row=i+2, column=j+1, padx=1, pady=0, sticky="nsew")
                 cell_frame.grid_propagate(False)
                 
                 # Déterminer la capacité (Required staff) pour ce jour/shift
@@ -225,9 +225,9 @@ class InterfacePlanning:
                     lbl.configure(bg="#F0F0F0")
                     lbl.grid(row=r, column=0, sticky="nsew", padx=1, pady=1)
         
-        # Configurer les colonnes pour qu'elles s'étendent
-        for i in range(len(dynamic_shifts) + 1):
-            planning_frame.columnconfigure(i, weight=1)
+        # Configurer les colonnes: ne pas étirer la colonne 0 (jours), étirer les colonnes d'horaires
+        for i in range(len(dynamic_shifts) + 1):  # 1 colonne pour les jours + colonnes dynamiques
+            planning_frame.columnconfigure(i, weight=(0 if i == 0 else 1))
         
         # Configurer les lignes pour qu'elles s'étendent
         for i in range(len(dynamic_days) + 2):
@@ -438,17 +438,6 @@ class InterfacePlanning:
                                     bootstyle="secondary")
             version_label.pack(side="left", padx=(5, 0))
             
-        except Exception as e:
-            # Fallback si le logo ne peut pas être chargé
-            app_title = ttk.Label(header_frame, text="Sidour Avoda", 
-                                font=tkfont.Font(family="Helvetica", size=16, weight="bold"),
-                                bootstyle="primary")
-            app_title.pack(side="left")
-            
-            version_label = ttk.Label(header_frame, text=f"v{self.VERSION}", 
-                                    font=tkfont.Font(family="Helvetica", size=10),
-                                    bootstyle="secondary")
-            version_label.pack(side="left", padx=(5, 0))
         
         # Frame pour la sélection de site en haut
         site_frame = ttk.Frame(main_frame)
@@ -865,16 +854,16 @@ class InterfacePlanning:
         self.assign_unique_colors_to_workers()
         
         # Headers of the columns (dynamiques par site)
-        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=5, pady=(5,2), sticky="w")
+        ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=(0,2), pady=(5,2), sticky="w")
         dynamic_shifts = list(next(iter(self.planning.planning.values())).keys()) if self.planning and self.planning.planning else list(Horaire.SHIFTS.values())
         print(f"DEBUG: Shifts dynamiques: {dynamic_shifts}")
         for i, shift in enumerate(dynamic_shifts):
-            ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=5, pady=(5,2))
+            ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=(0,2), pady=(5,2))
         
         # Ligne des dates sous les en-têtes
         ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=0, padx=5, pady=(0,2), sticky="w")
         for i, shift in enumerate(dynamic_shifts):
-            ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=5, pady=(0,2))
+            ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=(0,2), pady=(0,2))
         
         # Remplir le planning
         # Charger les capacités (nombre de personnes requises par jour/shift) pour le site courant
@@ -887,7 +876,7 @@ class InterfacePlanning:
         for i, jour in enumerate(dynamic_days):
             # Créer un frame pour le jour et sa date
             jour_frame = ttk.Frame(planning_frame)
-            jour_frame.grid(row=i+2, column=0, padx=5, pady=(2,5), sticky="w")
+            jour_frame.grid(row=i+2, column=0, padx=(0,2), pady=(2,5), sticky="w")
             
             # Jour de la semaine
             ttk.Label(jour_frame, text=self.traduire_jour(jour), font=self.bold_font).pack(anchor="w")
@@ -1732,7 +1721,7 @@ class InterfacePlanning:
             self.planning.week_end_date = end_saturday.strftime('%Y-%m-%d')
         except Exception:
             pass
-            planning_id = self.planning.sauvegarder(nom_planning, self.site_actuel_id)
+        planning_id = self.planning.sauvegarder(nom_planning, self.site_actuel_id)
         messagebox.showinfo(
             "Success",
             f"Planning saved for {site_nom}\nWeek {start_sunday.strftime('%d/%m/%Y')} - {end_saturday.strftime('%d/%m/%Y')}"
