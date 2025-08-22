@@ -57,6 +57,8 @@ Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda-{
 Type: files; Name: "{group}\\Sidour Avoda*.lnk"
 Type: files; Name: "{userdesktop}\\Sidour Avoda*.lnk"
 Type: files; Name: "{commondesktop}\\Sidour Avoda*.lnk"
+; Supprimer toutes les anciennes versions d'exécutables versionnés (seront remplacées ensuite)
+Type: files; Name: "{app}\\SidourAvoda-v*.exe"
 
 [UninstallDelete]
 ; Nettoyage également à la désinstallation
@@ -64,8 +66,8 @@ Type: files; Name: "{app}\\SidourAvoda-v*.exe"
 
 [Icons]
 ; Pointer les raccourcis vers l'exécutable stable non versionné pour rester valides après mise à jour
-Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; WorkingDir: "{app}"; IconFilename: "{app}\assets\app.ico"
-Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; Tasks: desktopicon; WorkingDir: "{app}"; IconFilename: "{app}\assets\app.ico"
+Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; WorkingDir: "{app}"; IconIndex: 0
+Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; Tasks: desktopicon; WorkingDir: "{app}"; IconIndex: 0
 
 [Tasks]
 Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDescription: "Raccourcis:"
@@ -73,5 +75,7 @@ Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDesc
 [Run]
 ; Lancer l'exécutable stable non versionné
 Filename: "{app}\\SidourAvoda.exe"; Description: "Lancer Sidour Avoda"; Flags: nowait runasoriginaluser; WorkingDir: "{app}"
+; Rafraîchir le cache d'icônes de l'utilisateur pour que le raccourci affiche l'icône immédiatement
+Filename: "{sys}\\ie4uinit.exe"; Parameters: "-show"; Flags: runasoriginaluser
 
 
