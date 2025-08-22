@@ -1,6 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+try:
+    from PIL import Image
+    # Générer une icône multi-résolution à partir du PNG si besoin
+    png_path = os.path.join('assets', 'calender-2389150_960_720.png')
+    ico_path = os.path.join('assets', 'app.ico')
+    if os.path.exists(png_path):
+        try:
+            base = Image.open(png_path).convert('RGBA')
+            sizes = [(256,256),(128,128),(64,64),(48,48),(32,32),(24,24),(16,16)]
+            base.save(ico_path, sizes=sizes)
+        except Exception:
+            pass
+except Exception:
+    pass
 
 block_cipher = None
 
