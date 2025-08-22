@@ -53,6 +53,10 @@ Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda-{
 
 [InstallDelete]
 ; Ne plus supprimer les exécutables versionnés à l'installation pour éviter les raccourcis cassés
+; Supprimer les anciens raccourcis potentiellement cassés avant de recréer ceux pointant vers l'exe stable
+Type: files; Name: "{group}\\Sidour Avoda*.lnk"
+Type: files; Name: "{userdesktop}\\Sidour Avoda*.lnk"
+Type: files; Name: "{commondesktop}\\Sidour Avoda*.lnk"
 
 [UninstallDelete]
 ; Nettoyage également à la désinstallation
