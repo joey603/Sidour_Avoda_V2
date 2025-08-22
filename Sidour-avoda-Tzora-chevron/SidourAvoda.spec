@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
 block_cipher = None
 
 a = Analysis(
@@ -9,6 +11,7 @@ a = Analysis(
     datas=[
         ('planning_data.db', '.'),
         ('assets/calender-2389150_960_720.png', 'assets'),
+        ('assets/app.ico', 'assets'),
         ('version.txt', '.'),
         ('interface.py', '.'),
         ('interface_2.py', '.'),
@@ -58,7 +61,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/app.ico' if os.path.exists('assets/app.ico') else None,
+    icon='assets/app.ico',
 )
 
 coll = COLLECT(
