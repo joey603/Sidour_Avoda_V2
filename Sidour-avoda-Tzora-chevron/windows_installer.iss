@@ -64,8 +64,8 @@ Type: files; Name: "{app}\\SidourAvoda-v*.exe"
 
 [Icons]
 ; Pointer les raccourcis vers l'exécutable stable non versionné pour rester valides après mise à jour
-Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; WorkingDir: "{app}"
-Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; Tasks: desktopicon; WorkingDir: "{app}"
+Name: "{group}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; WorkingDir: "{app}"; IconFilename: "{app}\assets\app.ico"
+Name: "{userdesktop}\Sidour Avoda"; Filename: "{app}\SidourAvoda.exe"; Tasks: desktopicon; WorkingDir: "{app}"; IconFilename: "{app}\assets\app.ico"
 
 [Tasks]
 Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDescription: "Raccourcis:"
