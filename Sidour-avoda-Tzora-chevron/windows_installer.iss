@@ -48,8 +48,8 @@ SetupIconFile=..\\assets\\app.ico
 ; Exclure l'exe de base du bulk, on le copie explicitement juste après
 Source: "{#DistDir}\*"; DestDir: "{app}"; Excludes: "SidourAvoda.exe"; Flags: recursesubdirs createallsubdirs
 ; Copier l'exe en deux variantes: stable (non versionné) et versionnée
-Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda.exe"; Flags: ignoreversion replacesameversion
-Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda-{#MyVersion}.exe"; Flags: ignoreversion replacesameversion
+Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda.exe"; Flags: replacesameversion
+Source: "{#DistDir}\SidourAvoda.exe"; DestDir: "{app}"; DestName: "SidourAvoda-{#MyVersion}.exe"; Flags: replacesameversion
 
 [InstallDelete]
 ; Ne plus supprimer les exécutables versionnés à l'installation pour éviter les raccourcis cassés
