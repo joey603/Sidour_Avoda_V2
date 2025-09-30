@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.77"
+    VERSION = "1.0.79"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -963,6 +963,38 @@ class InterfacePlanning:
         # Configurer les lignes pour qu'elles s'étendent (comme avant la création)
         for i in range(len(dynamic_days) + 2):  # 1 ligne pour les en-têtes + 1 ligne pour les dates + lignes dynamiques
             planning_frame.rowconfigure(i, weight=1)
+
+        # Résumé: Shifts par travailleur
+        try:
+            counts = {t.nom: 0 for t in self.planning.travailleurs}
+            for jour in dynamic_days:
+                for shift in dynamic_shifts:
+                    val = self.planning.planning[jour][shift]
+                    if val:
+                        for nom in [n.strip() for n in str(val).split("/") if n.strip()]:
+                            counts[nom] = counts.get(nom, 0) + 1
+            base_row = len(dynamic_days) + 3  # + header row + date row
+            sep = ttk.Separator(planning_frame, orient="horizontal")
+            sep.grid(row=base_row - 1, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", pady=(8, 4))
+            summary = tk.LabelFrame(planning_frame, text="Shifts per worker", padx=8, pady=8)
+            summary.grid(row=base_row, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", padx=0, pady=(0, 8))
+            summary.columnconfigure(0, weight=1)
+            summary.columnconfigure(1, weight=0)
+            for idx, nom in enumerate(sorted(counts.keys(), key=lambda x: x.lower())):
+                color = self.travailleur_colors.get(nom, "#FFFFFF")
+                row_frame = tk.Frame(summary, bg=color, highlightthickness=0, bd=0)
+                row_frame.grid(row=idx, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
+                row_frame.columnconfigure(0, weight=1)
+                row_frame.columnconfigure(1, weight=0)
+                # Labels avec fond explicite (même méthode que le tableau)
+                name_lbl = tk.Label(row_frame, text=nom, bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
+                name_lbl.configure(bg=color)
+                name_lbl.grid(row=0, column=0, sticky="w")
+                count_lbl = tk.Label(row_frame, text=str(counts[nom]), bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
+                count_lbl.configure(bg=color)
+                count_lbl.grid(row=0, column=1, sticky="e")
+        except Exception:
+            pass
 
     def ajouter_travailleur(self) -> bool:
         """Ajoute ou modifie un travailleur selon le mode courant.
