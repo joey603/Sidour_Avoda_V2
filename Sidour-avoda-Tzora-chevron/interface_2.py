@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.76"
+    VERSION = "1.0.77"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -954,7 +954,7 @@ class InterfacePlanning:
                         # Forcer la couleur de fond
                         lbl.configure(bg="#F0F0F0")
                     lbl.grid(row=idx, column=0, sticky="nsew", padx=1, pady=1)
-            
+        
         
         # Configurer les colonnes (après création): ne pas étirer la colonne 0 (jours), étirer les autres
         for i in range(len(dynamic_shifts) + 1):  # 1 colonne pour les jours + colonnes dynamiques

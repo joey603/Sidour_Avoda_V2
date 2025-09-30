@@ -39,6 +39,25 @@ class Planning:
     def ajouter_travailleur(self, travailleur):
         self.travailleurs.append(travailleur)
 
+    def _planning_respecte_disponibilites(self, planning_dict):
+        """Vérifie que toutes les assignations respectent les disponibilités exactes.
+        Retourne True si chaque nom assigné a bien demandé (jour, shift).
+        """
+        if not planning_dict:
+            return True
+        jours_dyn = list(planning_dict.keys())
+        shifts_dyn = list(next(iter(planning_dict.values())).keys()) if planning_dict else []
+        for jour in jours_dyn:
+            for shift in shifts_dyn:
+                val = planning_dict[jour][shift]
+                if not val:
+                    continue
+                for nom in [n.strip() for n in str(val).split(" / ") if n.strip()]:
+                    t = self._get_travailleur_par_nom(nom)
+                    if not t or not t.est_disponible(jour, shift):
+                        return False
+        return True
+
     def _ordered_days(self):
         dynamic_days = list(self.planning.keys())
         return [j for j in Horaire.get_all_jours() if j in dynamic_days]
@@ -419,7 +438,12 @@ class Planning:
                 if sig not in signatures_vues:
                     alternatives.append(copy.deepcopy(cand))
                     signatures_vues.add(sig)
-        self.alternatives = alternatives if alternatives else [copy.deepcopy(self.planning)]
+        # Filtrer strictement les alternatives pour ne conserver que celles qui respectent les disponibilités
+        alternatives_valides = [cand for cand in alternatives if self._planning_respecte_disponibilites(cand)]
+        if not alternatives_valides:
+            if self._planning_respecte_disponibilites(self.planning):
+                alternatives_valides = [copy.deepcopy(self.planning)]
+        self.alternatives = alternatives_valides
         self.best_score = meilleur_score
         self.current_alternative_index = 0
 
@@ -464,6 +488,10 @@ class Planning:
                         cap_s2 = int(self.capacites.get(jour, {}).get(s2, 1))
                         noms_s2 = self._names_in_cell(planning_base, jour, s2)
                         if len(noms_s2) >= cap_s2 or nom in noms_s2:
+                            continue
+                        # Ne générer un swap que si le travailleur a demandé (jour, s2)
+                        t = self._get_travailleur_par_nom(nom)
+                        if not t or not t.est_disponible(jour, s2):
                             continue
                         cand = copy.deepcopy(planning_base)
                         self._write_names_in_cell(cand, jour, s1, [n for n in noms_s1 if n != nom])
@@ -545,6 +573,9 @@ class Planning:
                     # Trouver une case vide dans le jour surchargé
                     for shift_cible in shifts:
                         if planning[jour_trop_trous][shift_cible] is None:
+                            # Vérifier la disponibilité précise pour le shift cible
+                            if not travailleur.est_disponible(jour_trop_trous, shift_cible):
+                                continue
                             # Déplacer
                             planning[jour_trop_trous][shift_cible] = nom_travailleur
                             planning[jour_sans_trou][shift] = None
