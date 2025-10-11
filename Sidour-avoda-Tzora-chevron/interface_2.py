@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.79"
+    VERSION = "1.0.80"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -232,6 +232,33 @@ class InterfacePlanning:
         # Configurer les lignes pour qu'elles s'étendent
         for i in range(len(dynamic_days) + 2):
             planning_frame.rowconfigure(i, weight=1)
+        
+        # Afficher le résumé "Shifts per worker" même sans planning créé (valeurs à 0)
+        try:
+            # Générer les couleurs si nécessaire
+            self.assign_unique_colors_to_workers()
+            counts = {t.nom: 0 for t in self.planning.travailleurs}
+            base_row = len(dynamic_days) + 3  # + header row + date row
+            sep = ttk.Separator(planning_frame, orient="horizontal")
+            sep.grid(row=base_row - 1, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", pady=(8, 4))
+            summary = tk.LabelFrame(planning_frame, text="Shifts per worker", padx=8, pady=8)
+            summary.grid(row=base_row, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", padx=0, pady=(0, 8))
+            summary.columnconfigure(0, weight=1)
+            summary.columnconfigure(1, weight=0)
+            for idx, nom in enumerate(sorted(counts.keys(), key=lambda x: x.lower())):
+                color = self.travailleur_colors.get(nom, "#FFFFFF")
+                row_frame = tk.Frame(summary, bg=color, highlightthickness=0, bd=0)
+                row_frame.grid(row=idx, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
+                row_frame.columnconfigure(0, weight=1)
+                row_frame.columnconfigure(1, weight=0)
+                name_lbl = tk.Label(row_frame, text=nom, bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
+                name_lbl.configure(bg=color)
+                name_lbl.grid(row=0, column=0, sticky="w")
+                count_lbl = tk.Label(row_frame, text="0", bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
+                count_lbl.configure(bg=color)
+                count_lbl.grid(row=0, column=1, sticky="e")
+        except Exception:
+            pass
     
     def mettre_a_jour_affichage_semaine(self):
         """Met à jour l'affichage de la semaine"""
@@ -451,6 +478,12 @@ class InterfacePlanning:
                                          values=site_values, state="readonly", width=25)
         self.site_combobox.pack(side="left", padx=(0, 10))
         self.site_combobox.bind('<<ComboboxSelected>>', self.changer_site)
+        # Forcer la sélection visuelle du premier site (site par défaut)
+        try:
+            if self.sites_disponibles:
+                self.site_combobox.current(0)
+        except Exception:
+            pass
         
         # Bouton pour ajouter un site
         btn_add_site = ttk.Button(site_frame, text="➕ Add Site", 
@@ -1697,6 +1730,12 @@ class InterfacePlanning:
         self.table_travailleurs.update()
         
         print(f"DEBUG: Fin chargement travailleurs - {len(self.planning.travailleurs)} travailleurs chargés")
+        
+        # Rafraîchir l'affichage du planning pour montrer le résumé à 0 si besoin
+        try:
+            self.creer_planning_visuel()
+        except Exception:
+            pass
 
     def sauvegarder_planning(self):
         """Save the current planning in the database using the selected week's date range and show a capacity summary."""
