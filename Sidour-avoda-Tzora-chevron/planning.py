@@ -29,6 +29,20 @@ class Planning:
             self.limites_par_personne = {"06-14": 6, "14-22": 6, "22-06": 6}
         # Pondération de pénalité pour places non pourvues (réduite pour favoriser des variantes)
         self.penalite_manquant = 30
+        # Verrous d'assignation: {(jour, shift): [noms par ordre de slot]}
+        self.locked_assignments = {}
+
+    def set_locked_assignments(self, locks_by_shift: dict):
+        """Définit les verrous sous forme {(jour, shift): [nom1, nom2, ...]}"""
+        try:
+            self.locked_assignments = {}
+            for key, names in (locks_by_shift or {}).items():
+                j, s = key
+                cleaned = [str(n).strip() for n in (names or []) if n and str(n).strip()]
+                if cleaned:
+                    self.locked_assignments[(j, s)] = cleaned
+        except Exception:
+            self.locked_assignments = {}
 
     def _get_travailleur_par_nom(self, nom):
         for t in self.travailleurs:
@@ -337,6 +351,19 @@ class Planning:
             # Réinitialiser les shifts assignés pour cette itération
             for travailleur in self.travailleurs:
                 travailleur.shifts_assignes = 0
+            # Pré-charger les comptes issus des verrous pour l'itération
+            try:
+                initial_counts = {}
+                for (j_lock, s_lock), names_lock in (self.locked_assignments or {}).items():
+                    for n in (names_lock or []):
+                        if not n:
+                            continue
+                        initial_counts[n] = initial_counts.get(n, 0) + 1
+                if initial_counts:
+                    for travailleur in self.travailleurs:
+                        travailleur.shifts_assignes = initial_counts.get(travailleur.nom, 0)
+            except Exception:
+                pass
             
             # Mélanger l'ordre des jours et des shifts pour diversifier les solutions
             jours = list(self.planning.keys())
@@ -347,9 +374,26 @@ class Planning:
             for jour in jours:
                 for shift in shifts:
                     cap = int(self.capacites.get(jour, {}).get(shift, 1))
+                    # Pré-remplir avec verrous
                     assigned_names = []
-                    # Affecter jusqu'à cap travailleurs
-                    for _ in range(cap):
+                    try:
+                        locked_here = [n for n in (self.locked_assignments.get((jour, shift), []) or []) if n]
+                    except Exception:
+                        locked_here = []
+                    if locked_here:
+                        assigned_names.extend(locked_here)
+                        planning_test[jour][shift] = " / ".join(assigned_names)
+                        # Compter ces verrous dans les shifts déjà assignés du travailleur
+                        try:
+                            for n in locked_here:
+                                t = self._get_travailleur_par_nom(n)
+                                if t is not None:
+                                    t.shifts_assignes += 1
+                        except Exception:
+                            pass
+                    remaining = max(0, cap - len(assigned_names))
+                    # Affecter jusqu'au reste de la capacité
+                    for _ in range(remaining):
                         travailleurs_disponibles = []
                         for travailleur in self.travailleurs:
                             if travailleur.nom in assigned_names:
@@ -359,6 +403,20 @@ class Planning:
                                 and not self.travailleur_a_shift_adjacent(travailleur.nom, jour, shift, planning_test)
                             )
                             if not conditions_ok:
+                                continue
+                            # Éviter d'ajouter un verrouillé sur des slots adjacents interdits
+                            # Si la personne est verrouillée ce jour-là sur un autre shift, l'écarter pour ce shift
+                            locked_today = []
+                            try:
+                                for s_chk, names_chk in (self.locked_assignments or {}).items():
+                                    (j_chk, s_name) = s_chk
+                                    if j_chk == jour and names_chk:
+                                        if travailleur.nom in names_chk:
+                                            locked_today.append(s_name)
+                            except Exception:
+                                locked_today = []
+                            if locked_today:
+                                # Si déjà verrouillé sur un shift du même jour, on interdit un second shift
                                 continue
                             # Interdire deux gardes le même jour (même si non adjacentes)
                             if self.travailleur_travaille_jour(travailleur.nom, jour, planning_test):
@@ -374,8 +432,9 @@ class Planning:
                         def _fairness_key(t):
                             denom = max(1, t.nb_shifts_souhaites)
                             ratio = t.shifts_assignes / denom
-                            deficit = t.shifts_assignes - t.nb_shifts_souhaites
-                            return (ratio, deficit, t.shifts_assignes)
+                            # Déficit: négatif si au-dessus de l'objectif, positif si en-dessous
+                            deficit = (t.nb_shifts_souhaites - t.shifts_assignes)
+                            return (ratio, -deficit, t.shifts_assignes)
                         travailleurs_disponibles.sort(key=_fairness_key)
                         # Éviter deux gardes d'affilée en priorité
                         choisi = next((t for t in travailleurs_disponibles if not self.travailleur_a_shift_adjacent(t.nom, jour, shift, planning_test) and not self.travailleur_travaille_jour(t.nom, jour, planning_test)), travailleurs_disponibles[0])
@@ -438,14 +497,22 @@ class Planning:
                 if sig not in signatures_vues:
                     alternatives.append(copy.deepcopy(cand))
                     signatures_vues.add(sig)
-        # Filtrer strictement les alternatives pour ne conserver que celles qui respectent les disponibilités
-        alternatives_valides = [cand for cand in alternatives if self._planning_respecte_disponibilites(cand)]
+        # Filtrer strictement les alternatives pour ne conserver que celles qui respectent les dispos ET le quota souhaité
+        alternatives_valides = [cand for cand in alternatives if self._planning_respecte_disponibilites(cand) and self._respects_desired_quota(cand)]
         if not alternatives_valides:
-            if self._planning_respecte_disponibilites(self.planning):
+            if self._planning_respecte_disponibilites(self.planning) and self._respects_desired_quota(self.planning):
                 alternatives_valides = [copy.deepcopy(self.planning)]
         self.alternatives = alternatives_valides
         self.best_score = meilleur_score
         self.current_alternative_index = 0
+
+        # Si le planning courant dépasse un quota et qu'il existe une alternative valide, switch
+        try:
+            if not self._respects_desired_quota(self.planning) and self.alternatives:
+                self.planning = copy.deepcopy(self.alternatives[0])
+                self._recompute_shifts_assignes_from(self.planning)
+        except Exception:
+            pass
 
     def _signature_planning(self, planning_dict):
         """Construit une signature immuable du planning pour déduplication."""
@@ -464,6 +531,24 @@ class Planning:
                     counts[nom] = counts.get(nom, 0) + 1
         for t in self.travailleurs:
             t.shifts_assignes = counts.get(t.nom, 0)
+
+    def _respects_desired_quota(self, planning_dict) -> bool:
+        """Vérifie qu'aucun travailleur ne dépasse son nombre de shifts souhaités."""
+        try:
+            counts = {}
+            for _jour, shifts_map in planning_dict.items():
+                for _shift, val in shifts_map.items():
+                    if not val:
+                        continue
+                    for n in [x.strip() for x in str(val).split(" / ") if x.strip()]:
+                        counts[n] = counts.get(n, 0) + 1
+            for t in self.travailleurs:
+                wanted = max(0, t.nb_shifts_souhaites or 0)
+                if counts.get(t.nom, 0) > wanted:
+                    return False
+            return True
+        except Exception:
+            return True
 
     def _names_in_cell(self, planning_dict, jour, shift):
         val = planning_dict[jour][shift]
@@ -600,10 +685,22 @@ class Planning:
         jours_iter = list(self.planning.keys()) if self.planning else list(Horaire.get_all_jours())
         shifts_iter = list(next(iter(self.planning.values())).keys()) if self.planning else list(Horaire.get_all_shifts())
         self.planning = {jour: {shift: None for shift in shifts_iter} for jour in jours_iter}
+        # Seed des verrous dans la structure, avant optimisation
+        try:
+            for (j, s), names in (self.locked_assignments or {}).items():
+                if j in self.planning and s in self.planning[j]:
+                    cleaned = [str(n).strip() for n in (names or []) if n and str(n).strip()]
+                    self.planning[j][s] = " / ".join(cleaned) if cleaned else None
+        except Exception:
+            pass
         
-        # Réinitialiser les shifts assignés pour tous les travailleurs
-        for travailleur in self.travailleurs:
-            travailleur.shifts_assignes = 0
+        # Initialiser shifts_assignes à partir des verrous déjà placés
+        try:
+            self._recompute_shifts_assignes_from(self.planning)
+        except Exception:
+            # Fallback: remettre à zéro
+            for travailleur in self.travailleurs:
+                travailleur.shifts_assignes = 0
         
         # Générer le planning optimisé sans combler les trous
         self.generer_planning_optimise(progress_cb=progress_cb)

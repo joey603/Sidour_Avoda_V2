@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version du projet
-    VERSION = "1.0.81"
+    VERSION = "1.0.82"
     
     def __init__(self, repos_minimum_entre_gardes=8):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
@@ -84,6 +84,8 @@ class InterfacePlanning:
         # Création des disponibilités (sera reconstruit selon les réglages du site)
         self.disponibilites = {}
         self.disponibilites_12h = {}
+        # Verrous d'affectation par slot (session uniquement): clé=(jour, shift, slot_index) -> nom
+        self.locked_assignments = {}
         
         # NOUVEAU: Charger les sites et créer l'interface
         self.charger_sites()
@@ -127,6 +129,10 @@ class InterfacePlanning:
     
     def afficher_planning(self):
         """Affiche le planning actuel"""
+        try:
+            print("DEBUG UI: afficher_planning() called; _has_generated_planning=", self._has_generated_planning)
+        except Exception:
+            pass
         if self._has_generated_planning:
             self.creer_planning_visuel()
         else:
@@ -139,10 +145,21 @@ class InterfacePlanning:
     
     def creer_planning_visuel_vide(self):
         """Crée un affichage vide du planning avec les dates et les capacités (Required staff)."""
+        try:
+            print("DEBUG UI: creer_planning_visuel_vide() start")
+        except Exception:
+            pass
         # Delete old content in the scrollable inner frame
         try:
             for child in self.planning_inner.winfo_children():
                 child.destroy()
+        except Exception:
+            pass
+        # Recalcule immédiat de la scrollregion après construction (vue vide)
+        try:
+            if hasattr(self, 'planning_canvas'):
+                self.planning_canvas.update_idletasks()
+                self.planning_canvas.configure(scrollregion=self.planning_canvas.bbox("all"))
         except Exception:
             pass
         
@@ -208,10 +225,12 @@ class InterfacePlanning:
                     inner.rowconfigure(r, minsize=self.slot_min_height_px, weight=1)
                 inner.columnconfigure(0, weight=1)
                 
-                # Créer "cap" emplacements Unassigned
+                # Créer "cap" emplacements cliquables
                 for r in range(cap):
-                    lbl = tk.Label(
-                        inner,
+                    slot_container = tk.Frame(inner, bg="#F0F0F0", highlightthickness=0, bd=0)
+                    slot_container.grid(row=r, column=0, sticky="nsew", padx=1, pady=1)
+                    name_lbl = tk.Label(
+                        slot_container,
                         text="Unassigned",
                         bg="#F0F0F0",
                         fg="#333333",
@@ -222,8 +241,25 @@ class InterfacePlanning:
                         pady=2,
                         highlightthickness=0,
                     )
-                    lbl.configure(bg="#F0F0F0")
-                    lbl.grid(row=r, column=0, sticky="nsew", padx=1, pady=1)
+                    name_lbl.pack(fill="both", expand=True)
+                    # Effet hover
+                    try:
+                        self._attach_hover_effect(slot_container, name_lbl)
+                    except Exception:
+                        pass
+                    # Icône de cadenas si verrouillé
+                    try:
+                        if self.locked_assignments.get((jour, shift, r)):
+                            lock_lbl = tk.Label(slot_container, text="🔒", bg=name_lbl["bg"], fg="#111", font=("Helvetica", 9, "bold"))
+                            lock_lbl.place(relx=1.0, rely=0.0, anchor="ne")
+                    except Exception:
+                        pass
+                    # Clic pour ouvrir la popup d'affectation
+                    try:
+                        slot_container.bind("<Button-1>", lambda e, j=jour, s=shift, k=r: self.ouvrir_popup_affectation(j, s, k))
+                        name_lbl.bind("<Button-1>", lambda e, j=jour, s=shift, k=r: self.ouvrir_popup_affectation(j, s, k))
+                    except Exception:
+                        pass
         
         # Configurer les colonnes: ne pas étirer la colonne 0 (jours), étirer les colonnes d'horaires
         for i in range(len(dynamic_shifts) + 1):  # 1 colonne pour les jours + colonnes dynamiques
@@ -232,6 +268,10 @@ class InterfacePlanning:
         # Configurer les lignes pour qu'elles s'étendent
         for i in range(len(dynamic_days) + 2):
             planning_frame.rowconfigure(i, weight=1)
+        try:
+            print("DEBUG UI: creer_planning_visuel_vide() built rows/cols; days=", len(dynamic_days))
+        except Exception:
+            pass
         
         # Afficher le résumé "Shifts per worker" même sans planning créé (valeurs à 0)
         try:
@@ -245,10 +285,16 @@ class InterfacePlanning:
             summary.grid(row=base_row, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", padx=0, pady=(0, 8))
             summary.columnconfigure(0, weight=1)
             summary.columnconfigure(1, weight=0)
+            print("DEBUG UI: SPW(vide) counts=", counts)
             for idx, nom in enumerate(sorted(counts.keys(), key=lambda x: x.lower())):
-                color = self.travailleur_colors.get(nom, "#FFFFFF")
+                color = self.get_color_for_worker(nom)
+                print(f"DEBUG UI: SPW(vide) row={idx} name={nom} color={color}")
                 row_frame = tk.Frame(summary, bg=color, highlightthickness=0, bd=0)
                 row_frame.grid(row=idx, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
+                try:
+                    row_frame.configure(bg=color)
+                except Exception:
+                    pass
                 row_frame.columnconfigure(0, weight=1)
                 row_frame.columnconfigure(1, weight=0)
                 name_lbl = tk.Label(row_frame, text=nom, bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
@@ -257,6 +303,10 @@ class InterfacePlanning:
                 count_lbl = tk.Label(row_frame, text="0", bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
                 count_lbl.configure(bg=color)
                 count_lbl.grid(row=0, column=1, sticky="e")
+                try:
+                    print("DEBUG UI: SPW(vide) widgets bg:", nom, row_frame.cget("bg"), name_lbl.cget("bg"), count_lbl.cget("bg"))
+                except Exception:
+                    pass
         except Exception:
             pass
     
@@ -359,6 +409,78 @@ class InterfacePlanning:
                 
                 color = f"#{r:02x}{g:02x}{b:02x}"
                 self.travailleur_colors[worker_name] = color
+        try:
+            print("DEBUG UI: assign_unique_colors_to_workers size=", len(self.travailleur_colors))
+        except Exception:
+            pass
+
+    def get_color_for_worker(self, worker_name):
+        """Retourne une couleur pour le travailleur, en en générant une si absente (stable par hash)."""
+        try:
+            if not worker_name:
+                return "#F0F0F0"
+            color = self.travailleur_colors.get(worker_name)
+            if color:
+                return color
+            # Générer une couleur stable basée sur le hash du nom
+            import colorsys
+            h = (abs(hash(worker_name)) % 360) / 360.0
+            s = 0.30
+            v = 0.95
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            color = f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+            self.travailleur_colors[worker_name] = color
+            return color
+        except Exception:
+            return "#FFFFFF"
+
+    def _hover_color(self, hex_color, factor=0.90):
+        """Assombrit légèrement une couleur hex (factor<1) pour effet hover."""
+        try:
+            if not hex_color or not hex_color.startswith('#') or len(hex_color) != 7:
+                return hex_color
+            r = int(hex_color[1:3], 16)
+            g = int(hex_color[3:5], 16)
+            b = int(hex_color[5:7], 16)
+            r = max(0, min(255, int(r * factor)))
+            g = max(0, min(255, int(g * factor)))
+            b = max(0, min(255, int(b * factor)))
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except Exception:
+            return hex_color
+
+    def _attach_hover_effect(self, container, label):
+        """Ajoute un effet visuel au survol des slots."""
+        try:
+            orig_bg = label.cget("bg")
+            hover_bg = self._hover_color(orig_bg, factor=0.90)
+            container_bg = container.cget("bg") if hasattr(container, 'cget') else orig_bg
+            # Fixer une épaisseur de contour constante pour éviter tout élargissement
+            try:
+                container.configure(highlightthickness=1, highlightbackground=container_bg)
+            except Exception:
+                pass
+            def on_enter(_e):
+                try:
+                    label.configure(bg=hover_bg)
+                    # Ne pas changer highlightthickness pour éviter les sauts de largeur
+                    container.configure(highlightbackground="#4a90e2")
+                except Exception:
+                    pass
+            def on_leave(_e):
+                try:
+                    label.configure(bg=orig_bg)
+                    # Revenir à une bordure discrète, même épaisseur
+                    container.configure(highlightbackground=container_bg)
+                except Exception:
+                    pass
+            # Initial state déjà fixé ci-dessus
+            container.bind("<Enter>", on_enter)
+            container.bind("<Leave>", on_leave)
+            label.bind("<Enter>", on_enter)
+            label.bind("<Leave>", on_leave)
+        except Exception:
+            pass
 
     def center_window(self, window):
         """Centre une fenêtre popup par rapport à la fenêtre principale en évitant la barre de navigation"""
@@ -863,6 +985,10 @@ class InterfacePlanning:
         """Create a visual representation of the planning"""
         print(f"DEBUG: creer_planning_visuel appelée - _has_generated_planning: {self._has_generated_planning}")
         print(f"DEBUG: planning.planning existe: {hasattr(self.planning, 'planning')}")
+        try:
+            print("DEBUG UI: creer_planning_visuel() start")
+        except Exception:
+            pass
         if hasattr(self.planning, 'planning'):
             print(f"DEBUG: planning.planning contenu: {self.planning.planning}")
         
@@ -871,8 +997,15 @@ class InterfacePlanning:
             print("DEBUG: Affichage planning vide")
             self.creer_planning_visuel_vide()
             return
-            
-        # Delete old content in the scrollable inner frame
+        
+        # Appliquer les verrous aux structures (au cas où la chaîne ne correspond pas encore)
+        try:
+            print("DEBUG UI: applying locks before render")
+            self.apply_locked_assignments_to_planning()
+        except Exception:
+            pass
+        
+        # Effacer l'ancien contenu
         try:
             for child in self.planning_inner.winfo_children():
                 child.destroy()
@@ -886,10 +1019,9 @@ class InterfacePlanning:
         # Générer des couleurs uniques pour chaque travailleur
         self.assign_unique_colors_to_workers()
         
-        # Headers of the columns (dynamiques par site)
+        # En-têtes dynamiques (jours/horaires selon la structure courante)
         ttk.Label(planning_frame, text="Day", font=self.header_font).grid(row=0, column=0, padx=(0,2), pady=(5,2), sticky="w")
         dynamic_shifts = list(next(iter(self.planning.planning.values())).keys()) if self.planning and self.planning.planning else list(Horaire.SHIFTS.values())
-        print(f"DEBUG: Shifts dynamiques: {dynamic_shifts}")
         for i, shift in enumerate(dynamic_shifts):
             ttk.Label(planning_frame, text=shift, font=self.header_font).grid(row=0, column=i+1, padx=(0,2), pady=(5,2))
         
@@ -898,136 +1030,358 @@ class InterfacePlanning:
         for i, shift in enumerate(dynamic_shifts):
             ttk.Label(planning_frame, text="", font=self.normal_font).grid(row=1, column=i+1, padx=(0,2), pady=(0,2))
         
-        # Remplir le planning
-        # Charger les capacités (nombre de personnes requises par jour/shift) pour le site courant
+        # Capacités et jours dynamiques
         try:
             caps = Database().charger_capacites_site(self.site_actuel_id)
         except Exception:
             caps = {}
         dynamic_days = list(self.planning.planning.keys()) if self.planning and self.planning.planning else list(Horaire.JOURS)
-        print(f"DEBUG: Jours dynamiques: {dynamic_days}")
         for i, jour in enumerate(dynamic_days):
-            # Créer un frame pour le jour et sa date
+            # Colonne jour + date
             jour_frame = ttk.Frame(planning_frame)
             jour_frame.grid(row=i+2, column=0, padx=0, pady=(2,5), sticky="w")
-            
-            # Jour de la semaine
             ttk.Label(jour_frame, text=self.traduire_jour(jour), font=self.bold_font).pack(anchor="w")
-            
-            # Date correspondante
             date_jour = self.get_date_jour(i)
-            date_str = date_jour.strftime('%d/%m')
-            ttk.Label(jour_frame, text=date_str, font=self.normal_font, bootstyle="secondary").pack(anchor="w")
+            ttk.Label(jour_frame, text=date_jour.strftime('%d/%m'), font=self.normal_font, bootstyle="secondary").pack(anchor="w")
             
             for j, shift in enumerate(dynamic_shifts):
-                travailleur = self.planning.planning[jour][shift]
-                
-                # Créer un frame pour la cellule
+                val = self.planning.planning[jour][shift]
+                # Frame de cellule
                 cell_frame = ttk.Frame(planning_frame, width=self.cell_width_px, height=self.cell_height_px)
                 cell_frame.grid(row=i+2, column=j+1, padx=1, pady=2, sticky="nsew")
-                cell_frame.grid_propagate(False)  # Empêcher le frame de s'adapter à son contenu
+                cell_frame.grid_propagate(False)
                 
-                # Déterminer capacité
-                cap = max(1, int(caps.get(jour, {}).get(shift, 1)))
-                # Liste des noms (support "nom1 / nom2 / nom3")
-                noms = []
-                if travailleur:
-                    noms = [n.strip() for n in travailleur.split("/")]
-                while len(noms) < cap:
-                    noms.append(None)
-                # Construire des sous-lignes
+                # Capacité
+                try:
+                    cap = max(1, int(caps.get(jour, {}).get(shift, 1)))
+                except Exception:
+                    cap = 1
+                
+                # Décomposer les noms et respecter les verrous
+                assigned = [n.strip() for n in str(val).split("/") if n.strip()] if val else []
+                slots = [None] * cap
+                for k in range(cap):
+                    lock_name = self.locked_assignments.get((jour, shift, k))
+                    if lock_name:
+                        slots[k] = lock_name
+                        try:
+                            assigned.remove(lock_name)
+                        except ValueError:
+                            pass
+                for k in range(cap):
+                    if slots[k] is None and assigned:
+                        slots[k] = assigned.pop(0)
+                
                 inner = ttk.Frame(cell_frame)
                 inner.pack(fill="both", expand=True)
                 for r in range(cap):
                     inner.rowconfigure(r, minsize=self.slot_min_height_px, weight=1)
                 inner.columnconfigure(0, weight=1)
-                for idx, nom in enumerate(noms[:cap]):
+                
+                for idx, nom in enumerate(slots):
+                    slot_container = tk.Frame(inner, bg="#F0F0F0", highlightthickness=0, bd=0)
+                    slot_container.grid(row=idx, column=0, sticky="nsew", padx=1, pady=1)
                     if nom:
-                        color = self.travailleur_colors.get(nom, "#FFFFFF")
-                        # Calculer la couleur du texte pour un bon contraste
+                        color = self.get_color_for_worker(nom)
                         try:
-                            # Convertir la couleur hex en RGB
-                            r = int(color[1:3], 16)
-                            g = int(color[3:5], 16)
-                            b = int(color[5:7], 16)
-                            # Calculer la luminosité
+                            r = int(color[1:3], 16); g = int(color[3:5], 16); b = int(color[5:7], 16)
                             luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-                            # Avec des couleurs claires, utiliser principalement du texte noir
                             text_color = "black" if luminance > 0.35 else "white"
-                        except:
+                        except Exception:
                             text_color = "black"
-                        
-                        lbl = tk.Label(
-                            inner,
-                            text=nom,
-                            bg=color,
-                            fg=text_color,
-                            font=self.normal_font,
-                            relief="raised",
-                            borderwidth=2,
-                            padx=5,
-                            pady=2,
-                            highlightthickness=0,
-                        )
-                        # Forcer la couleur de fond
-                        lbl.configure(bg=color)
+                        name_lbl = tk.Label(slot_container, text=nom, bg=color, fg=text_color, font=self.normal_font, relief="raised", borderwidth=2, padx=5, pady=2, highlightthickness=0)
+                        name_lbl.pack(fill="both", expand=True)
+                        name_lbl.configure(bg=color)
+                        # Effet hover
+                        try:
+                            self._attach_hover_effect(slot_container, name_lbl)
+                        except Exception:
+                            pass
                     else:
-                        lbl = tk.Label(
-                            inner,
-                            text="Unassigned",
-                            bg="#F0F0F0",
-                            fg="#333333",
-                            font=self.normal_font,
-                            relief="sunken",
-                            borderwidth=1,
-                            padx=5,
-                            pady=2,
-                            highlightthickness=0,
-                        )
-                        # Forcer la couleur de fond
-                        lbl.configure(bg="#F0F0F0")
-                    lbl.grid(row=idx, column=0, sticky="nsew", padx=1, pady=1)
+                        name_lbl = tk.Label(slot_container, text="Unassigned", bg="#F0F0F0", fg="#333333", font=self.normal_font, relief="sunken", borderwidth=1, padx=5, pady=2, highlightthickness=0)
+                        name_lbl.pack(fill="both", expand=True)
+                        name_lbl.configure(bg="#F0F0F0")
+                        # Effet hover
+                        try:
+                            self._attach_hover_effect(slot_container, name_lbl)
+                        except Exception:
+                            pass
+                    # Icône cadenas si verrouillé
+                    try:
+                        if self.locked_assignments.get((jour, shift, idx)):
+                            lock_lbl = tk.Label(slot_container, text="🔒", bg=name_lbl["bg"], fg="#111", font=("Helvetica", 9, "bold"))
+                            lock_lbl.place(relx=1.0, rely=0.0, anchor="ne")
+                    except Exception:
+                        pass
+                    # Bind clic
+                    try:
+                        slot_container.bind("<Button-1>", lambda e, j=jour, s=shift, k=idx: self.ouvrir_popup_affectation(j, s, k))
+                        name_lbl.bind("<Button-1>", lambda e, j=jour, s=shift, k=idx: self.ouvrir_popup_affectation(j, s, k))
+                    except Exception:
+                        pass
         
-        
-        # Configurer les colonnes (après création): ne pas étirer la colonne 0 (jours), étirer les autres
-        for i in range(len(dynamic_shifts) + 1):  # 1 colonne pour les jours + colonnes dynamiques
+        # Configuration des colonnes/lignes
+        for i in range(len(dynamic_shifts) + 1):
             planning_frame.columnconfigure(i, weight=(0 if i == 0 else 1))
-        
-        # Configurer les lignes pour qu'elles s'étendent (comme avant la création)
-        for i in range(len(dynamic_days) + 2):  # 1 ligne pour les en-têtes + 1 ligne pour les dates + lignes dynamiques
+        for i in range(len(dynamic_days) + 2):
             planning_frame.rowconfigure(i, weight=1)
-
-        # Résumé: Shifts par travailleur
+        
+        # Résumé des shifts par travailleur
         try:
             counts = {t.nom: 0 for t in self.planning.travailleurs}
-            for jour in dynamic_days:
-                for shift in dynamic_shifts:
-                    val = self.planning.planning[jour][shift]
-                    if val:
-                        for nom in [n.strip() for n in str(val).split("/") if n.strip()]:
-                            counts[nom] = counts.get(nom, 0) + 1
-            base_row = len(dynamic_days) + 3  # + header row + date row
-            sep = ttk.Separator(planning_frame, orient="horizontal")
-            sep.grid(row=base_row - 1, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", pady=(8, 4))
+            for j in dynamic_days:
+                for s in dynamic_shifts:
+                    v = self.planning.planning[j][s]
+                    if v:
+                        for n in [x.strip() for x in str(v).split("/") if x.strip()]:
+                            counts[n] = counts.get(n, 0) + 1
+            base_row = len(dynamic_days) + 3
+            ttk.Separator(planning_frame, orient="horizontal").grid(row=base_row - 1, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", pady=(8, 4))
             summary = tk.LabelFrame(planning_frame, text="Shifts per worker", padx=8, pady=8)
             summary.grid(row=base_row, column=0, columnspan=len(dynamic_shifts) + 1, sticky="ew", padx=0, pady=(0, 8))
             summary.columnconfigure(0, weight=1)
             summary.columnconfigure(1, weight=0)
+            print("DEBUG UI: SPW(plein) counts=", counts)
             for idx, nom in enumerate(sorted(counts.keys(), key=lambda x: x.lower())):
-                color = self.travailleur_colors.get(nom, "#FFFFFF")
+                color = self.get_color_for_worker(nom)
+                print(f"DEBUG UI: SPW(plein) row={idx} name={nom} color={color}")
                 row_frame = tk.Frame(summary, bg=color, highlightthickness=0, bd=0)
                 row_frame.grid(row=idx, column=0, columnspan=2, sticky="ew", padx=6, pady=2)
+                try:
+                    row_frame.configure(bg=color)
+                except Exception:
+                    pass
                 row_frame.columnconfigure(0, weight=1)
                 row_frame.columnconfigure(1, weight=0)
-                # Labels avec fond explicite (même méthode que le tableau)
                 name_lbl = tk.Label(row_frame, text=nom, bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
-                name_lbl.configure(bg=color)
                 name_lbl.grid(row=0, column=0, sticky="w")
                 count_lbl = tk.Label(row_frame, text=str(counts[nom]), bg=color, fg="black", font=self.normal_font, padx=6, pady=2, borderwidth=0, highlightthickness=0)
-                count_lbl.configure(bg=color)
                 count_lbl.grid(row=0, column=1, sticky="e")
+                # Forcer explicitement bg pour contourner certains thèmes ttk
+                try:
+                    name_lbl.configure(bg=color)
+                    count_lbl.configure(bg=color)
+                except Exception:
+                    pass
+                try:
+                    print("DEBUG UI: SPW(plein) widgets bg:", nom, row_frame.cget("bg"), name_lbl.cget("bg"), count_lbl.cget("bg"))
+                except Exception:
+                    pass
         except Exception:
             pass
+        
+        # Recalcule scrollregion
+        try:
+            if hasattr(self, 'planning_canvas'):
+                self.planning_canvas.update_idletasks()
+                self.planning_canvas.configure(scrollregion=self.planning_canvas.bbox("all"))
+        except Exception:
+            pass
+        # Recalcule immédiat de la scrollregion après construction (vue pleine)
+        try:
+            if hasattr(self, 'planning_canvas'):
+                self.planning_canvas.update_idletasks()
+                self.planning_canvas.configure(scrollregion=self.planning_canvas.bbox("all"))
+        except Exception:
+            pass
+
+    # --- Helpers slots/verrous ---
+    def get_slot_names(self, jour, shift):
+        try:
+            cap = 1
+            try:
+                cap = int(self.planning.capacites.get(jour, {}).get(shift, 1))
+            except Exception:
+                cap = 1
+            raw = self.planning.planning.get(jour, {}).get(shift)
+            names = []
+            if raw:
+                names = [n.strip() for n in str(raw).split("/") if n.strip()]
+            while len(names) < cap:
+                names.append(None)
+            return names[:cap]
+        except Exception:
+            return []
+
+    def set_slot_name(self, jour, shift, slot_index, nom_or_none):
+        try:
+            print(f"DEBUG UI: set_slot_name(jour={jour}, shift={shift}, slot_index={slot_index}, name={nom_or_none})")
+            names = self.get_slot_names(jour, shift)
+            cap = len(names) or 1
+            if slot_index < 0 or slot_index >= cap:
+                return
+            names[slot_index] = nom_or_none if nom_or_none else None
+            # Re-écrire la chaîne jointe
+            joined = " / ".join([n for n in names if n]) if any(names) else None
+            self.planning.planning[jour][shift] = joined
+            print("DEBUG UI: set_slot_name updated joined=", joined)
+        except Exception:
+            pass
+
+    def is_slot_locked(self, jour, shift, slot_index):
+        try:
+            return bool(self.locked_assignments.get((jour, shift, slot_index)))
+        except Exception:
+            return False
+
+    def apply_locked_assignments_to_planning(self):
+        try:
+            print("DEBUG UI: apply_locked_assignments_to_planning() items=", len(self.locked_assignments))
+            for (j, s, idx), nom in list(self.locked_assignments.items()):
+                print(f"DEBUG UI: applying lock -> ({j}, {s}, {idx}) = {nom}")
+                self.set_slot_name(j, s, idx, nom)
+        except Exception:
+            pass
+
+    # --- Popup d'affectation / verrouillage ---
+    def ouvrir_popup_affectation(self, jour, shift, slot_index):
+        # Figer les paramètres sélectionnés pour éviter toute capture de variables réassignées
+        j_sel, s_sel, idx_sel = jour, shift, slot_index
+        try:
+            print(f"DEBUG UI: ouvrir_popup_affectation on ({j_sel}, {s_sel}, slot {idx_sel})")
+        except Exception:
+            pass
+        # Construire la liste des travailleurs disponibles pour ce jour/shift
+        try:
+            candidats = []
+            for t in self.planning.travailleurs:
+                try:
+                    if jour in (t.disponibilites or {}) and shift in (t.disponibilites.get(jour) or []):
+                        candidats.append(t.nom)
+                except Exception:
+                    continue
+            candidats = sorted(set(candidats), key=lambda x: x.lower())
+        except Exception:
+            candidats = []
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Assign {self.traduire_jour(j_sel)} {s_sel} (slot {idx_sel+1})")
+        try:
+            win.transient(self.root)
+            win.grab_set()
+        except Exception:
+            pass
+        frm = ttk.Frame(win, padding=12)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text=f"{self.traduire_jour(j_sel)} - {s_sel}").pack(anchor="w")
+        listbox = tk.Listbox(frm, height=min(12, max(3, len(candidats))), exportselection=False)
+        for n in candidats:
+            listbox.insert(tk.END, n)
+        listbox.pack(fill="both", expand=True, pady=(6,6))
+
+        btns = ttk.Frame(frm)
+        btns.pack(fill="x")
+
+        def do_assign_lock():
+            try:
+                sel = listbox.curselection()
+                if not sel:
+                    messagebox.showerror("Assign", "Please select a worker")
+                    return
+                name = listbox.get(sel[0])
+                # Mettre le nom dans le slot choisi et verrouiller
+                self.set_slot_name(j_sel, s_sel, idx_sel, name)
+                self.locked_assignments[(j_sel, s_sel, idx_sel)] = name
+            except Exception:
+                pass
+            try:
+                # Fermer d'abord la popup, puis rafraîchir via after pour laisser Tk traiter les événements
+                win.destroy()
+                def _post_refresh():
+                    self._has_generated_planning = True
+                    try:
+                        self.apply_locked_assignments_to_planning()
+                    except Exception:
+                        pass
+                    # Reconstruire l'affichage complet (comme quand on clique sur une autre case)
+                    try:
+                        self.afficher_planning()
+                    except Exception:
+                        try:
+                            self.creer_planning_visuel()
+                        except Exception:
+                            pass
+                    try:
+                        self.root.update_idletasks()
+                        if hasattr(self, 'planning_inner'):
+                            self.planning_inner.update_idletasks()
+                        if hasattr(self, 'planning_canvas'):
+                            try:
+                                self.planning_canvas.update_idletasks()
+                                self.planning_canvas.configure(scrollregion=self.planning_canvas.bbox("all"))
+                            except Exception:
+                                pass
+                        self.root.update()
+                    except Exception:
+                        pass
+                try:
+                    self.root.after(0, _post_refresh)
+                except Exception:
+                    _post_refresh()
+            except Exception:
+                pass
+
+        def do_unlock():
+            try:
+                if (j_sel, s_sel, idx_sel) in self.locked_assignments:
+                    del self.locked_assignments[(j_sel, s_sel, idx_sel)]
+                # Enlever l'affectation si elle correspondait au verrou
+                names = self.get_slot_names(j_sel, s_sel)
+                if 0 <= idx_sel < len(names):
+                    names[idx_sel] = None
+                    joined = " / ".join([n for n in names if n]) if any(names) else None
+                    self.planning.planning[j_sel][s_sel] = joined
+            except Exception:
+                pass
+            try:
+                # Fermer d'abord la popup, puis rafraîchir via after pour laisser Tk traiter les événements
+                win.destroy()
+                def _post_refresh():
+                    self._has_generated_planning = True
+                    try:
+                        self.apply_locked_assignments_to_planning()
+                    except Exception:
+                        pass
+                    try:
+                        self.afficher_planning()
+                    except Exception:
+                        try:
+                            self.creer_planning_visuel()
+                        except Exception:
+                            pass
+                    try:
+                        self.root.update_idletasks()
+                        if hasattr(self, 'planning_inner'):
+                            self.planning_inner.update_idletasks()
+                        if hasattr(self, 'planning_canvas'):
+                            try:
+                                self.planning_canvas.update_idletasks()
+                                self.planning_canvas.configure(scrollregion=self.planning_canvas.bbox("all"))
+                            except Exception:
+                                pass
+                        self.root.update()
+                    except Exception:
+                        pass
+                try:
+                    self.root.after(0, _post_refresh)
+                except Exception:
+                    _post_refresh()
+            except Exception:
+                pass
+
+        action_row = ttk.Frame(btns)
+        action_row.pack(side="left", fill="x", expand=True)
+        # Swap positions: Close on the left, Lock & Assign on the right
+        ttk.Button(action_row, text="Close", command=lambda: win.destroy()).pack(side="left", padx=4)
+        ttk.Button(action_row, text="Unlock", command=do_unlock, bootstyle="warning").pack(side="left", padx=4)
+        ttk.Button(btns, text="Lock & Assign", command=do_assign_lock, bootstyle="success").pack(side="right")
+        # Centrer la popup par rapport à la fenêtre principale
+        try:
+            self.center_window(win)
+        except Exception:
+            pass
+        
+        return
 
     def ajouter_travailleur(self) -> bool:
         """Ajoute ou modifie un travailleur selon le mode courant.
@@ -1336,6 +1690,19 @@ class InterfacePlanning:
             shifts = list(Horaire.SHIFTS.values())
         new_planning = Planning(site_id=self.site_actuel_id, jours=jours, shifts=shifts)
         new_planning.travailleurs = self.planning.travailleurs
+        # Propager les verrous UI vers le moteur avant toute génération
+        try:
+            locks_by_shift = {}
+            for (j, s, idx), name in (self.locked_assignments or {}).items():
+                locks_by_shift.setdefault((j, s), [])
+                arr = locks_by_shift[(j, s)]
+                while len(arr) <= idx:
+                    arr.append(None)
+                arr[idx] = name
+            if hasattr(new_planning, 'set_locked_assignments'):
+                new_planning.set_locked_assignments(locks_by_shift)
+        except Exception:
+            pass
         self.planning = new_planning
 
         # Générer un planning initial (capacité/limites rechargées depuis la DB par Planning)
@@ -1351,6 +1718,19 @@ class InterfacePlanning:
         for _ in range(15):
             planning_test = Planning(site_id=self.site_actuel_id, jours=jours, shifts=shifts)
             planning_test.travailleurs = self.planning.travailleurs.copy()
+            # Propager les verrous à chaque essai
+            try:
+                locks_by_shift = {}
+                for (j, s, idx), name in (self.locked_assignments or {}).items():
+                    locks_by_shift.setdefault((j, s), [])
+                    arr = locks_by_shift[(j, s)]
+                    while len(arr) <= idx:
+                        arr.append(None)
+                    arr[idx] = name
+                if hasattr(planning_test, 'set_locked_assignments'):
+                    planning_test.set_locked_assignments(locks_by_shift)
+            except Exception:
+                pass
             planning_test.generer_planning(mode_12h=False)
             
             evaluation = self.compter_trous(planning_test.planning)
@@ -1716,7 +2096,7 @@ class InterfacePlanning:
         for travailleur in travailleurs:
             self.planning.ajouter_travailleur(travailleur)
         
-        print(f"Chargement site {self.site_actuel_id}: {len(travailleurs)} travailleurs")
+        print(f"Chargement site {self.site_actuel_id}: {len(travailleurs)} workers")
         for t in travailleurs:
             print(f"  - {t.nom} (site_id: {getattr(t, 'site_id', 'non défini')})")
         
@@ -2883,6 +3263,31 @@ class InterfacePlanning:
                             self._has_generated_planning = True
                             print(f"DEBUG: _has_generated_planning mis à True")
                             
+                            # Assurer les couleurs avant rendu
+                            try:
+                                self.assign_unique_colors_to_workers()
+                            except Exception:
+                                pass
+                            
+                            # Réappliquer les verrous, puis rafraîchir
+                            try:
+                                # Propager les verrous vers le moteur avant rendu pour l'itération suivante
+                                try:
+                                    locks_by_shift = {}
+                                    for (j, s, idx), name in (self.locked_assignments or {}).items():
+                                        locks_by_shift.setdefault((j, s), [])
+                                        # S'assurer que la liste a la longueur suffisante
+                                        arr = locks_by_shift[(j, s)]
+                                        while len(arr) <= idx:
+                                            arr.append(None)
+                                        arr[idx] = name
+                                    if hasattr(self.planning, 'set_locked_assignments'):
+                                        self.planning.set_locked_assignments(locks_by_shift)
+                                except Exception:
+                                    pass
+                                self.apply_locked_assignments_to_planning()
+                            except Exception:
+                                pass
                             self.creer_planning_visuel()
                             # Forcer la mise à jour graphique
                             self.root.update_idletasks()
@@ -3022,12 +3427,21 @@ class InterfacePlanning:
         
         # Mettre à jour le titre avec le nombre de travailleurs
         nb_travailleurs = len(self.planning.travailleurs)
-        self.titre_label.configure(text=f"Planning workers - {nom_site} ({nb_travailleurs} travailleurs)")
+        self.titre_label.configure(text=f"Planning workers - {nom_site} ({nb_travailleurs} workers)")
         
-        # Réinitialiser le formulaire
+        # Réinitialiser le formulaire et les verrous (session-only)
         self.reinitialiser_formulaire()
+        try:
+            self.locked_assignments.clear()
+        except Exception:
+            pass
         
         # Réafficher le planning selon la nouvelle structure
+        # Assurer les couleurs avant rendu
+        try:
+            self.assign_unique_colors_to_workers()
+        except Exception:
+            pass
         self.creer_planning_visuel()
         
         print(f"Site changé vers {nom_site}. Nombre de travailleurs: {nb_travailleurs}")
