@@ -37,35 +37,85 @@ def _parse_version(version_str: str):
 
 
 def _get_latest_release_info():
-    """Query GitHub Releases API for latest release info. Returns (tag, asset_url) or (None, None)."""
+    """Query GitHub Releases for the newest non-draft release that has a .exe asset.
+    Returns (tag_without_v, asset_url) or (None, None).
+    More robust than relying solely on /releases/latest (which ignores prereleases and drafts).
+    """
     try:
         import json
         from urllib.request import Request, urlopen
-        url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
-        req = Request(url, headers={"User-Agent": "SidourAvodaUpdater"})
-        with urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-        tag = str(data.get("tag_name") or "").strip()
-        assets = data.get("assets") or []
-        asset_url = None
-        # Prefer the installer asset
-        for a in assets:
-            name = (a.get("name") or "").lower()
-            if "setup" in name and name.endswith(".exe"):
-                asset_url = a.get("browser_download_url")
-                break
-        if not asset_url:
-            # Fallback to any .exe
-            for a in assets:
-                name = (a.get("name") or "").lower()
-                if name.endswith(".exe"):
-                    asset_url = a.get("browser_download_url")
-                    break
-        if tag and asset_url:
-            return tag.lstrip("v"), asset_url
+        releases_url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
+        req = Request(releases_url, headers={"User-Agent": "SidourAvodaUpdater"})
+        with urlopen(req, timeout=12) as resp:
+            rel_list = json.loads(resp.read().decode("utf-8", errors="ignore"))
+        if not isinstance(rel_list, list):
+            rel_list = []
+
+        def _parse_semver(tag_str: str):
+            try:
+                vs = (tag_str or "").lstrip("v")
+                parts = [int(p) for p in vs.split(".")]
+                while len(parts) < 3:
+                    parts.append(0)
+                return tuple(parts[:3])
+            except Exception:
+                return (0, 0, 0)
+
+        best = None  # (semver_tuple, tag, asset_url)
+        for rel in rel_list:
+            try:
+                if rel.get("draft"):
+                    continue
+                # Autoriser les prereleases mais on préférera une release normale si égalité
+                tag = str(rel.get("tag_name") or "").strip()
+                assets = rel.get("assets") or []
+                exe_asset = None
+                preferred = None
+                for a in assets:
+                    name = (a.get("name") or "").lower()
+                    if name.endswith(".exe"):
+                        if "setup" in name and preferred is None:
+                            preferred = a.get("browser_download_url")
+                        if exe_asset is None:
+                            exe_asset = a.get("browser_download_url")
+                asset_url = preferred or exe_asset
+                if not tag or not asset_url:
+                    continue
+                sv = _parse_semver(tag)
+                if best is None or sv > best[0]:
+                    best = (sv, tag, asset_url, bool(rel.get("prerelease")))
+            except Exception:
+                continue
+
+        if best is None:
+            # Fallback à /releases/latest
+            try:
+                url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+                req2 = Request(url, headers={"User-Agent": "SidourAvodaUpdater"})
+                with urlopen(req2, timeout=10) as resp:
+                    data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                tag = str(data.get("tag_name") or "").strip()
+                assets = data.get("assets") or []
+                asset_url = None
+                for a in assets:
+                    name = (a.get("name") or "").lower()
+                    if "setup" in name and name.endswith(".exe"):
+                        asset_url = a.get("browser_download_url")
+                        break
+                if not asset_url:
+                    for a in assets:
+                        name = (a.get("name") or "").lower()
+                        if name.endswith(".exe"):
+                            asset_url = a.get("browser_download_url")
+                            break
+                if tag and asset_url:
+                    return tag.lstrip("v"), asset_url
+            except Exception:
+                pass
+            return None, None
+        return best[1].lstrip("v"), best[2]
     except Exception:
-        pass
-    return None, None
+        return None, None
 
 
 def _download_and_launch_installer(installer_url: str, tk_root=None):
@@ -156,11 +206,17 @@ def check_for_updates_in_background(tk_root=None):
     If a Tk root is provided, the prompt is scheduled on the UI thread.
     """
     try:
-        # Only relevant on Windows packaged app
+        # Only relevant on Windows
         if sys.platform != "win32":
             return
         current = get_current_version()
         latest, asset_url = _get_latest_release_info()
+        # Debug log to help diagnose update prompts on Windows
+        try:
+            with open(os.path.expanduser("~/sidour_avoda_update.log"), "a", encoding="utf-8") as lf:
+                lf.write(f"platform=win32 current={current} latest={latest} asset={(asset_url or '')[:60]}\n")
+        except Exception:
+            pass
         if not latest or not asset_url:
             return
         if _parse_version(latest) <= _parse_version(current):
