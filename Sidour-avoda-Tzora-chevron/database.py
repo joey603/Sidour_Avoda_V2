@@ -625,7 +625,7 @@ class Database:
         
         if site_id:
             cursor.execute("""
-                SELECT p.id, p.date_creation, p.nom, s.nom as site_nom 
+                SELECT p.id, p.date_creation, p.nom, p.week_start_date, p.week_end_date, s.nom as site_nom 
                 FROM plannings p 
                 JOIN sites s ON p.site_id = s.id 
                 WHERE p.site_id = ? 
@@ -633,7 +633,7 @@ class Database:
             """, (site_id,))
         else:
             cursor.execute("""
-                SELECT p.id, p.date_creation, p.nom, s.nom as site_nom 
+                SELECT p.id, p.date_creation, p.nom, p.week_start_date, p.week_end_date, s.nom as site_nom 
                 FROM plannings p 
                 JOIN sites s ON p.site_id = s.id 
                 ORDER BY p.date_creation DESC

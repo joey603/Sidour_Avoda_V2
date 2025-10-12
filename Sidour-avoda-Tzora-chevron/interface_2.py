@@ -380,35 +380,32 @@ class InterfacePlanning:
         
         # Convertir en liste et trier pour la cohérence
         all_workers = sorted(list(all_workers))
-        
         if not all_workers:
             return
         
-        # Générer des couleurs HSV équidistantes
+        # Pour un grand nombre de travailleurs, régénérer une palette plus distincte
+        # basée sur l'angle d'or et des cycles de saturation/valeur
         num_workers = len(all_workers)
+        if num_workers >= 20:
+            # Repartir à zéro pour une palette cohérente et plus contrastée
+            self.travailleur_colors = {}
         
+        golden_angle = 137.508  # meilleure répartition des teintes
+        # Palette adoucie (moins saturée, un peu moins lumineuse)
+        sat_cycle = [0.45, 0.38, 0.52, 0.32]
+        val_cycle = [0.88, 0.82, 0.92, 0.78]
         for i, worker_name in enumerate(all_workers):
-            if worker_name not in self.travailleur_colors:
-                # Utiliser l'espace HSV pour des couleurs distinctes mais plus douces
-                # Hue: répartir uniformément sur 360°
-                hue = (i * 360.0) / num_workers
-                
-                # Saturation: plus faible pour des couleurs plus claires (25% à 40%)
-                saturation = 0.25 + (i % 3) * 0.05
-                
-                # Value: très élevée pour des couleurs très claires (90% à 98%)
-                value = 0.9 + (i % 2) * 0.04
-                
-                # Convertir HSV vers RGB
-                rgb = colorsys.hsv_to_rgb(hue / 360.0, saturation, value)
-                
-                # Convertir en hex
-                r = int(rgb[0] * 255)
-                g = int(rgb[1] * 255)
-                b = int(rgb[2] * 255)
-                
-                color = f"#{r:02x}{g:02x}{b:02x}"
-                self.travailleur_colors[worker_name] = color
+            if worker_name in self.travailleur_colors:
+                continue
+            hue = (i * golden_angle) % 360.0
+            s = sat_cycle[i % len(sat_cycle)]
+            v = val_cycle[(i // len(sat_cycle)) % len(val_cycle)]
+            r_f, g_f, b_f = colorsys.hsv_to_rgb(hue / 360.0, s, v)
+            r = int(r_f * 255)
+            g = int(g_f * 255)
+            b = int(b_f * 255)
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            self.travailleur_colors[worker_name] = color
         try:
             print("DEBUG UI: assign_unique_colors_to_workers size=", len(self.travailleur_colors))
         except Exception:
@@ -424,9 +421,12 @@ class InterfacePlanning:
                 return color
             # Générer une couleur stable basée sur le hash du nom
             import colorsys
-            h = (abs(hash(worker_name)) % 360) / 360.0
-            s = 0.30
-            v = 0.95
+            golden_angle = 137.508
+            h_deg = (abs(hash(worker_name)) % 360) * golden_angle % 360
+            h = h_deg / 360.0
+            # Saturation/valeurs adoucies par défaut
+            s = 0.42
+            v = 0.88
             r, g, b = colorsys.hsv_to_rgb(h, s, v)
             color = f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
             self.travailleur_colors[worker_name] = color
@@ -1272,11 +1272,18 @@ class InterfacePlanning:
             pass
         frm = ttk.Frame(win, padding=12)
         frm.pack(fill="both", expand=True)
-        ttk.Label(frm, text=f"{self.traduire_jour(j_sel)} - {s_sel}").pack(anchor="w")
-        listbox = tk.Listbox(frm, height=min(12, max(3, len(candidats))), exportselection=False)
+        # Zone liste + scrollbar
+        list_frame = ttk.Frame(frm)
+        list_frame.pack(fill="both", expand=True, pady=(6,6))
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+        listbox = tk.Listbox(list_frame, height=12, exportselection=False)
+        listbox.grid(row=0, column=0, sticky="nsew")
+        sb = ttk.Scrollbar(list_frame, orient="vertical", command=listbox.yview)
+        sb.grid(row=0, column=1, sticky="ns")
+        listbox.configure(yscrollcommand=sb.set)
         for n in candidats:
             listbox.insert(tk.END, n)
-        listbox.pack(fill="both", expand=True, pady=(6,6))
 
         btns = ttk.Frame(frm)
         btns.pack(fill="x")
@@ -2363,6 +2370,12 @@ class InterfacePlanning:
         site_filter_var = tk.StringVar(value=self.site_actuel_nom.get() if self.site_actuel_nom.get() else (site_names[1] if len(site_names) > 1 else "All sites"))
         site_combo = ttk.Combobox(options_frame, textvariable=site_filter_var, values=site_names, state="readonly", width=30)
         site_combo.pack(side="left")
+        # Tri
+        ttk.Label(options_frame, text="  Sort by:").pack(side="left", padx=(12, 6))
+        sort_var = tk.StringVar(value="Creation date")
+        sort_combo = ttk.Combobox(options_frame, textvariable=sort_var, state="readonly",
+                                  values=["Creation date", "Planning date"], width=18)
+        sort_combo.pack(side="left")
         
         # Zone liste (séparée pour éviter de mélanger pack et grid sur le même parent)
         list_frame = ttk.Frame(agenda_frame)
@@ -2386,6 +2399,21 @@ class InterfacePlanning:
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=agenda_tree.yview)
         agenda_tree.configure(yscrollcommand=scrollbar.set)
         
+        # Palette douce et maps de couleurs (site / mois)
+        agenda_palette = [
+            "#e5f2ff", "#eaf7e6", "#fff2e0", "#f3e8ff", "#e8f5f3",
+            "#ffe6ea", "#e9fff4", "#f0f0ff", "#fff7e6", "#e6faff"
+        ]
+        site_color_map = {}
+        month_color_map = {}
+        site_color_idx = 0
+        month_color_idx = 0
+        def _ensure_tag_color(tag_name, color_hex):
+            try:
+                agenda_tree.tag_configure(tag_name, background=color_hex)
+            except Exception:
+                pass
+
         # Couleurs inspirées du week planning
         try:
             agenda_tree.tag_configure("morning_row", background="#e8f8f0")   # clair dérivé de #a8e6cf
@@ -2404,6 +2432,7 @@ class InterfacePlanning:
         
         # Fonction pour recharger selon filtre de site
         def actualiser_liste():
+            nonlocal site_color_idx, month_color_idx
             # Déterminer le site sélectionné
             nom_sel = site_filter_var.get()
             if nom_sel == "All sites":
@@ -2415,17 +2444,126 @@ class InterfacePlanning:
                 liste = db.lister_plannings_par_site(site_id)
                 agenda_window.title(f"Planning Agenda - {nom_sel}")
                 append_site = False
+            # Appliquer tri
+            try:
+                mode = sort_var.get()
+                print(f"DEBUG AGENDA: sort mode= {mode}")
+                if mode == "Creation date":
+                    def _parse_dt(s):
+                        try:
+                            return datetime.datetime.fromisoformat(str(s))
+                        except Exception:
+                            return datetime.datetime.min
+                    def _get_date_creation(p):
+                        try:
+                            return p.get('date_creation')
+                        except Exception:
+                            try:
+                                return p['date_creation']
+                            except Exception:
+                                return None
+                    liste.sort(key=lambda p: _parse_dt(_get_date_creation(p)), reverse=True)
+                else:
+                    import re
+                    # Trier par week_start_date si disponible, sinon fallback extraction
+                    def _start_dt(p):
+                        try:
+                            ws = p.get('week_start_date')
+                        except Exception:
+                            try:
+                                ws = p['week_start_date']
+                            except Exception:
+                                ws = None
+                        if ws:
+                            try:
+                                return datetime.datetime.fromisoformat(str(ws))
+                            except Exception:
+                                pass
+                        # Fallback: extraire du nom
+                        try:
+                            nom_val = p.get('nom')
+                        except Exception:
+                            try:
+                                nom_val = p['nom']
+                            except Exception:
+                                nom_val = None
+                        if not nom_val:
+                            return datetime.datetime.min
+                        m = re.search(r"(\d{2}/\d{2}/\d{4})", str(nom_val))
+                        if not m:
+                            return datetime.datetime.min
+                        try:
+                            return datetime.datetime.strptime(m.group(1), "%d/%m/%Y")
+                        except Exception:
+                            return datetime.datetime.min
+                    liste.sort(key=lambda p: _start_dt(p), reverse=True)
+            except Exception:
+                pass
             # Vider
             for item in agenda_tree.get_children():
                 agenda_tree.delete(item)
             # Remplir
             for idx, p in enumerate(liste):
-                row_tag = ["morning_row", "afternoon_row", "night_row"][idx % 3]
-                nom_aff = p['nom'] + (f" ({p['site_nom']})" if append_site else "")
-                agenda_tree.insert("", "end", values=(p['id'], nom_aff, p['date_creation']), tags=(str(p['id']), row_tag))
+                # Accès robustes aux champs
+                try:
+                    nom_val = p.get('nom')
+                    site_val = p.get('site_nom')
+                    id_val = p.get('id')
+                    dc_val = p.get('date_creation')
+                    ws_val = p.get('week_start_date')
+                except Exception:
+                    nom_val = p['nom'] if isinstance(p, dict) else p[2]
+                    site_val = p['site_nom'] if isinstance(p, dict) else (p[5] if len(p) > 5 else "")
+                    id_val = p['id'] if isinstance(p, dict) else p[0]
+                    dc_val = p['date_creation'] if isinstance(p, dict) else p[1]
+                    ws_val = p['week_start_date'] if isinstance(p, dict) else (p[3] if len(p) > 3 else None)
 
-        # Lier le changement de site
+                # Déterminer le tag de couleur
+                if append_site:
+                    key = site_val or "unknown"
+                    tag_name = f"site::{key}"
+                    if key not in site_color_map:
+                        color_hex = agenda_palette[site_color_idx % len(agenda_palette)]
+                        site_color_map[key] = color_hex
+                        site_color_idx += 1
+                        _ensure_tag_color(tag_name, color_hex)
+                    else:
+                        _ensure_tag_color(tag_name, site_color_map[key])
+                    print(f"DEBUG AGENDA: row id={id_val} site={key} color={site_color_map[key]}")
+                else:
+                    # par mois selon le mode de tri
+                    try:
+                        mode_local = sort_var.get()
+                    except Exception:
+                        mode_local = "Creation date"
+                    if mode_local == "Creation date":
+                        try:
+                            dt = datetime.datetime.fromisoformat(str(dc_val)) if dc_val else None
+                        except Exception:
+                            dt = None
+                    else:
+                        try:
+                            dt = datetime.datetime.fromisoformat(str(ws_val)) if ws_val else None
+                        except Exception:
+                            dt = None
+                    key = dt.strftime("%Y-%m") if dt else "unknown"
+                    tag_name = f"month::{key}"
+                    if key not in month_color_map:
+                        color_hex = agenda_palette[month_color_idx % len(agenda_palette)]
+                        month_color_map[key] = color_hex
+                        month_color_idx += 1
+                        _ensure_tag_color(tag_name, color_hex)
+                    else:
+                        _ensure_tag_color(tag_name, month_color_map[key])
+                    print(f"DEBUG AGENDA: row id={id_val} month={key} color={month_color_map[key]}")
+
+                nom_aff = (nom_val or "") + (f" ({site_val})" if append_site else "")
+                # Conserver le premier tag comme id pour la sélection ultérieure
+                agenda_tree.insert("", "end", values=(id_val, nom_aff, dc_val), tags=(str(id_val), tag_name))
+
+        # Lier changements site/tri
         site_combo.bind('<<ComboboxSelected>>', lambda e: actualiser_liste())
+        sort_combo.bind('<<ComboboxSelected>>', lambda e: actualiser_liste())
         # Initialiser la liste
         actualiser_liste()
         
