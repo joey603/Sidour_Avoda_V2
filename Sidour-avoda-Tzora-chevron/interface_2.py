@@ -997,7 +997,7 @@ class InterfacePlanning:
             print("DEBUG: Affichage planning vide")
             self.creer_planning_visuel_vide()
             return
-        
+            
         # Appliquer les verrous aux structures (au cas où la chaîne ne correspond pas encore)
         try:
             print("DEBUG UI: applying locks before render")
@@ -1126,7 +1126,7 @@ class InterfacePlanning:
             planning_frame.columnconfigure(i, weight=(0 if i == 0 else 1))
         for i in range(len(dynamic_days) + 2):
             planning_frame.rowconfigure(i, weight=1)
-        
+
         # Résumé des shifts par travailleur
         try:
             counts = {t.nom: 0 for t in self.planning.travailleurs}
@@ -1392,10 +1392,20 @@ class InterfacePlanning:
 
         action_row = ttk.Frame(btns)
         action_row.pack(side="left", fill="x", expand=True)
-        # Swap positions: Close on the left, Lock & Assign on the right
-        ttk.Button(action_row, text="Close", command=lambda: win.destroy()).pack(side="left", padx=4)
-        ttk.Button(action_row, text="Unlock", command=do_unlock, bootstyle="warning").pack(side="left", padx=4)
-        ttk.Button(btns, text="Lock & Assign", command=do_assign_lock, bootstyle="success").pack(side="right")
+        # Swap positions: Close on the left, Lock & Assign on the right, with icons
+        btn_close = ttk.Button(action_row, text="✖ Close", command=lambda: win.destroy())
+        btn_close.pack(side="left", padx=4)
+        btn_unlock = ttk.Button(action_row, text="🔓 Unlock", command=do_unlock, bootstyle="warning")
+        btn_unlock.pack(side="left", padx=4)
+        btn_assign = ttk.Button(btns, text="🔒 Lock & Assign", command=do_assign_lock, bootstyle="success")
+        btn_assign.pack(side="right")
+        # Désactiver Unlock s'il n'y a rien à déverrouiller
+        try:
+            is_locked = bool(self.locked_assignments.get((j_sel, s_sel, idx_sel)))
+            if not is_locked:
+                btn_unlock.configure(state=tk.DISABLED)
+        except Exception:
+            pass
         # Centrer la popup par rapport à la fenêtre principale
         try:
             self.center_window(win)
@@ -2413,7 +2423,7 @@ class InterfacePlanning:
                 agenda_tree.tag_configure(tag_name, background=color_hex)
             except Exception:
                 pass
-
+        
         # Couleurs inspirées du week planning
         try:
             agenda_tree.tag_configure("morning_row", background="#e8f8f0")   # clair dérivé de #a8e6cf
@@ -3576,6 +3586,15 @@ class InterfacePlanning:
         # Réinitialiser les infos d'alternatives/score lors d'un changement de site
         if hasattr(self, 'alt_info_var'):
             self.alt_info_var.set("")
+        # Désactiver les boutons d'alternatives par défaut
+        try:
+            if hasattr(self, 'btn_prev_alt') and self.btn_prev_alt.winfo_exists():
+                self.btn_prev_alt.configure(state=tk.DISABLED)
+            if hasattr(self, 'btn_next_alt') and self.btn_next_alt.winfo_exists():
+                self.btn_next_alt.configure(state=tk.DISABLED)
+            print("DEBUG: Alternatives buttons disabled after site change")
+        except Exception:
+            pass
         
         # Mettre à jour le titre avec le nombre de travailleurs
         nb_travailleurs = len(self.planning.travailleurs)
