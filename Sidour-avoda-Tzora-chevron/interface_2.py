@@ -1064,9 +1064,10 @@ class InterfacePlanning:
                     lock_name = self.locked_assignments.get((jour, shift, k))
                     if lock_name:
                         slots[k] = lock_name
+                        # Retirer TOUTES les occurrences de ce nom des assignations libres
                         try:
-                            assigned.remove(lock_name)
-                        except ValueError:
+                            assigned = [n for n in assigned if n != lock_name]
+                        except Exception:
                             pass
                 for k in range(cap):
                     if slots[k] is None and assigned:
@@ -1210,7 +1211,15 @@ class InterfacePlanning:
             cap = len(names) or 1
             if slot_index < 0 or slot_index >= cap:
                 return
-            names[slot_index] = nom_or_none if nom_or_none else None
+            # Enforce unicité du nom dans cette cellule: retirer toute occurrence ailleurs
+            if nom_or_none:
+                names = [n for i, n in enumerate(names) if not (n == nom_or_none and i != slot_index)]
+                # Re-pad si retiré
+                while len(names) < cap:
+                    names.append(None)
+                names[slot_index] = nom_or_none
+            else:
+                names[slot_index] = None
             # Re-écrire la chaîne jointe
             joined = " / ".join([n for n in names if n]) if any(names) else None
             self.planning.planning[jour][shift] = joined
@@ -1280,6 +1289,7 @@ class InterfacePlanning:
                     return
                 name = listbox.get(sel[0])
                 # Mettre le nom dans le slot choisi et verrouiller
+                # Verrouiller uniquement le slot sélectionné, laisser les autres intacts
                 self.set_slot_name(j_sel, s_sel, idx_sel, name)
                 self.locked_assignments[(j_sel, s_sel, idx_sel)] = name
             except Exception:
@@ -1323,12 +1333,16 @@ class InterfacePlanning:
 
         def do_unlock():
             try:
+                removed_name = self.locked_assignments.get((j_sel, s_sel, idx_sel))
                 if (j_sel, s_sel, idx_sel) in self.locked_assignments:
                     del self.locked_assignments[(j_sel, s_sel, idx_sel)]
                 # Enlever l'affectation si elle correspondait au verrou
                 names = self.get_slot_names(j_sel, s_sel)
                 if 0 <= idx_sel < len(names):
-                    names[idx_sel] = None
+                    if removed_name:
+                        names = [None if n == removed_name else n for n in names]
+                    else:
+                        names[idx_sel] = None
                     joined = " / ".join([n for n in names if n]) if any(names) else None
                     self.planning.planning[j_sel][s_sel] = joined
             except Exception:
