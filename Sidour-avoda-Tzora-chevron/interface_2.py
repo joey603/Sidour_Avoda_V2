@@ -15,7 +15,7 @@ import datetime
 
 class InterfacePlanning:
     # Version par défaut (fallback)
-    VERSION = "1.0.85"
+    VERSION = "1.0.86"
     
     def __init__(self, repos_minimum_entre_gardes=8, app_version=None):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
