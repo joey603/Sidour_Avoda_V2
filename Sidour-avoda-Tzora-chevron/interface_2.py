@@ -14,11 +14,17 @@ from database import Database
 import datetime
 
 class InterfacePlanning:
-    # Version du projet
-    VERSION = "1.0.83"
+    # Version par défaut (fallback)
+    VERSION = "1.0.85"
     
-    def __init__(self, repos_minimum_entre_gardes=8):
+    def __init__(self, repos_minimum_entre_gardes=8, app_version=None):
         self.repos_minimum_entre_gardes = repos_minimum_entre_gardes
+        # Définir la version affichée à partir de l'appli (version.txt) si fournie
+        try:
+            if app_version:
+                self.VERSION = str(app_version)
+        except Exception:
+            pass
         # Utiliser ttkbootstrap pour une interface moderne
         self.root = ttk.Window(
             title=f"Sidour Avoda  v{self.VERSION}",

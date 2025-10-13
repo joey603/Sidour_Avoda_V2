@@ -274,7 +274,7 @@ def resource_path(relative_path):
 def main():
     try:
         # Création de l'interface avec 8 heures de repos minimum entre les gardes
-        app = InterfacePlanning(repos_minimum_entre_gardes=8)
+        app = InterfacePlanning(repos_minimum_entre_gardes=8, app_version=get_current_version())
         
         # Configurer l'icône et le titre (tolérant si l'icône est absente)
         icon_path = resource_path("assets/calender-2389150_960_720.png")
