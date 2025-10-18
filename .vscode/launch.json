@@ -1,0 +1,20 @@
+{
+  // Configuration pour lancer l'app sans débogage dans le terminal intégré
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run SidourAvoda",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/Sidour-avoda-Tzora-chevron/main.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  ]
+}
+
+

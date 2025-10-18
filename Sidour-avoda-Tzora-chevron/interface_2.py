@@ -3,6 +3,8 @@ from tkinter import messagebox, simpledialog
 from tkinter import font as tkfont
 import re
 import sys
+import json
+import os
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 import random
@@ -12,6 +14,7 @@ from travailleur import Travailleur
 from planning import Planning
 from database import Database
 import datetime
+from coach_marks import CoachMarks
 
 class InterfacePlanning:
     # Version par défaut (fallback)
@@ -105,6 +108,113 @@ class InterfacePlanning:
         
         # Centrer la fenêtre principale
         self.center_main_window()
+        # Onboarding: afficher à la première exécution
+        try:
+            if self._is_first_run():
+                self.root.after(200, self._show_onboarding)
+        except Exception:
+            pass
+
+    # --- Onboarding (first run) ---
+    def _get_config_path(self):
+        try:
+            base = os.path.expanduser("~/.sidour_avoda")
+            os.makedirs(base, exist_ok=True)
+            return os.path.join(base, "config.json")
+        except Exception:
+            return os.path.join(os.getcwd(), "sidour_avoda_config.json")
+
+    def _read_config(self):
+        cfg_path = self._get_config_path()
+        try:
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+
+    def _write_config(self, data: dict):
+        cfg_path = self._get_config_path()
+        try:
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    def _is_first_run(self) -> bool:
+        cfg = self._read_config()
+        return not bool(cfg.get("onboarding_completed"))
+
+    def _set_onboarding_completed(self, value: bool = True):
+        cfg = self._read_config()
+        cfg["onboarding_completed"] = bool(value)
+        self._write_config(cfg)
+
+    def _show_onboarding(self):
+        # Assistant léger en 3 étapes
+        steps = [
+            {
+                "title": "Welcome",
+                "text": "Welcome to Sidour Avoda. We'll guide you through the basics: selecting a site, creating a planning, and locking assignments.",
+            },
+            {
+                "title": "Select a site",
+                "text": "Choose your 'Current site' at the top. You can manage sites and their settings with 'Manage Site'.",
+            },
+            {
+                "title": "Create a planning",
+                "text": "Click 'Planning creation' to generate the week planning based on availabilities and rules.",
+            },
+            {
+                "title": "Lock assignments",
+                "text": "Click a slot to assign a worker. 'Lock & Assign' protects this slot from auto-generation.",
+            },
+        ]
+        try:
+            win = tk.Toplevel(self.root)
+            win.title("Getting started")
+            win.transient(self.root)
+            win.grab_set()
+            frm = ttk.Frame(win, padding=16)
+            frm.pack(fill="both", expand=True)
+            idx_var = tk.IntVar(value=0)
+            title_var = tk.StringVar(value=steps[0]["title"]) 
+            text_var = tk.StringVar(value=steps[0]["text"]) 
+            title_lbl = ttk.Label(frm, textvariable=title_var, font=self.title_font)
+            title_lbl.pack(anchor="w")
+            body = ttk.Label(frm, textvariable=text_var, wraplength=560, justify="left")
+            body.pack(fill="x", pady=(8, 12))
+            btns = ttk.Frame(frm)
+            btns.pack(fill="x")
+            def _update(idx):
+                idx_var.set(idx)
+                step = steps[idx]
+                title_var.set(step["title"]) 
+                text_var.set(step["text"]) 
+            def _next():
+                i = idx_var.get() + 1
+                if i >= len(steps):
+                    self._set_onboarding_completed(True)
+                    win.destroy()
+                else:
+                    _update(i)
+            def _prev():
+                i = max(0, idx_var.get() - 1)
+                _update(i)
+            def _skip():
+                self._set_onboarding_completed(True)
+                win.destroy()
+            ttk.Button(btns, text="⏭ Skip", command=_skip).pack(side="left")
+            ttk.Button(btns, text="◀ Previous", command=_prev, bootstyle="secondary").pack(side="right", padx=6)
+            ttk.Button(btns, text="Next ▶", command=_next, bootstyle="primary").pack(side="right")
+            # Centrer
+            try:
+                self.center_window(win, width=640, height=240)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def get_debut_semaine(self, date):
         """Retourne le lundi de la semaine contenant la date donnée"""
@@ -148,6 +258,665 @@ class InterfacePlanning:
         # Forcer la mise à jour graphique
         self.root.update_idletasks()
         self.root.update()
+
+    def _start_guided_tour(self):
+        # Préparer un site et des données de démonstration pour le guided tour
+        try:
+            self._prepare_demo_data_for_tour()
+        except Exception:
+            pass
+        # Construire les étapes dans l'ordre demandé et les numéroter
+        ordered = []
+        def add_step(widget, title, text, placement):
+            try:
+                if widget is not None and hasattr(widget, 'winfo_exists') and widget.winfo_exists():
+                    ordered.append({'widget': widget, 'title': title, 'text': text, 'placement': placement})
+            except Exception:
+                pass
+
+        # Marquer le guided tour comme actif (désactive certains grabs)
+        try:
+            self._guided_tour_active = True
+        except Exception:
+            pass
+
+        # 1) Site courant, 2) Ajouter site (avec sous-étapes), 3) Gérer site
+        add_step(getattr(self, 'site_combobox', None), 'Select current site', 'Choose the active site here.', 'bottom')
+        # Étape 2: bouton Add site, avec ouverture automatique de la popup à l’étape suivante
+        add_step(getattr(self, 'btn_add_site', None), ' Add site', 'Create a new site profile.', 'bottom')
+        # Sous-étapes pour expliquer la fenêtre Add Site
+        def _open_add_site_popup():
+            try:
+                self.ouvrir_ajout_site()
+            except Exception:
+                pass
+        def _find_add_site_window():
+            try:
+                tops = [w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel) and w.winfo_viewable() and w.title() == 'Add Site']
+                return tops[-1] if tops else None
+            except Exception:
+                return None
+        # 2.1: fenêtre Add Site
+        step_21 = {'widget': _find_add_site_window, 'title': '2.1 Add site window', 'text': 'This window lets you configure a new site.', 'placement': 'center', 'on_enter': _open_add_site_popup, 'no_autonum': True}
+        ordered.append(step_21)
+        # Définir un flag d’embranchement pour n’afficher les sous-étapes 2.x que si l’utilisateur choisit Next depuis 2.1
+        self._tour_branch_add_site = False
+        def _mark_branch(_=None):
+            try:
+                self._tour_branch_add_site = True
+            except Exception:
+                pass
+        # Attacher on_next sur 2.1 pour activer la branche
+        ordered[-1]['on_next'] = _mark_branch
+        # Si on revient en arrière jusqu'à Add site, on rouvre la popup au Next suivant
+        try:
+            ordered[-1]['prev_index'] = len(ordered) - 2  # revenir au bouton Add site si besoin
+        except Exception:
+            pass
+        # 2.2 → 2.6: sous-étapes conditionnelles
+        def _guard_widget(getter):
+            try:
+                if getattr(self, '_tour_branch_add_site', False):
+                    w = getter()
+                    return w
+                # Si la branche n’est pas active, revenir au bouton Add Site
+                return getattr(self, 'btn_add_site', None)
+            except Exception:
+                return getattr(self, 'btn_add_site', None)
+        def _ensure_add_site():
+            try:
+                win = _find_add_site_window()
+                if win is None:
+                    self.ouvrir_ajout_site()
+            except Exception:
+                pass
+        ordered.append({'widget': lambda: (_ensure_add_site() or getattr(self, '_add_site_name_entry', _find_add_site_window())), 'title': '2.2 Name & description', 'text': 'Enter the site name and a short description.', 'placement': 'bottom', 'no_autonum': True})
+        ordered.append({'widget': lambda: (_ensure_add_site() or getattr(self, '_add_site_shifts_group', _find_add_site_window())), 'title': '2.3 Shifts', 'text': 'Enable/disable shifts and set their start/end hours.', 'placement': 'bottom', 'no_autonum': True})
+        ordered.append({'widget': lambda: (_ensure_add_site() or getattr(self, '_add_site_days_group', _find_add_site_window())), 'title': '2.4 Active days', 'text': 'Choose which days are active for this site.', 'placement': 'bottom', 'no_autonum': True})
+        ordered.append({'widget': lambda: (_ensure_add_site() or getattr(self, '_add_site_caps_group', _find_add_site_window())), 'title': '2.5 Required staff', 'text': 'Set required staff per day/shift in the grid.', 'placement': 'bottom', 'no_autonum': True})
+        ordered.append({'widget': lambda: (_ensure_add_site() or getattr(self, '_add_site_limits_group', _find_add_site_window())), 'title': '2.6 Limits', 'text': 'Weekly per-shift limits per person.', 'placement': 'bottom', 'no_autonum': True})
+        # 2.7: on ferme la popup au passage à l’étape suivante
+        def _close_add_site_popup():
+            try:
+                win = _find_add_site_window()
+                if win is not None:
+                    win.destroy()
+            except Exception:
+                pass
+        # Branche Manage Site (3.x): bouton Manage, sous-étapes et fermetures
+        add_step(getattr(self, 'btn_gerer_sites', None), 'Manage site', 'Configure capacities and rules for this site.', 'bottom')
+        # Mémoriser l'index du bouton Manage site pour navigation Previous depuis l'étape 4
+        manage_btn_index = len(ordered) - 1
+        # Si l’utilisateur revient en arrière depuis Manage site, désactiver la branche pour revenir au bouton Add Site
+        try:
+            ordered[-1]['on_prev'] = lambda *_: setattr(self, '_tour_branch_add_site', False)
+            # Et forcer retour au bouton Add Site (index de ce bouton dans la liste)
+            # Bouton Add Site est la 2ème entrée: index 1 (après Select current site)
+            ordered[-1]['prev_index'] = 1
+        except Exception:
+            pass
+        try:
+            if ordered:
+                ordered[-1]['on_enter'] = _close_add_site_popup
+        except Exception:
+            pass
+
+        # 3.1: ouvrir Manage Site (fenêtre) et sous-étapes 3.2–3.5
+        def _open_manage_site_popup():
+            try:
+                self.ouvrir_gestion_sites()
+            except Exception:
+                pass
+        def _find_manage_site_window():
+            try:
+                tops = [w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel) and w.winfo_viewable() and w.title() == 'Manage Site']
+                return tops[-1] if tops else None
+            except Exception:
+                return None
+        def _close_manage_site_popup():
+            try:
+                win = _find_manage_site_window()
+                if win is not None:
+                    win.destroy()
+            except Exception:
+                pass
+        # Étape 3.1 au centre de la popup
+        ordered.append({'widget': _find_manage_site_window, 'title': '3.1 Manage Site window', 'text': 'Configure rules and capacities for the selected site.', 'placement': 'center', 'on_enter': _open_manage_site_popup, 'no_autonum': True})
+        # Si on fait Previous depuis 3.1, revenir au bouton Manage site et fermer la popup
+        try:
+            ordered[-1]['on_prev'] = lambda *_: _close_manage_site_popup()
+            ordered[-1]['prev_index'] = manage_btn_index
+        except Exception:
+            pass
+        # Activer la branche Manage au Next
+        self._tour_branch_manage = False
+        def _mark_branch_manage(_=None):
+            try:
+                self._tour_branch_manage = True
+            except Exception:
+                pass
+        ordered[-1]['on_next'] = _mark_branch_manage
+        # 3.2–3.5: sous-étapes conditionnelles
+        def _ensure_manage_site():
+            try:
+                win = _find_manage_site_window()
+                if win is None:
+                    self.ouvrir_gestion_sites()
+            except Exception:
+                pass
+        def _guard_manage(getter):
+            try:
+                if getattr(self, '_tour_branch_manage', False):
+                    return getter()
+                return getattr(self, 'btn_gerer_sites', None)
+            except Exception:
+                return getattr(self, 'btn_gerer_sites', None)
+        ordered.append({'widget': lambda: (_ensure_manage_site() or _guard_manage(lambda: getattr(self, '_manage_shifts_group', _find_manage_site_window()))), 'title': '3.2 Shifts', 'text': 'Enable/disable shifts and set start/end hours.', 'placement': 'bottom', 'no_autonum': True})
+        ordered.append({'widget': lambda: (_ensure_manage_site() or _guard_manage(lambda: getattr(self, '_manage_days_group', _find_manage_site_window()))), 'title': '3.3 Active days', 'text': 'Choose which days are active.', 'placement': 'bottom', 'no_autonum': True})
+        ordered.append({'widget': lambda: (_ensure_manage_site() or _guard_manage(lambda: getattr(self, '_manage_caps_group', _find_manage_site_window()))), 'title': '3.4 Required staff', 'text': 'Set required staff per day/shift.', 'placement': 'bottom', 'no_autonum': True})
+        ordered.append({'widget': lambda: (_ensure_manage_site() or _guard_manage(lambda: getattr(self, '_manage_limits_group', _find_manage_site_window()))), 'title': '3.5 Limits', 'text': 'Weekly per-shift limits per person.', 'placement': 'bottom', 'no_autonum': True})
+        # Fermer Manage Site si on revient à l’étape 2 (Add Site) ou si on passe à l’étape 4
+        try:
+            # Étape 2 (bouton Add Site) : fermer Manage
+            if len(ordered) > 1 and isinstance(ordered[1], dict):
+                if 'on_enter' in ordered[1]:
+                    old_cb = ordered[1]['on_enter']
+                    ordered[1]['on_enter'] = lambda *_: (old_cb() if callable(old_cb) else None, _close_manage_site_popup())
+                else:
+                    ordered[1]['on_enter'] = _close_manage_site_popup
+        except Exception:
+            pass
+        # Fermer la popup si on revient sur l’étape 2 (bouton Add Site)
+        try:
+            if len(ordered) > 1:
+                if isinstance(ordered[1], dict):
+                    ordered[1]['on_enter'] = _close_add_site_popup
+        except Exception:
+            pass
+
+        # 4) Planning workers (liste), 5) Add worker (bouton)
+        add_step(getattr(self, 'table_travailleurs', None), 'Planning workers', 'List of workers with desired shifts and availabilities.', 'left')
+        # À l'entrée de l'étape 4, fermer Manage Site si ouvert et Previous renvoie au bouton Manage
+        try:
+            ordered[-1]['on_enter'] = lambda *_: (_close_manage_site_popup(), _close_worker_popup())
+            ordered[-1]['prev_index'] = manage_btn_index
+        except Exception:
+            pass
+        # Étape "Add worker" (5): bouton, puis sous-étapes 5.1…5.x sur la popup
+        add_step((getattr(self, 'btn_add_small', None) or getattr(self, 'btn_ajouter', None)), 'Add worker', 'Add a new worker to the list.', 'bottom')
+        # Mémoriser l'index du bouton Add worker pour navigation Previous depuis 5.1
+        add_worker_btn_index = len(ordered) - 1
+        # 5.1: ouvrir la popup Add worker
+        def _open_add_worker_popup():
+            try:
+                self.ouvrir_popup_travailleur(modifier=False)
+            except Exception:
+                pass
+        def _find_worker_popup_window():
+            try:
+                tops = [w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel) and w.winfo_viewable() and w.title() == 'Add worker']
+                return tops[-1] if tops else None
+            except Exception:
+                return None
+        def _close_worker_popup():
+            try:
+                self._close_worker_popup_if_open()
+            except Exception:
+                pass
+        ordered.append({'widget': _find_worker_popup_window, 'title': '5.1 Add worker window', 'text': 'Fill the worker form.', 'placement': 'center', 'on_enter': _open_add_worker_popup, 'no_autonum': True})
+        # Si on fait Previous depuis 5.1, revenir au bouton Add worker et fermer la popup
+        try:
+            ordered[-1]['on_prev'] = lambda *_: _close_worker_popup()
+            ordered[-1]['prev_index'] = add_worker_btn_index
+        except Exception:
+            pass
+        # Activer la branche Add worker au Next
+        self._tour_branch_add_worker = False
+        def _mark_branch_add_worker(_=None):
+            try:
+                self._tour_branch_add_worker = True
+            except Exception:
+                pass
+        ordered[-1]['on_next'] = _mark_branch_add_worker
+        # 5.2: champ Name
+        def _ensure_worker_popup():
+            try:
+                if _find_worker_popup_window() is None:
+                    self.ouvrir_popup_travailleur(modifier=False)
+            except Exception:
+                pass
+        ordered.append({'widget': lambda: (_ensure_worker_popup() or getattr(self, '_worker_name_entry', _find_worker_popup_window())), 'title': '5.2 Name', 'text': 'Enter the worker name here.', 'placement': 'bottom', 'no_autonum': True})
+        # 5.3: nb shifts
+        ordered.append({'widget': lambda: (_ensure_worker_popup() or getattr(self, '_worker_nb_entry', _find_worker_popup_window())), 'title': '5.3 Desired shifts', 'text': 'Desired number of shifts.', 'placement': 'bottom', 'no_autonum': True})
+        # 5.4: disponibilités (cibler le container)
+        ordered.append({'widget': lambda: (_ensure_worker_popup() or getattr(self, 'dispo_container', _find_worker_popup_window())), 'title': '5.4 Availabilities', 'text': 'Mark the days and shift types the worker is available.', 'placement': 'bottom', 'no_autonum': True})
+        # Fermeture de la popup si on revient à l’étape 4 (liste workers) ou si on avance à l’étape 6
+        try:
+            # À l’entrée de l’étape 6, fermer la popup
+            next_idx_after_add_worker = len(ordered)
+        except Exception:
+            next_idx_after_add_worker = None
+
+        # 6) Planning creation, 7) Week planning grid
+        # Étape 6: Planning creation (fermer la popup Add worker en entrant; simuler la création au Next)
+        def _simulate_generate():
+            try:
+                _close_worker_popup()
+            except Exception:
+                pass
+            # Mettre en pause le guided tour pendant le loader
+            try:
+                from coach_marks import CoachMarks
+                if isinstance(self.root, tk.Misc):
+                    # Chercher un objet CoachMarks attaché au root (optionnel)
+                    try:
+                        if hasattr(self.root, '_coach_instance') and self.root._coach_instance:
+                            self.root._coach_instance._is_paused = True
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'btn_generer_planning') and self.btn_generer_planning and self.btn_generer_planning.winfo_exists():
+                    # Activer si désactivé puis invoquer
+                    try:
+                        if str(self.btn_generer_planning.cget('state')) != 'normal':
+                            self.btn_generer_planning.configure(state=tk.NORMAL)
+                    except Exception:
+                        pass
+                    try:
+                        self.btn_generer_planning.invoke()
+                        return
+                    except Exception:
+                        pass
+                # Fallback: appel direct
+                self.root.after(0, self.generer_planning_async)
+            except Exception:
+                try:
+                    self.generer_planning_async()
+                except Exception:
+                    pass
+            # Reprendre le guided tour à la fin du loader (_hide_loader est appelé en fin de génération)
+            def _resume_after_loader():
+                try:
+                    if hasattr(self.root, '_coach_instance') and self.root._coach_instance:
+                        self.root._coach_instance._is_paused = False
+                        # Avancer d'une étape si nous étions à l'étape planning creation
+                        self.root._coach_instance._show_step(self.root._coach_instance.index + 1)
+                except Exception:
+                    pass
+            try:
+                # Hooker la fin du loader en surcouchant _hide_loader de façon sûre
+                orig_hide = getattr(self, '_hide_loader')
+                def _hide_and_resume():
+                    try:
+                        orig_hide()
+                    finally:
+                        self.root.after(50, _resume_after_loader)
+                self._hide_loader = _hide_and_resume
+            except Exception:
+                # Fallback: tenter une reprise différée
+                self.root.after(1200, _resume_after_loader)
+
+        step_plan_create = {
+            'widget': getattr(self, 'btn_generer_planning', None),
+            'title': 'Planning creation',
+            'text': 'Generate a weekly planning respecting rules.',
+            'placement': 'right',
+        }
+        try:
+            step_plan_create['on_enter'] = lambda *_: _close_worker_popup()
+            step_plan_create['on_next'] = lambda *_: _simulate_generate()
+        except Exception:
+            pass
+        ordered.append(step_plan_create)
+        # Étape suivante: Week planning grid (sans fermeture)
+        ordered.append({'widget': getattr(self, 'planning_inner', None), 'title': 'Week planning grid', 'text': 'The weekly grid where shifts are displayed.', 'placement': 'right'})
+
+        # 8) Un slot de la grille: verrouillage (forcer la première case du planning)
+        def _ensure_first_week_slot():
+            try:
+                # Si le widget est déjà connu et vivant, le retourner
+                w = getattr(self, '_first_slot_widget', None)
+                if w is not None:
+                    try:
+                        if w.winfo_exists():
+                            return w
+                    except Exception:
+                        pass
+                # Sinon, s'assurer que le planning est affiché, puis rechercher
+                try:
+                    self.afficher_planning()
+                    self.root.update_idletasks()
+                except Exception:
+                    pass
+                # Après affichage, réessayer _first_slot_widget
+                w = getattr(self, '_first_slot_widget', None)
+                if w is not None:
+                    try:
+                        if w.winfo_exists():
+                            return w
+                    except Exception:
+                        pass
+                # Fallback: renvoyer la zone de grille pour éviter un crash
+                return getattr(self, 'planning_inner', None)
+            except Exception:
+                return getattr(self, 'planning_inner', None)
+        ordered.append({
+            'widget': _ensure_first_week_slot,
+            'title': 'Lock a slot',
+            'text': 'Click the first cell to assign and lock a worker in a specific slot.',
+            'placement': 'right',
+        })
+
+        # 9) Fill holes, 10) Previous alternative, 11) Previous week, 12) Next week, 13) Next alternative
+        def _simulate_fill_holes():
+            try:
+                # Tenter invoke du bouton si présent, sinon appeler la fonction directement
+                if hasattr(self, 'btn_fill_holes') and self.btn_fill_holes and self.btn_fill_holes.winfo_exists():
+                    try:
+                        if str(self.btn_fill_holes.cget('state')) != 'normal':
+                            # Forcer temporairement l'activation pour la démo
+                            self.btn_fill_holes.configure(state=tk.NORMAL)
+                        self.btn_fill_holes.invoke()
+                        return
+                    except Exception:
+                        pass
+                # Fallback direct
+                self.combler_trous()
+            except Exception:
+                try:
+                    self.root.after(0, self.combler_trous)
+                except Exception:
+                    pass
+        step_fill = {
+            'widget': getattr(self, 'btn_fill_holes', None),
+            'title': 'Fill holes',
+            'text': 'Fill remaining empty slots automatically.',
+            'placement': 'top',
+        }
+        try:
+            step_fill['on_next'] = lambda *_: _simulate_fill_holes()
+        except Exception:
+            pass
+        ordered.append(step_fill)
+        add_step(getattr(self, 'btn_prev_alt', None), 'Previous alternative', 'Explore previous alternative with same score.', 'top')
+        add_step(getattr(self, 'btn_next_alt', None), 'Next alternative', 'Explore next alternative with same score.', 'top')
+
+        # Flèches de navigation des dates (semaine)
+        add_step(getattr(self, 'btn_semaine_prec', None), 'Previous week', 'Go to the previous week.', 'bottom')
+        add_step(getattr(self, 'btn_semaine_suiv', None), 'Next week', 'Go to the next week.', 'bottom')
+
+        # 14) Save planning, 15) Agenda planning
+        add_step(getattr(self, 'btn_sauvegarder', None), 'Save planning', 'Save the current planning to the database.', 'top')
+        add_step(getattr(self, 'btn_agenda', None), 'Agenda plannings', 'Browse, open, rename or delete saved plannings.', 'top')
+
+        # Fermer toute popup de tuto (Add Site / Manage Site) lorsqu'on entre dans une étape de branche principale
+        def _close_all_tour_popups():
+            try:
+                for w in list(self.root.winfo_children()):
+                    try:
+                        if isinstance(w, tk.Toplevel) and w.winfo_exists():
+                            title = ''
+                            try:
+                                title = w.title()
+                            except Exception:
+                                pass
+                            if title in ('Add Site', 'Manage Site'):
+                                w.destroy()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        try:
+            for st in ordered:
+                try:
+                    if not st.get('no_autonum'):
+                        old_cb = st.get('on_enter')
+                        st['on_enter'] = (lambda oc=old_cb: ( _close_all_tour_popups(), oc() if callable(oc) else None ))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Numérotation des titres (ignorer les sous-étapes marquées no_autonum)
+        try:
+            counter = 0
+            for st in ordered:
+                try:
+                    if not st.get('no_autonum'):
+                        counter += 1
+                        st['title'] = f"{counter}. {st['title']}"
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            if ordered:
+                # Mémoriser le site courant pour restauration
+                prev_site_id = getattr(self, 'site_actuel_id', None)
+                prev_site_nom = getattr(self, 'site_actuel_nom', tk.StringVar(value="")).get()
+                def _cleanup_demo_site():
+                    try:
+                        # Retirer le site démo de la liste
+                        noms = [s['nom'] for s in (self.sites_disponibles or [])]
+                        if "Demo Site" in noms:
+                            idx = noms.index("Demo Site")
+                            try:
+                                self.sites_disponibles.pop(idx)
+                            except Exception:
+                                pass
+                            # Mettre à jour la combobox
+                            if hasattr(self, 'site_combobox') and self.site_combobox.winfo_exists():
+                                self.site_combobox.configure(values=[s['nom'] for s in self.sites_disponibles])
+                        # Recharger la liste des sites depuis la base et sélectionner le premier réel
+                        try:
+                            self.root.after(0, self._reset_site_after_demo)
+                        except Exception:
+                            try:
+                                self._reset_site_after_demo()
+                            except Exception:
+                                pass
+                        # Forcer la sélection d'un site non "Demo Site" (ou vider s'il n'y en a aucun)
+                        try:
+                            non_demo_index = None
+                            for idx, s in enumerate(self.sites_disponibles or []):
+                                if s.get('nom') != 'Demo Site':
+                                    non_demo_index = idx
+                                    break
+                            if non_demo_index is not None:
+                                chosen = (self.sites_disponibles or [])[non_demo_index]
+                                def _do_select():
+                                    try:
+                                        # Mettre à jour variable et combobox
+                                        self.site_actuel_nom.set(chosen.get('nom') or "")
+                                        self.site_actuel_id = chosen.get('id')
+                                        if hasattr(self, 'site_combobox') and self.site_combobox.winfo_exists():
+                                            try:
+                                                self.site_combobox.configure(values=[s['nom'] for s in self.sites_disponibles])
+                                                self.site_combobox.current(non_demo_index)
+                                                self.site_combobox.event_generate('<<ComboboxSelected>>')
+                                            except Exception:
+                                                pass
+                                        # Appel explicite
+                                        try:
+                                            self.changer_site(None)
+                                        except Exception:
+                                            pass
+                                        # Si toujours 'Demo Site', forcer une seconde fois
+                                        try:
+                                            if (self.site_actuel_nom.get() or "").strip() == "Demo Site":
+                                                self.site_actuel_nom.set(chosen.get('nom') or "")
+                                                self.site_actuel_id = chosen.get('id')
+                                                self.changer_site(None)
+                                        except Exception:
+                                            pass
+                                    except Exception:
+                                        pass
+                                try:
+                                    self.root.after(0, _do_select)
+                                except Exception:
+                                    _do_select()
+                            else:
+                                # Liste vide: réinitialiser l'état et l'UI minimale
+                                def _do_clear():
+                                    try:
+                                        self.site_actuel_id = None
+                                        self.site_actuel_nom.set("")
+                                        if hasattr(self, 'site_combobox') and self.site_combobox.winfo_exists():
+                                            self.site_combobox.set("")
+                                    except Exception:
+                                        pass
+                                try:
+                                    self.root.after(0, _do_clear)
+                                except Exception:
+                                    _do_clear()
+                        except Exception:
+                            pass
+                        # En cas de fallback (si changer_site n'a pas été appelé)
+                        try:
+                            if getattr(self, 'site_actuel_id', None) is None or getattr(self, 'reglages_site', None) is None:
+                                self.charger_travailleurs_db()
+                                self.afficher_planning()
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                CoachMarks(self.root, ordered, on_finish=_cleanup_demo_site).start()
+        except Exception:
+            pass
+
+    def _reset_site_after_demo(self):
+        """Recharge les sites depuis la base, et force la sélection d'un site réel (non Demo)."""
+        try:
+            self.charger_sites()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'site_combobox') and self.site_combobox.winfo_exists():
+                names = [s['nom'] for s in (self.sites_disponibles or [])]
+                self.site_combobox.configure(values=names)
+                # Chercher premier site non Demo
+                non_demo_idx = None
+                for i, n in enumerate(names):
+                    if n != 'Demo Site':
+                        non_demo_idx = i
+                        break
+                if non_demo_idx is None and names:
+                    non_demo_idx = 0
+                if non_demo_idx is not None:
+                    self.site_combobox.current(non_demo_idx)
+                    try:
+                        self.site_actuel_nom.set(names[non_demo_idx])
+                    except Exception:
+                        pass
+                    try:
+                        self.site_combobox.event_generate('<<ComboboxSelected>>')
+                    except Exception:
+                        pass
+                else:
+                    # Aucun site
+                    self.site_combobox.set("")
+                    try:
+                        self.site_actuel_nom.set("")
+                        self.site_actuel_id = None
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def _prepare_demo_data_for_tour(self):
+        """Prépare un site et des travailleurs de démonstration (non persistés) et bascule l'UI dessus."""
+        demo_name = "Demo Site"
+        # Injecter le site démo dans la liste s'il n'existe pas
+        try:
+            exists = any((s.get('nom') == demo_name) for s in (self.sites_disponibles or []))
+        except Exception:
+            exists = False
+        if not exists:
+            try:
+                self.sites_disponibles = list(self.sites_disponibles or [])
+                self.sites_disponibles.append({'id': -1, 'nom': demo_name})
+                # Mettre à jour la combobox
+                if hasattr(self, 'site_combobox') and self.site_combobox.winfo_exists():
+                    self.site_combobox.configure(values=[s['nom'] for s in self.sites_disponibles])
+            except Exception:
+                pass
+        # Sélectionner le site démo
+        try:
+            self.site_actuel_id = -1
+            self.site_actuel_nom.set(demo_name)
+            if hasattr(self, 'site_combobox') and self.site_combobox.winfo_exists():
+                # Positionner sur l'index du site démo
+                try:
+                    noms = [s['nom'] for s in self.sites_disponibles]
+                    idx = noms.index(demo_name)
+                    self.site_combobox.current(idx)
+                except Exception:
+                    self.site_combobox.set(demo_name)
+        except Exception:
+            pass
+        # Règlages de base pour le site démo
+        try:
+            self.reglages_site = {
+                'jours': list(Horaire.JOURS),
+                'shifts': list(Horaire.SHIFTS.values()),
+            }
+        except Exception:
+            pass
+        # Créer des travailleurs fictifs (en mémoire seulement)
+        try:
+            demo_shifts = list(Horaire.SHIFTS.values())
+            jours = list(Horaire.JOURS)
+        except Exception:
+            demo_shifts = ["Morning", "Evening", "Night"]
+            jours = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        def mk_avail(every_other=False, prefer_night=False):
+            dispo = {}
+            for idx, j in enumerate(jours):
+                if every_other and idx % 2 == 1:
+                    continue
+                if prefer_night and len(demo_shifts) >= 3:
+                    dispo[j] = [demo_shifts[-1]]
+                else:
+                    dispo[j] = demo_shifts[:2]
+            return dispo
+        try:
+            self.planning.travailleurs = [
+                Travailleur("Alice", mk_avail(), 4, site_id=-1),
+                Travailleur("Bob", mk_avail(every_other=True), 3, site_id=-1),
+                Travailleur("Charlie", mk_avail(prefer_night=True), 4, site_id=-1),
+                Travailleur("Diana", mk_avail(), 4, site_id=-1),
+                Travailleur("Ethan", mk_avail(every_other=True), 3, site_id=-1),
+            ]
+        except Exception:
+            try:
+                self.planning.travailleurs = []
+            except Exception:
+                pass
+        # Désactiver alternatives par défaut et vider info
+        try:
+            self.alt_info_var.set("")
+            self.btn_prev_alt.configure(state=tk.DISABLED)
+            self.btn_next_alt.configure(state=tk.DISABLED)
+        except Exception:
+            pass
+        # Marquer comme non généré pour afficher une grille vide illustrative
+        try:
+            self._has_generated_planning = False
+        except Exception:
+            pass
+        # Rafraîchir la liste et la grille, et préparer un sous-slot cible
+        try:
+            self.mettre_a_jour_liste_travailleurs()
+        except Exception:
+            pass
+        try:
+            self.afficher_planning()
+            # Après rendu, _first_slot_widget est alimenté par la construction de la grille
+        except Exception:
+            pass
     
     def creer_planning_visuel_vide(self):
         """Crée un affichage vide du planning avec les dates et les capacités (Required staff)."""
@@ -618,11 +1387,48 @@ class InterfacePlanning:
                                  bootstyle="success-outline",
                                  command=self.ouvrir_ajout_site)
         btn_add_site.pack(side="left", padx=(10, 0))
+        # Expose pour guided tour
+        try:
+            self.btn_add_site = btn_add_site
+        except Exception:
+            pass
         # Bouton pour gérer le site sélectionné
         btn_gerer_sites = ttk.Button(site_frame, text="⚙️ Manage Site", 
                                    bootstyle="info-outline",
                                    command=self.ouvrir_gestion_sites)
         btn_gerer_sites.pack(side="left", padx=(10, 0))
+        # Expose pour guided tour
+        try:
+            self.btn_gerer_sites = btn_gerer_sites
+        except Exception:
+            pass
+
+        # Menu App + Help (ordre important pour macOS)
+        try:
+            menubar = tk.Menu(self.root)
+            app_menu = tk.Menu(menubar, tearoff=0)
+            app_menu.add_command(label="About Sidour Avoda", command=lambda: messagebox.showinfo("About", f"Sidour Avoda v{self.VERSION}"))
+            app_menu.add_separator()
+            app_menu.add_command(label="Quit", command=self.root.destroy)
+            menubar.add_cascade(label="Sidour Avoda", menu=app_menu)
+
+            help_menu = tk.Menu(menubar, tearoff=0)
+            help_menu.add_command(label="Revoir l'onboarding", command=self._show_onboarding)
+            menubar.add_cascade(label="Help", menu=help_menu)
+
+            self.root.configure(menu=menubar)
+        except Exception:
+            pass
+
+        # (Help button removed per new UX)
+
+        # Ajouter le bouton Tutorial (ex-Guided Tour)
+        try:
+            tour_btn = ttk.Button(header_frame, text="🎓 Tutorial", bootstyle="info-outline", command=self._start_guided_tour)
+            tour_btn.pack(side="right", padx=(0,8))
+            self._tour_btn = tour_btn
+        except Exception:
+            pass
         
         # Séparateur
         ttk.Separator(main_frame, orient='horizontal').pack(fill="x", pady=5)
@@ -717,11 +1523,21 @@ class InterfacePlanning:
                                    bootstyle="success",
                                    command=self.sauvegarder_planning)
         btn_sauvegarder.grid(row=0, column=0, padx=5, sticky="ew")
+        # Expose pour guided tour
+        try:
+            self.btn_sauvegarder = btn_sauvegarder
+        except Exception:
+            pass
         
         btn_agenda = ttk.Button(frame_db, text="📅 Agenda Plannings", 
                               bootstyle="info",
                               command=self.ouvrir_agenda_plannings)
         btn_agenda.grid(row=0, column=2, padx=5, sticky="ew")
+        # Expose pour guided tour
+        try:
+            self.btn_agenda = btn_agenda
+        except Exception:
+            pass
         
         # Zone centrale contenant la colonne gauche (workers) et droite (week planning)
         content_frame = ttk.Frame(main_frame)
@@ -765,6 +1581,11 @@ class InterfacePlanning:
             command=self.semaine_precedente,
         )
         btn_semaine_prec.pack(side="left", padx=(0, 10), pady=0)
+        # Expose pour guided tour
+        try:
+            self.btn_semaine_prec = btn_semaine_prec
+        except Exception:
+            pass
         
         # Label de la période
         self.semaine_var.set(self.formater_periode_semaine(self.semaine_actuelle))
@@ -782,6 +1603,11 @@ class InterfacePlanning:
             command=self.semaine_suivante,
         )
         btn_semaine_suiv.pack(side="left", padx=(10, 0), pady=0)
+        # Expose pour guided tour
+        try:
+            self.btn_semaine_suiv = btn_semaine_suiv
+        except Exception:
+            pass
         
         # Zone scrollable pour le planning (vertical)
         self.planning_container = ttk.Frame(right_frame, padding=0)
@@ -979,6 +1805,11 @@ class InterfacePlanning:
                                  bootstyle="success-outline",
                                  command=lambda: self.ouvrir_popup_travailleur(modifier=False))
         btn_add_small.grid(row=0, column=1, padx=4, sticky="e")
+        # Exposer pour guided tour
+        try:
+            self.btn_add_small = btn_add_small
+        except Exception:
+            pass
         
         # Lier la sélection dans la table à l'édition
         self.table_travailleurs.bind('<<TreeviewSelect>>', self.selectionner_travailleur)
@@ -1015,6 +1846,11 @@ class InterfacePlanning:
         try:
             for child in self.planning_inner.winfo_children():
                 child.destroy()
+        except Exception:
+            pass
+        # Réinitialiser la cible de slot pour le guided tour
+        try:
+            self._first_slot_widget = None
         except Exception:
             pass
         
@@ -1099,6 +1935,12 @@ class InterfacePlanning:
                         name_lbl = tk.Label(slot_container, text=nom, bg=color, fg=text_color, font=self.normal_font, relief="raised", borderwidth=2, padx=5, pady=2, highlightthickness=0)
                         name_lbl.pack(fill="both", expand=True)
                         name_lbl.configure(bg=color)
+                        # Enregistrer le premier sous-slot réel pour le guided tour
+                        try:
+                            if getattr(self, '_first_slot_widget', None) is None or (hasattr(self._first_slot_widget, 'winfo_exists') and not self._first_slot_widget.winfo_exists()):
+                                self._first_slot_widget = name_lbl
+                        except Exception:
+                            pass
                         # Effet hover
                         try:
                             self._attach_hover_effect(slot_container, name_lbl)
@@ -1108,6 +1950,12 @@ class InterfacePlanning:
                         name_lbl = tk.Label(slot_container, text="Unassigned", bg="#F0F0F0", fg="#333333", font=self.normal_font, relief="sunken", borderwidth=1, padx=5, pady=2, highlightthickness=0)
                         name_lbl.pack(fill="both", expand=True)
                         name_lbl.configure(bg="#F0F0F0")
+                        # Enregistrer le premier sous-slot réel pour le guided tour
+                        try:
+                            if getattr(self, '_first_slot_widget', None) is None or (hasattr(self._first_slot_widget, 'winfo_exists') and not self._first_slot_widget.winfo_exists()):
+                                self._first_slot_widget = name_lbl
+                        except Exception:
+                            pass
                         # Effet hover
                         try:
                             self._attach_hover_effect(slot_container, name_lbl)
@@ -2070,11 +2918,68 @@ class InterfacePlanning:
         except Exception:
             pass
         try:
-            from tkinter import messagebox
-            messagebox.showinfo(
-                "Fill holes",
-                f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})"
-            )
+            # Mettre en pause le guided tour et masquer overlay/panneau pour rendre OK cliquable
+            coach = getattr(self.root, '_coach_instance', None)
+            try:
+                if coach:
+                    coach._is_paused = True
+                    try:
+                        if getattr(coach, 'panel', None):
+                            try:
+                                coach.panel.wm_attributes('-topmost', False)
+                            except Exception:
+                                pass
+                            coach.panel.withdraw()
+                        if getattr(coach, 'overlay', None):
+                            coach.overlay.withdraw()
+                            try:
+                                coach.overlay.lower(self.root)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    try:
+                        self.root.update_idletasks(); self.root.update()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            def _show_and_resume():
+                from tkinter import messagebox
+                try:
+                    messagebox.showinfo(
+                    "Fill holes",
+                    f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})"
+                    )
+                except Exception:
+                    pass
+                # Réafficher overlay/panneau et reprendre le guided tour
+                try:
+                    if coach:
+                        try:
+                            if getattr(coach, 'overlay', None):
+                                coach.overlay.deiconify()
+                            if getattr(coach, 'panel', None):
+                                coach.panel.deiconify()
+                                try:
+                                    coach.panel.wm_attributes('-topmost', True)
+                                    coach.panel.lift(coach.overlay)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                        coach._is_paused = False
+                        try:
+                            coach._show_step(coach.index + 1)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            try:
+                # Laisser le temps à withdraw/lower de s'appliquer avant d'ouvrir la messagebox
+                self.root.after(50, _show_and_resume)
+            except Exception:
+                _show_and_resume()
         except Exception:
             pass
 
@@ -3500,9 +4405,97 @@ class InterfacePlanning:
                             pass
                         # Enfin, afficher la popup de confirmation si le calcul était valide
                         if holes is None:
+                            # Pause le guided tour et masquer l'overlay/panneau pour laisser cliquer OK
+                            coach = getattr(self.root, '_coach_instance', None)
+                            try:
+                                if coach:
+                                    coach._is_paused = True
+                                    try:
+                                        if getattr(coach, 'panel', None):
+                                            try:
+                                                coach.panel.wm_attributes('-topmost', False)
+                                            except Exception:
+                                                pass
+                                            coach.panel.withdraw()
+                                        if getattr(coach, 'overlay', None):
+                                            coach.overlay.withdraw()
+                                            try:
+                                                coach.overlay.lower(self.root)
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        pass
+                                    try:
+                                        self.root.update_idletasks(); self.root.update()
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
                             messagebox.showerror("Error", f"Please add at least one worker to site '{self.site_actuel_nom.get()}'")
+                            # Réafficher l'overlay et reprendre
+                            try:
+                                if coach:
+                                    try:
+                                        if getattr(coach, 'overlay', None):
+                                            coach.overlay.deiconify()
+                                        if getattr(coach, 'panel', None):
+                                            coach.panel.deiconify()
+                                            try:
+                                                coach.panel.wm_attributes('-topmost', True)
+                                                coach.panel.lift(coach.overlay)
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        pass
+                                    coach._is_paused = False
+                                    coach._show_step(coach.index + 1)
+                            except Exception:
+                                pass
                         else:
+                            coach = getattr(self.root, '_coach_instance', None)
+                            try:
+                                if coach:
+                                    coach._is_paused = True
+                                    try:
+                                        if getattr(coach, 'panel', None):
+                                            try:
+                                                coach.panel.wm_attributes('-topmost', False)
+                                            except Exception:
+                                                pass
+                                            coach.panel.withdraw()
+                                        if getattr(coach, 'overlay', None):
+                                            coach.overlay.withdraw()
+                                            try:
+                                                coach.overlay.lower(self.root)
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        pass
+                                    try:
+                                        self.root.update_idletasks(); self.root.update()
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
                             messagebox.showinfo("Success", f"Planning generated successfully for site '{self.site_actuel_nom.get()}' ({holes} holes remaining)")
+                            try:
+                                if coach:
+                                    try:
+                                        if getattr(coach, 'overlay', None):
+                                            coach.overlay.deiconify()
+                                        if getattr(coach, 'panel', None):
+                                            coach.panel.deiconify()
+                                            try:
+                                                coach.panel.wm_attributes('-topmost', True)
+                                                coach.panel.lift(coach.overlay)
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        pass
+                                    coach._is_paused = False
+                                    coach._show_step(coach.index + 1)
+                            except Exception:
+                                pass
                     # Petit délai pour s'assurer que le loader est fermé avant le popup
                     self.root.after(50, _finish_ui)
                 except Exception:
@@ -3570,9 +4563,32 @@ class InterfacePlanning:
                 break
         
         if not site_trouve:
-            print(f"DEBUG: Site '{nom_site}' non trouvé dans les sites disponibles")
-            messagebox.showerror("Error", f"The site '{nom_site}' no longer exists.")
-            return
+            print(f"DEBUG: Site '{nom_site}' non trouvé; sélection d'un site par défaut")
+            # Choisir le premier site non 'Demo Site' si possible, sinon le premier de la liste
+            try:
+                fallback_index = None
+                for idx, s in enumerate(self.sites_disponibles or []):
+                    if s.get('nom') != 'Demo Site':
+                        fallback_index = idx
+                        break
+                if fallback_index is None and (self.sites_disponibles or []):
+                    fallback_index = 0
+                if fallback_index is not None:
+                    chosen = self.sites_disponibles[fallback_index]
+                    self.site_actuel_id = chosen['id']
+                    self.site_actuel_nom.set(chosen['nom'])
+                    if hasattr(self, 'site_combobox') and self.site_combobox.winfo_exists():
+                        try:
+                            self.site_combobox.current(fallback_index)
+                            self.root.update_idletasks()
+                        except Exception:
+                            pass
+                else:
+                    # Aucun site disponible
+                    self.site_actuel_id = None
+                    self.site_actuel_nom.set("")
+            except Exception:
+                pass
         
         print(f"Changement vers le site: {nom_site} (ID: {self.site_actuel_id})")
         
@@ -3632,7 +4648,17 @@ class InterfacePlanning:
         sites_window.geometry("1200x750")
         sites_window.configure(bg="#f0f0f0")
         sites_window.transient(self.root)
-        sites_window.grab_set()
+        # Éviter le grab si guided tour actif pour ne pas bloquer la navigation
+        try:
+            if getattr(self, '_guided_tour_active', False):
+                pass  # pas de grab
+            else:
+                sites_window.grab_set()
+        except Exception:
+            try:
+                sites_window.grab_set()
+            except Exception:
+                pass
         try:
             sites_window.update_idletasks()
             sites_window.minsize(1100, 750)
@@ -3666,6 +4692,11 @@ class InterfacePlanning:
         lf_shifts = ttk.LabelFrame(settings_frame, text="Shifts", padding=8)
         lf_shifts.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(6, 10))
         lf_shifts.columnconfigure(0, weight=1)
+        # Exposer pour guided tour
+        try:
+            self._manage_shifts_group = lf_shifts
+        except Exception:
+            pass
         # Contrôles pour Morning / Afternoon / Night (centrés)
         controls_frame = ttk.Frame(lf_shifts)
         controls_frame.pack(anchor="center")
@@ -3738,6 +4769,10 @@ class InterfacePlanning:
 
         lf_days = ttk.LabelFrame(settings_frame, text="Active days", padding=8)
         lf_days.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 10))
+        try:
+            self._manage_days_group = lf_days
+        except Exception:
+            pass
         days_frame = ttk.Frame(lf_days)
         days_frame.pack(anchor="center")
         # Map English labels to French keys used en base
@@ -3819,6 +4854,10 @@ class InterfacePlanning:
         # Capacités par jour/shift
         lf_caps = ttk.LabelFrame(settings_frame, text="Required staff (per day/shift)", padding=8)
         lf_caps.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 10))
+        try:
+            self._manage_caps_group = lf_caps
+        except Exception:
+            pass
         capacities_frame = ttk.Frame(lf_caps)
         capacities_frame.pack(anchor="center")
         # Conserver les valeurs par type de shift (morning/afternoon/night)
@@ -3926,6 +4965,10 @@ class InterfacePlanning:
         # Limites par personne et par shift (hebdomadaires)
         lf_limits = ttk.LabelFrame(settings_frame, text="Max shifts per person (per shift type, week)", padding=8)
         lf_limits.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 10))
+        try:
+            self._manage_limits_group = lf_limits
+        except Exception:
+            pass
         limits_frame = ttk.Frame(lf_limits)
         limits_frame.pack(anchor="center")
         # 0 = illimité; valeurs par défaut: 3 pour la nuit, 7 pour matin/après-midi
@@ -4590,9 +5633,17 @@ class InterfacePlanning:
         info_frame.columnconfigure(2, weight=0)
         info_frame.columnconfigure(3, weight=0)
         ttk.Label(info_frame, text="Name:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        ttk.Entry(info_frame, textvariable=self.nom_var, width=25).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+        name_entry_worker = ttk.Entry(info_frame, textvariable=self.nom_var, width=25)
+        name_entry_worker.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
         ttk.Label(info_frame, text="Desired number of shifts:").grid(row=0, column=2, sticky="w", padx=5, pady=5)
-        ttk.Entry(info_frame, textvariable=self.nb_shifts_var, width=5).grid(row=0, column=3, padx=5, pady=5)
+        nb_shifts_entry_worker = ttk.Entry(info_frame, textvariable=self.nb_shifts_var, width=5)
+        nb_shifts_entry_worker.grid(row=0, column=3, padx=5, pady=5)
+        # Exposer pour guided tour
+        try:
+            self._worker_name_entry = name_entry_worker
+            self._worker_nb_entry = nb_shifts_entry_worker
+        except Exception:
+            pass
 
         # Availabilities dynamiques
         self._rebuild_disponibilites_from_settings()
@@ -4678,7 +5729,17 @@ class InterfacePlanning:
         popup.geometry("760x600")
         popup.configure(bg="#f0f0f0")
         popup.transient(self.root)
-        popup.grab_set()
+        # Éviter le grab si guided tour actif
+        try:
+            if getattr(self, '_guided_tour_active', False):
+                pass
+            else:
+                popup.grab_set()
+        except Exception:
+            try:
+                popup.grab_set()
+            except Exception:
+                pass
         self.center_window(popup)
         self._worker_popup = popup
 
@@ -4738,7 +5799,17 @@ class InterfacePlanning:
         add_window.geometry("1200x750")
         add_window.configure(bg="#f0f0f0")
         add_window.transient(self.root)
-        add_window.grab_set()
+        # Éviter le grab si guided tour actif pour ne pas bloquer les boutons du tour
+        try:
+            if getattr(self, '_guided_tour_active', False):
+                pass  # pas de grab
+            else:
+                add_window.grab_set()
+        except Exception:
+            try:
+                add_window.grab_set()
+            except Exception:
+                pass
         # Taille minimale et centrage
         try:
             add_window.update_idletasks()
@@ -4759,21 +5830,39 @@ class InterfacePlanning:
         except Exception:
             pass
 
+        # Exposer la fenêtre pour le guided tour
+        try:
+            self._add_site_win = add_window
+        except Exception:
+            pass
+
         main = ttk.Frame(add_window, padding=20)
         main.pack(fill="both", expand=True)
 
         # Nom & Description
         ttk.Label(main, text="Site name:").grid(row=0, column=0, sticky="w")
         nom_var = tk.StringVar()
-        ttk.Entry(main, textvariable=nom_var, width=30).grid(row=0, column=1, sticky="ew", padx=(10, 0))
+        name_entry = ttk.Entry(main, textvariable=nom_var, width=30)
+        name_entry.grid(row=0, column=1, sticky="ew", padx=(10, 0))
         ttk.Label(main, text="Description:").grid(row=1, column=0, sticky="w", pady=(6, 0))
         desc_var = tk.StringVar()
-        ttk.Entry(main, textvariable=desc_var, width=30).grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(6, 0))
+        desc_entry = ttk.Entry(main, textvariable=desc_var, width=30)
+        desc_entry.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(6, 0))
+        # Exposer widgets pour guided tour
+        try:
+            self._add_site_name_entry = name_entry
+            self._add_site_desc_entry = desc_entry
+        except Exception:
+            pass
         main.columnconfigure(1, weight=1)
 
         # Shifts (Morning/Afternoon/Night) - centré et espacé
         settings_frame = ttk.LabelFrame(main, text="Shifts", padding=10)
         settings_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(12, 12))
+        try:
+            self._add_site_shifts_group = settings_frame
+        except Exception:
+            pass
 
         def make_hour_spinbox(parent, var):
             return tk.Spinbox(parent, from_=0, to=23, wrap=True, width=3, textvariable=var, state="normal", format="%02.0f")
@@ -4814,6 +5903,10 @@ class InterfacePlanning:
         # Days - centré et espacé
         days_frame = ttk.LabelFrame(main, text="Active days", padding=10)
         days_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 12))
+        try:
+            self._add_site_days_group = days_frame
+        except Exception:
+            pass
         days_inner = ttk.Frame(days_frame)
         days_inner.pack(anchor="center")
         day_order = [
@@ -4840,6 +5933,10 @@ class InterfacePlanning:
         # Required staff (capacities)
         caps_group = ttk.LabelFrame(main, text="Required staff (per day/shift)", padding=10)
         caps_group.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 12))
+        try:
+            self._add_site_caps_group = caps_group
+        except Exception:
+            pass
         caps_vars = {}
         caps_frame = ttk.Frame(caps_group)
         caps_frame.pack(anchor="center")
@@ -4915,6 +6012,10 @@ class InterfacePlanning:
         # Max shifts per person (hebdo) comme dans Manage Site
         limits_group = ttk.LabelFrame(main, text="Max shifts per person (per shift type, week)", padding=10)
         limits_group.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(6, 12))
+        try:
+            self._add_site_limits_group = limits_group
+        except Exception:
+            pass
         limits_inner = ttk.Frame(limits_group)
         limits_inner.pack(anchor="center")
         # 0 = illimité; valeurs par défaut alignées avec Manage Site (l'utilisateur peut les changer ensuite)

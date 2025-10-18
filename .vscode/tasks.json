@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run SidourAvoda (venv)",
+      "type": "shell",
+      "command": "/Users/yoelibarthel/Sidour avoda v2/venv/bin/python /Users/yoelibarthel/Sidour avoda v2/Sidour-avoda-Tzora-chevron/main.py",
+      "problemMatcher": [],
+      "options": {
+        "cwd": "/Users/yoelibarthel/Sidour avoda v2"
+      }
+    }
+  ]
+}
+
+
