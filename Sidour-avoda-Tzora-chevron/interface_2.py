@@ -543,8 +543,8 @@ class InterfacePlanning:
                 try:
                     if hasattr(self.root, '_coach_instance') and self.root._coach_instance:
                         self.root._coach_instance._is_paused = False
-                        # Avancer d'une étape si nous étions à l'étape planning creation
-                        self.root._coach_instance._show_step(self.root._coach_instance.index + 1)
+                        # Avancer d'une étape si nous étions à l'étape planning creation (petit délai Windows)
+                        self.root.after(140, lambda: self.root._coach_instance._show_step(self.root._coach_instance.index + 1))
                 except Exception:
                     pass
             try:
@@ -4451,7 +4451,8 @@ class InterfacePlanning:
                                     except Exception:
                                         pass
                                     coach._is_paused = False
-                                    coach._show_step(coach.index + 1)
+                                    # Délai court pour que le layout soit prêt avant l'étape suivante
+                                    self.root.after(140, lambda: coach._show_step(coach.index + 1))
                             except Exception:
                                 pass
                         else:
@@ -4496,7 +4497,8 @@ class InterfacePlanning:
                                     except Exception:
                                         pass
                                     coach._is_paused = False
-                                    coach._show_step(coach.index + 1)
+                                    # Délai court pour que le layout soit prêt avant l'étape suivante
+                                    self.root.after(140, lambda: coach._show_step(coach.index + 1))
                             except Exception:
                                 pass
                     # Petit délai pour s'assurer que le loader est fermé avant le popup
