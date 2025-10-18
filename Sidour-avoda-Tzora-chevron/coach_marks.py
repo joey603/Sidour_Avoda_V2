@@ -353,6 +353,50 @@ class CoachMarks:
                 self.canvas.update_idletasks()
             except Exception:
                 pass
+            # Repositionnement supplémentaire spécifique Windows (stabilise la position après transitions)
+            try:
+                if sys.platform == 'win32':
+                    def _win_reposition():
+                        if self._is_paused:
+                            return
+                        try:
+                            self.root.update_idletasks()
+                            self.overlay.update_idletasks()
+                            self.panel.update_idletasks()
+                        except Exception:
+                            pass
+                        # Recalcul bbox et géométrie
+                        try:
+                            x2, y2, w2, h2 = self._get_widget_bbox(widget)
+                            ox2 = self.overlay.winfo_rootx(); oy2 = self.overlay.winfo_rooty()
+                            cx2 = max(0, x2 - ox2); cy2 = max(0, y2 - oy2)
+                            px2, py2 = cx2 + w2 + 12, y2
+                            if placement == 'left':
+                                px2, py2 = cx2 - pw - 12, y2
+                            elif placement == 'top':
+                                px2 = cx2 + (w2 - pw) // 2
+                                py2 = cy2 - ph - 12
+                            elif placement == 'bottom':
+                                px2 = cx2 + (w2 - pw) // 2
+                                py2 = cy2 + h2 + 12
+                            elif placement == 'center':
+                                px2 = cx2 + (w2 - pw) // 2
+                                py2 = cy2 + (h2 - ph) // 2
+                            # Garde-fous écran
+                            try:
+                                sw2 = self.root.winfo_screenwidth(); sh2 = self.root.winfo_screenheight()
+                            except Exception:
+                                sw2, sh2 = 1600, 900
+                            px2 = max(8, min(px2, sw2 - pw - 8))
+                            py2 = max(8, min(py2, sh2 - ph - 8))
+                            self.panel.geometry(f"{int(pw)}x{int(ph)}+{int(px2)}+{int(py2)}")
+                        except Exception:
+                            pass
+                    # Deux passes espacées pour absorber les stabilisations post-action
+                    self.root.after(120, _win_reposition)
+                    self.root.after(220, _win_reposition)
+            except Exception:
+                pass
         except Exception:
             pass
 
