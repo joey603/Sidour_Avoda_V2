@@ -293,7 +293,16 @@ def resource_path(relative_path):
 def main():
     try:
         # Création de l'interface avec 8 heures de repos minimum entre les gardes
-        app = InterfacePlanning(repos_minimum_entre_gardes=8, app_version=get_current_version())
+        version = get_current_version()
+        try:
+            app = InterfacePlanning(repos_minimum_entre_gardes=8, app_version=version)
+        except TypeError:
+            # Compatibilité avec d'anciennes classes InterfacePlanning sans paramètre app_version
+            app = InterfacePlanning(repos_minimum_entre_gardes=8)
+            try:
+                setattr(app, 'VERSION', str(version))
+            except Exception:
+                pass
         
         # Configurer l'icône et le titre (tolérant si l'icône est absente)
         icon_path = resource_path("assets/calender-2389150_960_720.png")
