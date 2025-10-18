@@ -1,40 +1,12 @@
 import sys
 import os
 import traceback
-# Import robuste d'InterfacePlanning pour les environnements packagés Windows (forcer interface_2)
-try:
-    from interface_2 import InterfacePlanning
-except Exception as _e_import_if2:
-    # Essayer via chemin absolu dans l'environnement packagé
-    try:
-        import importlib.util
-        try:
-            base_dir = sys._MEIPASS
-        except Exception:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-        intf_path = os.path.join(base_dir, 'interface_2.py')
-        if os.path.exists(intf_path):
-            spec = importlib.util.spec_from_file_location('interface_2', intf_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)  # type: ignore[attr-defined]
-            InterfacePlanning = module.InterfacePlanning  # type: ignore[attr-defined]
-        else:
-            raise _e_import_if2
-    except Exception as _e2:
-        # Ne pas retomber sur l'ancienne UI; afficher une erreur explicite
-        try:
-            import tkinter as _tk
-            _r = _tk.Tk(); _r.withdraw()
-            _tk.messagebox.showerror("Startup error", f"Unable to load new UI (interface_2): {_e2}\nPlease reinstall or contact support.")
-            _r.destroy()
-        except Exception:
-            pass
-        raise
+from interface_2 import InterfacePlanning
 import threading
 
 # Application metadata for auto-update
 APP_NAME = "Sidour Avoda"
-APP_VERSION = "1.0.95"
+APP_VERSION = "1.0.92"
 GITHUB_OWNER = "joey603"
 GITHUB_REPO = "Sidour_Avoda_V2"
 
@@ -302,16 +274,7 @@ def resource_path(relative_path):
 def main():
     try:
         # Création de l'interface avec 8 heures de repos minimum entre les gardes
-        version = get_current_version()
-        try:
-            app = InterfacePlanning(repos_minimum_entre_gardes=8, app_version=version)
-        except TypeError:
-            # Compatibilité avec d'anciennes classes InterfacePlanning sans paramètre app_version
-            app = InterfacePlanning(repos_minimum_entre_gardes=8)
-            try:
-                setattr(app, 'VERSION', str(version))
-            except Exception:
-                pass
+        app = InterfacePlanning(repos_minimum_entre_gardes=8, app_version=get_current_version())
         
         # Configurer l'icône et le titre (tolérant si l'icône est absente)
         icon_path = resource_path("assets/calender-2389150_960_720.png")
