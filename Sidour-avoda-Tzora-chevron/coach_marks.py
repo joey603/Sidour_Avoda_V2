@@ -1,4 +1,5 @@
 import tkinter as tk
+import sys
 try:
     import ttkbootstrap as ttk
 except Exception:  # Fallback si ttkbootstrap indisponible
@@ -218,8 +219,28 @@ class CoachMarks:
         cx = max(0, x - ox); cy = max(0, y - oy)
         # Si la bbox semble instable (0x0), retenter après un court délai
         if w <= 1 or h <= 1:
+            # Sous Windows, quand la cible vient d'être (re)rendue (ex: après Fill Holes),
+            # effacer l'ancien highlight, cacher le panneau, puis retenter après un court délai
             try:
-                self.root.after(120, lambda: (not self._is_paused) and self._redraw())
+                self.canvas.delete('all')
+            except Exception:
+                pass
+            if sys.platform == 'win32':
+                try:
+                    self.panel.withdraw()
+                except Exception:
+                    pass
+            def _retry():
+                if self._is_paused:
+                    return
+                try:
+                    if sys.platform == 'win32':
+                        self.panel.deiconify()
+                except Exception:
+                    pass
+                self._redraw()
+            try:
+                self.root.after(140, _retry)
             except Exception:
                 pass
             return
