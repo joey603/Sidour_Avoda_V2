@@ -22,8 +22,6 @@ class CoachMarks:
         self._keys_bound = False
         self._nav_lock = False
         self._is_paused = False
-        # Debounce pour éviter les boucles de redraw (surtout sous Windows)
-        self._redraw_scheduled = False
 
     def start(self):
         if not self.steps:
@@ -104,24 +102,11 @@ class CoachMarks:
         self.overlay.deiconify()
 
     def _on_configure(self, _event=None):
-        # Redessiner le cadre si l'UI bouge, avec débounce pour éviter les boucles
+        # Redessiner le cadre si l'UI bouge
         if self._is_paused:
             return
-        if self._redraw_scheduled:
-            return
-        self._redraw_scheduled = True
-        try:
-            self.root.after(80, self._do_redraw)
-        except Exception:
-            # Si after échoue, faire un redraw direct mais sans boucler
-            self._do_redraw()
-
-    def _do_redraw(self):
-        try:
-            self._resize_to_screen()
-            self._redraw()
-        finally:
-            self._redraw_scheduled = False
+        self._resize_to_screen()
+        self._redraw()
 
     def _current(self):
         if 0 <= self.index < len(self.steps):

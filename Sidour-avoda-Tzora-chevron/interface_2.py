@@ -15,6 +15,8 @@ from planning import Planning
 from database import Database
 import datetime
 from coach_marks import CoachMarks
+from tkinter import messagebox
+
 
 class InterfacePlanning:
     # Version par défaut (fallback)
@@ -2947,12 +2949,11 @@ class InterfacePlanning:
             except Exception:
                 pass
             def _show_and_resume():
-            from tkinter import messagebox
                 try:
-            messagebox.showinfo(
-                "Fill holes",
-                f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})"
-            )
+                    messagebox.showinfo(
+                    "Fill holes",
+                    f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})"
+                    )
                 except Exception:
                     pass
                 # Réafficher overlay/panneau et reprendre le guided tour
@@ -4655,7 +4656,7 @@ class InterfacePlanning:
             if getattr(self, '_guided_tour_active', False):
                 pass  # pas de grab
             else:
-        sites_window.grab_set()
+                sites_window.grab_set()
         except Exception:
             try:
                 sites_window.grab_set()
@@ -5736,7 +5737,7 @@ class InterfacePlanning:
             if getattr(self, '_guided_tour_active', False):
                 pass
             else:
-        popup.grab_set()
+                popup.grab_set()
         except Exception:
             try:
                 popup.grab_set()
@@ -5806,7 +5807,7 @@ class InterfacePlanning:
             if getattr(self, '_guided_tour_active', False):
                 pass  # pas de grab
             else:
-        add_window.grab_set()
+                add_window.grab_set()
         except Exception:
             try:
                 add_window.grab_set()
