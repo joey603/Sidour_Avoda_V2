@@ -22,6 +22,7 @@ class CoachMarks:
         self._keys_bound = False
         self._nav_lock = False
         self._is_paused = False
+        self._cfg_after = None  # throttle pour <Configure>
 
     def start(self):
         if not self.steps:
@@ -102,11 +103,25 @@ class CoachMarks:
         self.overlay.deiconify()
 
     def _on_configure(self, _event=None):
-        # Redessiner le cadre si l'UI bouge
+        # Throttle des rafraîchissements pour éviter le clignotement (Windows)
         if self._is_paused:
             return
-        self._resize_to_screen()
-        self._redraw()
+        try:
+            if self._cfg_after is not None:
+                self.root.after_cancel(self._cfg_after)
+        except Exception:
+            pass
+        def _do_update():
+            try:
+                self._resize_to_screen()
+                self._redraw()
+            finally:
+                self._cfg_after = None
+        try:
+            self._cfg_after = self.root.after(140, _do_update)
+        except Exception:
+            # Fallback sans throttle
+            self._resize_to_screen(); self._redraw()
 
     def _current(self):
         if 0 <= self.index < len(self.steps):
@@ -247,18 +262,11 @@ class CoachMarks:
         py = max(8, min(py, sh - ph - 8))
         self.panel.geometry(f"{int(pw)}x{int(ph)}+{int(px)}+{int(py)}")
         try:
-            # Superposer correctement: overlay au-dessus de root (transient), panel au-dessus de l'overlay
+            # Z-order minimal pour éviter le clignotement: lever uniquement le panneau
             try:
-                self.overlay.transient(self.root)
-                self.overlay.lift(self.root)
+                self.panel.lift()
             except Exception:
                 pass
-            try:
-                self.panel.wm_attributes('-topmost', True)
-                self.panel.lift(self.overlay)
-            except Exception:
-                pass
-            # Focus seulement (sans grab) pour garder l'interactivité
             try:
                 self.panel.focus_force()
             except Exception:
@@ -266,12 +274,6 @@ class CoachMarks:
             try:
                 self.panel.update_idletasks()
                 self.canvas.update_idletasks()
-            except Exception:
-                pass
-            # S'assurer que l'overlay reste sous le panneau
-            try:
-                self.overlay.lift(self.root)
-                self.panel.lift(self.overlay)
             except Exception:
                 pass
         except Exception:
