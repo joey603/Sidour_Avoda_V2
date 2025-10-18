@@ -43,6 +43,7 @@ def _get_latest_release_info():
     """
     try:
         import json
+        import re
         from urllib.request import Request, urlopen
         releases_url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases"
         req = Request(releases_url, headers={"User-Agent": "SidourAvodaUpdater"})
@@ -52,14 +53,15 @@ def _get_latest_release_info():
             rel_list = []
 
         def _parse_semver(tag_str: str):
+            """Return (major, minor, patch) if tag is strict semver X.Y.Z (optionally prefixed with 'v'); else None."""
             try:
                 vs = (tag_str or "").lstrip("v")
-                parts = [int(p) for p in vs.split(".")]
-                while len(parts) < 3:
-                    parts.append(0)
-                return tuple(parts[:3])
+                m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", vs)
+                if not m:
+                    return None
+                return tuple(int(g) for g in m.groups())
             except Exception:
-                return (0, 0, 0)
+                return None
 
         best = None  # (semver_tuple, tag, asset_url)
         for rel in rel_list:
@@ -82,6 +84,8 @@ def _get_latest_release_info():
                 if not tag or not asset_url:
                     continue
                 sv = _parse_semver(tag)
+                if sv is None:
+                    continue  # ignore non-semver tags like '1.95'
                 if best is None or sv > best[0]:
                     best = (sv, tag, asset_url, bool(rel.get("prerelease")))
             except Exception:
@@ -108,7 +112,8 @@ def _get_latest_release_info():
                         if name.endswith(".exe"):
                             asset_url = a.get("browser_download_url")
                             break
-                if tag and asset_url:
+                sv = _parse_semver(tag)
+                if sv and asset_url:
                     return tag.lstrip("v"), asset_url
             except Exception:
                 pass
