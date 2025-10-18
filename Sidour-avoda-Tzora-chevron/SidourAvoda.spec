@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('version.txt','.')],
+    datas=[('version.txt','.'), ('interface_2.py','.'), ('coach_marks.py','.')],
     hiddenimports=['interface', 'interface_2', 'coach_marks', 'planning', 'database', 'horaire', 'travailleur', 'tkinter', 'tkinter.ttk', 'ttkbootstrap'],
     hookspath=[],
     hooksconfig={},
