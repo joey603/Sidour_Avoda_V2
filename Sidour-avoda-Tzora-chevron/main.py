@@ -1,10 +1,11 @@
 import sys
 import os
 import traceback
-# Import robuste d'InterfacePlanning pour les environnements packagés Windows
+# Import robuste d'InterfacePlanning pour les environnements packagés Windows (forcer interface_2)
 try:
     from interface_2 import InterfacePlanning
-except ModuleNotFoundError:
+except Exception as _e_import_if2:
+    # Essayer via chemin absolu dans l'environnement packagé
     try:
         import importlib.util
         try:
@@ -18,14 +19,22 @@ except ModuleNotFoundError:
             spec.loader.exec_module(module)  # type: ignore[attr-defined]
             InterfacePlanning = module.InterfacePlanning  # type: ignore[attr-defined]
         else:
-            from interface import InterfacePlanning  # fallback ancien nom
-    except Exception:
-        from interface import InterfacePlanning  # dernier recours
+            raise _e_import_if2
+    except Exception as _e2:
+        # Ne pas retomber sur l'ancienne UI; afficher une erreur explicite
+        try:
+            import tkinter as _tk
+            _r = _tk.Tk(); _r.withdraw()
+            _tk.messagebox.showerror("Startup error", f"Unable to load new UI (interface_2): {_e2}\nPlease reinstall or contact support.")
+            _r.destroy()
+        except Exception:
+            pass
+        raise
 import threading
 
 # Application metadata for auto-update
 APP_NAME = "Sidour Avoda"
-APP_VERSION = "1.0.93"
+APP_VERSION = "1.0.94"
 GITHUB_OWNER = "joey603"
 GITHUB_REPO = "Sidour_Avoda_V2"
 
