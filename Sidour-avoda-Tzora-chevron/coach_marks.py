@@ -146,7 +146,13 @@ class CoachMarks:
         if self._is_paused:
             return
         self.index = max(0, min(idx, len(self.steps)-1))
+        # Premier rendu immédiat puis une seconde passe après un court délai
+        # (utile sous Windows où la géométrie peut se stabiliser après quelques ms)
         self._redraw()
+        try:
+            self.root.after(120, lambda: (not self._is_paused) and self._redraw())
+        except Exception:
+            pass
 
     def _redraw(self):
         if self._is_paused:
@@ -173,14 +179,36 @@ class CoachMarks:
         text = step.get('text') or ''
         placement = (step.get('placement') or 'right').lower()
 
-        # Dessiner le cadre autour du widget ciblé
+        # S'assurer que l'overlay est visible et au-dessus avant dessin
+        try:
+            self.overlay.deiconify()
+            self.overlay.lift()
+        except Exception:
+            pass
+        # Dessiner le cadre autour du widget ciblé (coordonnées relatives à l'overlay)
         x, y, w, h = self._get_widget_bbox(widget)
+        try:
+            ox = self.overlay.winfo_rootx(); oy = self.overlay.winfo_rooty()
+        except Exception:
+            ox, oy = 0, 0
+        cx = max(0, x - ox); cy = max(0, y - oy)
+        # Si la bbox semble instable (0x0), retenter après un court délai
+        if w <= 1 or h <= 1:
+            try:
+                self.root.after(120, lambda: (not self._is_paused) and self._redraw())
+            except Exception:
+                pass
+            return
         self.canvas.delete('all')
         # Bordure cyan renforcée + halo pour un highlight plus prononcé
         pad = 8
-        self.canvas.create_rectangle(x-pad, y-pad, x+w+pad, y+h+pad, outline='#00E5FF', width=8)
+        self.canvas.create_rectangle(cx-pad, cy-pad, cx+w+pad, cy+h+pad, outline='#00E5FF', width=8)
         # Halo extérieur secondaire plus saturé
-        self.canvas.create_rectangle(x-pad-4, y-pad-4, x+w+pad+4, y+h+pad+4, outline='#00BCD4', width=4)
+        self.canvas.create_rectangle(cx-pad-4, cy-pad-4, cx+w+pad+4, cy+h+pad+4, outline='#00BCD4', width=4)
+        try:
+            self.canvas.update_idletasks()
+        except Exception:
+            pass
 
         # Construire le panneau d'info
         for child in list(self.panel.children.values()):
