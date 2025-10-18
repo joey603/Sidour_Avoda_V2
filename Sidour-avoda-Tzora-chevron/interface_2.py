@@ -1412,9 +1412,11 @@ class InterfacePlanning:
             app_menu.add_command(label="Quit", command=self.root.destroy)
             menubar.add_cascade(label="Sidour Avoda", menu=app_menu)
 
-            help_menu = tk.Menu(menubar, tearoff=0)
-            help_menu.add_command(label="Revoir l'onboarding", command=self._show_onboarding)
-            menubar.add_cascade(label="Help", menu=help_menu)
+            import sys
+            if sys.platform != "win32":
+                help_menu = tk.Menu(menubar, tearoff=0)
+                help_menu.add_command(label="Revoir l'onboarding", command=self._show_onboarding)
+                menubar.add_cascade(label="Help", menu=help_menu)
 
             self.root.configure(menu=menubar)
         except Exception:
