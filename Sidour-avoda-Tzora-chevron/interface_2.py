@@ -2950,12 +2950,28 @@ class InterfacePlanning:
                 pass
             def _show_and_resume():
                 try:
+                    try:
+                        # S'assurer que la fenêtre principale est au premier plan
+                        self.root.lift()
+                        try:
+                            self.root.attributes('-topmost', True)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
                     messagebox.showinfo(
                     "Fill holes",
-                    f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})"
+                    f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})",
+                    parent=self.root
                     )
                 except Exception:
                     pass
+                finally:
+                    try:
+                        # Restaurer l'état topmost
+                        self.root.attributes('-topmost', False)
+                    except Exception:
+                        pass
                 # Réafficher overlay/panneau et reprendre le guided tour
                 try:
                     if coach:
