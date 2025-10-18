@@ -1897,7 +1897,7 @@ class InterfacePlanning:
                 
                 # Capacité
                 try:
-                cap = max(1, int(caps.get(jour, {}).get(shift, 1)))
+                    cap = max(1, int(caps.get(jour, {}).get(shift, 1)))
                 except Exception:
                     cap = 1
                 
