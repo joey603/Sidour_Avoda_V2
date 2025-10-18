@@ -28,7 +28,11 @@ class CoachMarks:
         if not self.steps:
             return
         self._create_overlay()
-        self._show_step(0)
+        # Délai court pour laisser le layout se stabiliser (Windows)
+        try:
+            self.root.after(140, lambda: self._show_step(0))
+        except Exception:
+            self._show_step(0)
         # Navigation clavier globale (fonctionne même si une popup a le focus)
         self._bind_global_keys()
         # Exposer l'instance pour que l'interface puisse la mettre en pause/reprendre
