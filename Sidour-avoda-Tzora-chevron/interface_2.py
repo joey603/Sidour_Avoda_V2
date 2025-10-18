@@ -1403,22 +1403,22 @@ class InterfacePlanning:
         except Exception:
             pass
 
-        # Menu App + Help (ordre important pour macOS)
+        # Menu (désactivé sous Windows)
         try:
-            menubar = tk.Menu(self.root)
-            app_menu = tk.Menu(menubar, tearoff=0)
-            app_menu.add_command(label="About Sidour Avoda", command=lambda: messagebox.showinfo("About", f"Sidour Avoda v{self.VERSION}"))
-            app_menu.add_separator()
-            app_menu.add_command(label="Quit", command=self.root.destroy)
-            menubar.add_cascade(label="Sidour Avoda", menu=app_menu)
-
             import sys
             if sys.platform != "win32":
+                menubar = tk.Menu(self.root)
+                app_menu = tk.Menu(menubar, tearoff=0)
+                app_menu.add_command(label="About Sidour Avoda", command=lambda: messagebox.showinfo("About", f"Sidour Avoda v{self.VERSION}"))
+                app_menu.add_separator()
+                app_menu.add_command(label="Quit", command=self.root.destroy)
+                menubar.add_cascade(label="Sidour Avoda", menu=app_menu)
+
                 help_menu = tk.Menu(menubar, tearoff=0)
                 help_menu.add_command(label="Revoir l'onboarding", command=self._show_onboarding)
                 menubar.add_cascade(label="Help", menu=help_menu)
 
-            self.root.configure(menu=menubar)
+                self.root.configure(menu=menubar)
         except Exception:
             pass
 
@@ -1897,7 +1897,7 @@ class InterfacePlanning:
                 
                 # Capacité
                 try:
-                    cap = max(1, int(caps.get(jour, {}).get(shift, 1)))
+                cap = max(1, int(caps.get(jour, {}).get(shift, 1)))
                 except Exception:
                     cap = 1
                 
@@ -2947,12 +2947,12 @@ class InterfacePlanning:
             except Exception:
                 pass
             def _show_and_resume():
-                from tkinter import messagebox
+            from tkinter import messagebox
                 try:
-                    messagebox.showinfo(
-                    "Fill holes",
-                    f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})"
-                    )
+            messagebox.showinfo(
+                "Fill holes",
+                f"Filled {filled_effective} of {before_missing} holes (remaining: {after_missing})"
+            )
                 except Exception:
                     pass
                 # Réafficher overlay/panneau et reprendre le guided tour
@@ -4655,7 +4655,7 @@ class InterfacePlanning:
             if getattr(self, '_guided_tour_active', False):
                 pass  # pas de grab
             else:
-                sites_window.grab_set()
+        sites_window.grab_set()
         except Exception:
             try:
                 sites_window.grab_set()
@@ -5736,7 +5736,7 @@ class InterfacePlanning:
             if getattr(self, '_guided_tour_active', False):
                 pass
             else:
-                popup.grab_set()
+        popup.grab_set()
         except Exception:
             try:
                 popup.grab_set()
@@ -5806,7 +5806,7 @@ class InterfacePlanning:
             if getattr(self, '_guided_tour_active', False):
                 pass  # pas de grab
             else:
-                add_window.grab_set()
+        add_window.grab_set()
         except Exception:
             try:
                 add_window.grab_set()
