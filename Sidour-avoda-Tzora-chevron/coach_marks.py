@@ -22,6 +22,7 @@ class CoachMarks:
         self._keys_bound = False
         self._nav_lock = False
         self._is_paused = False
+        self._last_on_enter_idx = None  # pour éviter d'appeler on_enter plusieurs fois par étape
         self._cfg_after = None  # throttle pour <Configure>
 
     def start(self):
@@ -146,6 +147,22 @@ class CoachMarks:
         if self._is_paused:
             return
         self.index = max(0, min(idx, len(self.steps)-1))
+        # Appeler on_enter une seule fois à l'entrée de l'étape
+        try:
+            if self._last_on_enter_idx != self.index:
+                st = self._current() or {}
+                on_enter = st.get('on_enter')
+                if callable(on_enter):
+                    try:
+                        on_enter()
+                    except TypeError:
+                        try:
+                            on_enter(self)
+                        except Exception:
+                            pass
+                self._last_on_enter_idx = self.index
+        except Exception:
+            pass
         # Premier rendu immédiat puis une seconde passe après un court délai
         # (utile sous Windows où la géométrie peut se stabiliser après quelques ms)
         self._redraw()
@@ -157,18 +174,20 @@ class CoachMarks:
     def _redraw(self):
         if self._is_paused:
             return
+        # Stabiliser la géométrie avant calcul (Windows)
+        try:
+            self.root.update_idletasks()
+            if self.overlay is not None:
+                self.overlay.update_idletasks()
+            if self.panel is not None:
+                self.panel.update_idletasks()
+        except Exception:
+            pass
         step = self._current()
         if step is None:
             self._finish()
             return
         # Pas de grab: éviter de bloquer l'UI
-        # Hook d'entrée d'étape (permet d'ouvrir une popup, etc.)
-        try:
-            on_enter = step.get('on_enter')
-            if callable(on_enter):
-                on_enter()
-        except Exception:
-            pass
         widget = step.get('widget')
         try:
             if callable(widget):
@@ -182,6 +201,11 @@ class CoachMarks:
         # S'assurer que l'overlay est visible et au-dessus avant dessin
         try:
             self.overlay.deiconify()
+            # S'assurer que l'overlay couvre l'écran courant
+            try:
+                self._resize_to_screen()
+            except Exception:
+                pass
             self.overlay.lift()
         except Exception:
             pass
